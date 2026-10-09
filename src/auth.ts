@@ -13,7 +13,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   logger: {
     // A wrong password is a normal event, not a server error — keep the logs clean.
     error(error) {
-      if (error.name === "CredentialsSignin") return;
+      // Check `type`, not `name`: class names are minified in production builds.
+      if ((error as { type?: string }).type === "CredentialsSignin") return;
       console.error(error);
     },
   },
