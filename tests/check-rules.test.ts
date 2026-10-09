@@ -83,6 +83,7 @@ describe("route-auth", () => {
   it("skips the Auth.js route and passes guarded routes", () => {
     expect(rules("src/app/api/auth/[...nextauth]/route.ts", "export const { GET } = handlers")).toEqual([]);
     expect(rules("src/app/api/x/route.ts", "const user = await getCurrentUser();")).toEqual([]);
+    expect(rules("src/app/x/template/route.ts", 'const denied = await routeGuard("product:manage");')).toEqual([]);
   });
 });
 
@@ -96,5 +97,11 @@ describe("hardcoded-text", () => {
     expect(rules("src/app/x/page.tsx", "return <h1>{t('title')}</h1>")).toEqual([]);
     expect(rules("src/components/ui/button.tsx", "<span>Close</span>")).toEqual([]);
     expect(rules("src/components/x.tsx", "const c = createContext<Promise<User> | null>(null)")).toEqual([]);
+    expect(rules("src/components/x.tsx", "action: () => Promise<ActionResult<unknown>>;")).toEqual([]);
+    expect(rules("src/components/x.tsx", "form: UseFormReturn<T, C, R>,\n  result: Extract<X, Y>,")).toEqual([]);
+  });
+
+  it("still warns about multi-line JSX text that contains a colon", () => {
+    expect(rules("src/app/x/page.tsx", "<p>\n  Warning: stock will be added\n</p>")).toEqual(["warning:hardcoded-text"]);
   });
 });

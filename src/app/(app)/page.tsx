@@ -3,6 +3,8 @@ import { getTranslations } from "next-intl/server";
 import { PackageIcon } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireUser } from "@/server/auth/dal";
+import { DeniedToast } from "@/components/denied-toast";
+import { Suspense } from "react";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("dashboard");
@@ -16,6 +18,9 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <Suspense>
+        <DeniedToast />
+      </Suspense>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
         <p className="text-muted-foreground">{t("welcome", { name: user.name })}</p>

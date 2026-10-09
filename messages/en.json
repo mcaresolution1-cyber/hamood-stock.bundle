@@ -2,7 +2,38 @@
   "common": {
     "appName": "Hamood Stock",
     "companyName": "Hamood TV",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "create": "Create",
+    "close": "Close",
+    "back": "Back",
+    "search": "Search",
+    "filter": "Filter",
+    "clear": "Clear",
+    "all": "All",
+    "yes": "Yes",
+    "no": "No",
+    "active": "Active",
+    "inactive": "Inactive",
+    "status": "Status",
+    "actions": "Actions",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "confirm": "Confirm",
+    "optional": "optional",
+    "none": "None",
+    "units": "{count, plural, =1 {# unit} other {# units}}",
+    "saved": "Saved",
+    "previous": "Previous",
+    "next": "Next",
+    "pageOf": "Page {page} of {count}",
+    "results": "{count, plural, =0 {No results} =1 {1 result} other {# results}}",
+    "menu": "Menu",
+    "download": "Download",
+    "upload": "Upload"
   },
   "auth": {
     "title": "Sign in",
@@ -36,7 +67,8 @@
   "dashboard": {
     "title": "Dashboard",
     "welcome": "Welcome, {name}",
-    "empty": "Stock screens are coming soon. This is where the stock overview will live."
+    "empty": "Stock screens are coming soon. This is where the stock overview will live.",
+    "denied": "You don't have access to that page."
   },
   "categories": {
     "wall-mount": "TV wall mounts",
@@ -45,6 +77,185 @@
     "tv-table": "TV tables"
   },
   "errors": {
-    "forbidden": "You don't have permission to do that."
+    "forbidden": "You don't have permission to do that.",
+    "invalidInput": "Please fix the highlighted fields.",
+    "notFound": "This item no longer exists.",
+    "generic": "Something went wrong. Please try again.",
+    "denied": "You don't have access to that page."
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "admin": "Admin",
+    "products": "Products",
+    "warehouses": "Warehouses",
+    "users": "Users",
+    "openingStock": "Opening stock"
+  },
+  "validation": {
+    "required": "This field is required.",
+    "tooLong": "This is too long.",
+    "email": "Enter a valid email address.",
+    "passwordMin": "Use at least 8 characters.",
+    "url": "Enter a full web address starting with http:// or https://.",
+    "money": "Enter an amount like 1250 or 1250.50.",
+    "wholeNumber": "Enter a whole number (0 or more).",
+    "positiveWhole": "Enter a whole number of 1 or more.",
+    "tooLarge": "This number is too large."
+  },
+  "warehouseKinds": {
+    "SELLABLE": "Sellable",
+    "DAMAGED": "Damaged"
+  },
+  "warehouses": {
+    "title": "Warehouses",
+    "subtitle": "Where stock is kept. Damaged warehouses hold returns and broken items.",
+    "new": "New warehouse",
+    "editTitle": "Edit warehouse",
+    "name": "Name",
+    "city": "City",
+    "kind": "Type",
+    "stock": "Stock",
+    "empty": "No warehouses yet.",
+    "deactivateConfirm": "Deactivate {name}? It will no longer be available for new entries.",
+    "activateConfirm": "Activate {name} again?",
+    "errors": {
+      "nameTaken": "A warehouse with this name already exists.",
+      "hasStock": "This warehouse still has stock. Move or write it off before deactivating.",
+      "kindHasStock": "You can't change the type while the warehouse holds stock."
+    }
+  },
+  "users": {
+    "title": "Users",
+    "subtitle": "Who can sign in and what they can do.",
+    "new": "New user",
+    "editTitle": "Edit user",
+    "name": "Name",
+    "email": "Email",
+    "role": "Role",
+    "password": "Password",
+    "newPassword": "New password",
+    "warehouses": "Warehouses",
+    "warehousesHint": "Staff can only record stock in the warehouses ticked here.",
+    "noWarehouses": "No warehouses assigned",
+    "allWarehouses": "All warehouses",
+    "resetPassword": "Reset password",
+    "resetTitle": "Reset password for {name}",
+    "resetDone": "Password changed. Share it with {name} securely.",
+    "you": "you",
+    "empty": "No users yet.",
+    "deactivateConfirm": "Deactivate {name}? They will be signed out and can't sign in.",
+    "activateConfirm": "Let {name} sign in again?",
+    "roleHelp": {
+      "ADMIN": "Everything, including cost, voids and settings.",
+      "STAFF": "Records stock in, out and transfers in their warehouses.",
+      "VIEWER": "Can look at stock and history, can't change anything."
+    },
+    "errors": {
+      "emailTaken": "A user with this email already exists.",
+      "self": "You can't remove your own admin access.",
+      "lastAdmin": "There must always be at least one active admin.",
+      "unknownWarehouse": "One of the selected warehouses no longer exists."
+    }
+  },
+  "products": {
+    "title": "Products",
+    "subtitle": "Your catalogue. Deactivated products stay in history.",
+    "new": "New product",
+    "import": "Import",
+    "newTitle": "New product",
+    "editTitle": "Edit {modelCode}",
+    "modelCode": "Model code",
+    "modelCodeHint": "As printed on the box, e.g. HMD-772.",
+    "nameEn": "Name (English)",
+    "nameAr": "Name (Arabic)",
+    "category": "Category",
+    "variant": "Variant",
+    "variantHint": "Size or colour, e.g. 32–70 inch, black.",
+    "imageUrl": "Image URL",
+    "cost": "Cost (SAR)",
+    "costHint": "Only admins can see cost.",
+    "lowStockLevel": "Low-stock level",
+    "lowStockHint": "Warn when total sellable stock is at or below this. 0 = never warn.",
+    "searchPlaceholder": "Model code or name",
+    "allCategories": "All categories",
+    "statusActive": "Active",
+    "statusInactive": "Inactive",
+    "statusAll": "All",
+    "empty": "No products match.",
+    "emptyCatalogue": "No products yet. Add one or import a file.",
+    "deactivateConfirm": "Deactivate {modelCode}? It can't be received any more, but remaining stock can still go out.",
+    "activateConfirm": "Activate {modelCode} again?",
+    "created": "Product created",
+    "updated": "Product updated",
+    "errors": {
+      "codeTaken": "A product with this model code already exists."
+    }
+  },
+  "import": {
+    "title": "Import products",
+    "subtitle": "Upload an Excel (.xlsx) or CSV file. Existing model codes are updated; empty cells keep the current value.",
+    "columns": "Columns",
+    "columnsHelp": "modelCode is required. For new products also nameEn, nameAr and category. Optional: variant, imageUrl, cost, lowStockLevel.",
+    "file": "File",
+    "chooseFile": "Choose file",
+    "preview": "Check file",
+    "apply": "Import {count, plural, =1 {1 product} other {# products}}",
+    "checking": "Checking…",
+    "importing": "Importing…",
+    "summary": "{create} new · {update} updated · {error} with errors",
+    "row": "Row",
+    "action": "Result",
+    "problems": "Problems",
+    "actionCreate": "New",
+    "actionUpdate": "Update",
+    "actionError": "Error",
+    "done": "Imported: {created} new, {updated} updated.",
+    "fixAndRetry": "Fix the rows with errors in your file and check it again.",
+    "template": "Download template",
+    "errors": {
+      "noFile": "Choose a file first.",
+      "tooBig": "The file is larger than 2 MB.",
+      "fileType": "Use an .xlsx or .csv file.",
+      "unreadable": "This file couldn't be read. Save it again as .xlsx and retry.",
+      "tooManyRows": "The file has more than {max} rows. Split it into smaller files.",
+      "empty": "The file has no data rows.",
+      "missingModelCode": "The file needs a modelCode column.",
+      "missingQuantity": "The file needs a quantity column.",
+      "duplicateInFile": "This model code appears more than once in the file.",
+      "unknownCategory": "Unknown category. Use wall-mount, floor-stand, monitor-mount or tv-table.",
+      "unknownProduct": "No product with this model code.",
+      "inactiveProduct": "This product is deactivated.",
+      "fixFirst": "The file has errors. Nothing was saved."
+    }
+  },
+  "openingStock": {
+    "title": "Opening stock",
+    "subtitle": "Load the counted stock of one warehouse from a file with two columns: modelCode and quantity. It is saved as one stock-in entry.",
+    "warehouse": "Warehouse",
+    "chooseWarehouse": "Choose a warehouse",
+    "product": "Product",
+    "quantity": "Quantity",
+    "totals": "{lines, plural, =1 {1 product} other {# products}}, {units, plural, =1 {1 unit} other {# units}}",
+    "apply": "Save opening stock",
+    "saving": "Saving…",
+    "existingWarning": "{name} already has opening stock ({numbers}). Saving again adds these quantities on top.",
+    "confirmAdd": "I understand — add this stock to what is already there.",
+    "saved": "Saved as {number}.",
+    "errors": {
+      "confirmRequired": "Tick the box to confirm you want to add more opening stock."
+    }
+  },
+  "stock": {
+    "errors": {
+      "insufficient": "Only {available} {modelCode} left in {warehouse}.",
+      "invalidReason": "This reason can't be used here.",
+      "warehouseNotAssigned": "You're not assigned to this warehouse.",
+      "warehouseInactive": "This warehouse isn't active.",
+      "reasonNotForWarehouse": "Sales can't be recorded from a damaged-stock warehouse.",
+      "productNotFound": "One of the products no longer exists.",
+      "productInactive": "{modelCode} is deactivated and can't be received.",
+      "noLines": "Add at least one product.",
+      "invalidQuantity": "Quantities must be whole numbers from 1 to 100,000."
+    }
   }
 }

@@ -144,6 +144,25 @@ docs/
 Put stock business logic in `src/server/stock/` (services that take a Prisma transaction client) and keep pure
 helpers in `src/lib/stock/` so they can be unit tested.
 
+### Building blocks (use these, don't re-invent them)
+| Need | Use |
+| --- | --- |
+| Save any stock movement | `createEntry(db, user, input)` / `createEntryInTx(tx, …)` in `src/server/stock/createEntry.ts` |
+| Who may use which reason / warehouse | `src/lib/stock/policy.ts` (`entryPermissionError`, `formReasons`, `entryTypeFor`) |
+| Server action shape | `guarded(async () => { await requirePermission(…); schema.parse(input); … })` → `ActionResult` (`src/server/actions/result.ts`); throw `UserFacingError(key)` for expected failures |
+| Page access | `requireUser()` or `requirePagePermission(action)` (redirects to `/?denied=1`) |
+| Route handler access | `routeGuard(action)` (`src/server/export/template.ts`) → 401/403 |
+| Read product data | `src/server/queries/*` — select `cost` only when `can(role, "cost:view")` |
+| Spreadsheet upload | `readSheet(file)` (xlsx/csv, 2 MB, 2,000 rows) + a pure validator in `src/lib/import/` |
+| Forms | RHF + `zodResolver(schema)`, `TextField`/`SelectField`/`applyActionErrors` (`src/components/form-fields.tsx`); translate keys with `useMessage()` |
+| Lists on phones | `ResponsiveList` + `MobileCard` (cards < md, table ≥ md); LTR text in RTL with `<Ltr>` |
+| Confirm + run an action | `ConfirmAction` (`src/components/confirm-action.tsx`) |
+| Test fixtures / ledger check | `tests/helpers/db.ts`, `tests/helpers/ledger.ts` (`expectLedgerMatchesLevels`), `tests/helpers/auth.ts` (`signInAs`) |
+
+Races: checks that must hold at write time (stock before deactivating a warehouse, last admin, opening-stock
+confirmation) run **inside** a transaction with a row lock or advisory lock — see warehouses/users/opening-stock
+actions for the pattern.
+
 ## Business rules — must always hold
 
 ### The ledger

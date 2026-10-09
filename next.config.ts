@@ -11,6 +11,11 @@ const nextConfig: NextConfig = {
   cacheComponents: false,
   // Don't log server-action arguments in dev: the login action receives the password.
   logging: { serverFunctions: false },
+  experimental: {
+    // Imports (≤ 2 MB) and delivery-note photos (≤ 4 MB) go through server actions.
+    // Vercel rejects request bodies over 4.5 MB, so don't raise this further (decision Q10).
+    serverActions: { bodySizeLimit: "4mb" },
+  },
   turbopack: {
     rules: {
       "*.css": {

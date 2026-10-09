@@ -32,7 +32,7 @@ const SKIP = [/^src\/generated\//, /^node_modules\//, /^\.next\//, /^prisma\/mig
 const SELF = [/^scripts\/check-rules\.mjs$/, /^tests\/check-rules\.test\.ts$/];
 
 const STOCK_SERVICE_DIR = /^src\/server\/stock\//;
-const AUTH_CALL = /\b(requireUser|requirePermission|requireAdmin|getCurrentUser)\s*\(/;
+const AUTH_CALL = /\b(requireUser|requirePermission|requirePagePermission|requireAdmin|getCurrentUser|routeGuard)\s*\(/;
 
 /** @typedef {{ rule: string, severity: "error" | "warning", file: string, line: number, message: string }} Violation */
 
@@ -169,8 +169,11 @@ export function checkFile(file, content) {
     const re = />([^<>{}]*[A-Za-z؀-ۿ]{2,}[^<>{}]*)</g;
     for (const m of content.matchAll(re)) {
       const text = m[1].trim();
-      // Skip TS generics / arrow functions accidentally matched (e.g. `=> a < b`)
+      // Skip TypeScript accidentally matched: `=> Promise<…>`, generics, parameter lists.
+      if (content[m.index - 1] === "=") continue;
       if (!text || /[=;()]/.test(text) || /^(\||&)/.test(text)) continue;
+      const openerAfter = content[m.index + m[0].length] ?? "";
+      if (/[A-Za-z_]$/.test(m[1]) && /[A-Za-z_]/.test(openerAfter)) continue; // `Extract<T>`, `Promise<X>`
       const line = lineOf(content, m.index);
       if (allowed(lines, line - 1, "hardcoded-text")) continue;
       out.push({
