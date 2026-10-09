@@ -11,8 +11,11 @@ describe("test database", () => {
     expect(Number(pending[0].n)).toBe(0);
   });
 
-  it("starts empty and builds fixtures", async () => {
+  it("starts empty (except counters) and builds fixtures", async () => {
     expect(await testDb.product.count()).toBe(0);
+    expect((await testDb.counter.findMany()).map((c) => [c.key, c.value]).sort()).toEqual(
+      [["COR", 0], ["IN", 0], ["OUT", 0], ["TRF", 0], ["VOID", 0]],
+    );
     const w = await makeWarehouse();
     const u = await makeUser("STAFF", [w.id]);
     await makeProduct("HMD-772");

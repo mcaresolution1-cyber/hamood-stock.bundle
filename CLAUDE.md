@@ -181,19 +181,26 @@ Inside a single `db.$transaction(async (tx) => …)`:
   and VOID entries themselves cannot be voided. Voiding one half of a transfer voids both halves.
 
 ### Transfers
-- A transfer saves a linked pair in the **same transaction**: `TRANSFER_OUT` from the source warehouse and
-  `TRANSFER_IN` to the destination, both `reason: TRANSFER`, with `linkedEntryId` pointing at each other.
+- A transfer saves a linked pair in the **same transaction**: `TRANSFER_OUT` from the source warehouse first,
+  then `TRANSFER_IN` to the destination with `linkedEntryId` = the OUT entry's id (one-way link — saved
+  entries are never updated to add links). Both `reason: TRANSFER`. Find the IN half of an OUT through
+  `linkedFrom` **filtered by `type: TRANSFER_IN`** (VOID entries also link to the entry they reverse).
   Both share one `TRF` counter value: `TRF-000012` (out) and `TRF-000012-IN` (in).
 - Source and destination must differ.
 
 ### Roles — enforced on the server, every time
 - **ADMIN:** everything (all warehouses, cost, void, corrections, products, warehouses, users).
-- **STAFF:** create `IN` / `OUT` / `TRANSFER` entries **only in their assigned warehouses** (for a transfer,
-  both source and destination must be assigned). Cannot see `cost`, cannot void, cannot create corrections.
+- **STAFF:** create `IN` / `OUT` / `TRANSFER` entries **only in their assigned warehouses**, with two
+  exceptions (decided in docs/plans/v1.md):
+  - a **transfer** needs only the *source* warehouse assigned; the destination may be any active warehouse;
+  - a **damaged customer return** (`CUSTOMER_RETURN` marked damaged) may go into any active `DAMAGED`
+    warehouse without assignment — this reason only.
+  Cannot see `cost`, cannot void, cannot create corrections, return-to-supplier or damaged/lost entries.
 - **VIEWER:** read-only.
 - Enforce this **in every server action and route handler**, not just by hiding UI:
   start with `requireUser()` / `requirePermission(action)` from `src/server/auth/dal.ts`, then
-  `assertCanWriteToWarehouse(user, warehouseId)` for each warehouse touched.
+  the warehouse checks from `src/lib/stock/policy.ts` for each warehouse touched (source of a transfer;
+  the DAMAGED destination of a damaged return is the one exception).
   Pages call `requireUser()` too (layouts don't re-run on every navigation).
 - The DAL re-reads role, active flag and warehouses from the DB on each request; never trust the role in
   the JWT/session for authorization.

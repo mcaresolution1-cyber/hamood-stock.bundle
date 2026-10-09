@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 import type { Role, WarehouseKind } from "@/generated/prisma/enums";
+import { ENTRY_NUMBER_PREFIXES } from "@/lib/stock/numbering";
 import { testDatabaseUrl } from "../setup/test-db-url";
 
 export const testDb = new PrismaClient({ adapter: new PrismaPg({ connectionString: testDatabaseUrl() }) });
@@ -22,7 +23,7 @@ const TABLES = [
   "User",
 ];
 
-/** Empty every application table. Call in beforeEach. */
+/** Empty every application table and re-create the entry counters (as the seed does). Call in beforeEach. */
 export async function resetDatabase() {
   const existing = await testDb.$queryRaw<{ tablename: string }[]>`
     SELECT tablename FROM pg_tables WHERE schemaname = 'public'`;
@@ -31,6 +32,10 @@ export async function resetDatabase() {
     .map((t) => `"${t}"`)
     .join(", ");
   await testDb.$executeRawUnsafe(`TRUNCATE ${list} RESTART IDENTITY CASCADE`);
+  // Counters are advanced with a plain UPDATE … RETURNING (CLAUDE.md), so the rows must exist.
+  await testDb.counter.createMany({
+    data: Object.values(ENTRY_NUMBER_PREFIXES).map((key) => ({ key, value: 0 })),
+  });
 }
 
 let seq = 0;
