@@ -17,7 +17,12 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "setup:cloud": "bash scripts/cloud-setup.sh",
-    "db:migrate:wasm": "node --no-warnings scripts/prisma-wasm.mjs"
+    "db:migrate:wasm": "node --no-warnings scripts/prisma-wasm.mjs",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "check:rules": "node scripts/check-rules.mjs",
+    "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm check:rules && pnpm build",
+    "screenshots": "node scripts/screenshots.mjs"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",
@@ -56,6 +61,7 @@
     "dotenv": "^18.0.6",
     "eslint": "^9",
     "eslint-config-next": "16.4.0",
+    "playwright": "1.56.0",
     "prisma": "7.10.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
