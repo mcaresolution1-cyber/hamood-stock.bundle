@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -7,9 +7,9 @@ export default defineConfig({
     path: "prisma/migrations",
     seed: "tsx prisma/seed.ts",
   },
-  // The CLI (migrations) uses DIRECT_URL when set — on Neon, the direct (non-pooled) connection, because
-  // migrations take session-level locks that a pooler can't hold. The app itself always uses DATABASE_URL.
+  // Only the CLI reads this (the app connects through the adapter in src/lib/db.ts). A placeholder
+  // when unset so `prisma generate` works in builds that have no database variables.
   datasource: {
-    url: process.env.DIRECT_URL || env("DATABASE_URL"),
+    url: process.env.DATABASE_URL || "mysql://placeholder:placeholder@localhost:3306/placeholder",
   },
 });

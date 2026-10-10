@@ -1,14 +1,16 @@
 # Hamood Stock
 
 Inventory web app for Hamood TV (hamoodtv.com) — stock in, stock out, transfers and corrections across
-several warehouses, in English and Arabic. Built with Next.js, PostgreSQL/Prisma and Auth.js.
+several warehouses, in English and Arabic. Built with Next.js, MariaDB/Prisma and Auth.js, and hosted
+entirely on **Hostinger** (Business web hosting): the app runs as a Node.js web app and the data lives in a
+Hostinger MariaDB database. No other service is needed.
 
 See **[CLAUDE.md](./CLAUDE.md)** for the stack, folder structure and the business rules every change must follow,
 and **[docs/workflow.md](./docs/workflow.md)** for the AI development workflow (`/plan` → `/decide` → `/build` → `/ship`).
 
-## Quick start
+## Quick start (local)
 
-Requirements: Node 22+, pnpm 10, PostgreSQL 16 (Neon works too).
+Requirements: Node 22+, pnpm 10, MariaDB 10.6+ (or MySQL 8).
 
 **Linux / cloud session (one command):**
 
@@ -21,9 +23,9 @@ pnpm dev
 
 ```bash
 cp .env.example .env        # then set DATABASE_URL, AUTH_SECRET (openssl rand -base64 32), SEED_ADMIN_PASSWORD
-pnpm install
-pnpm db:deploy              # apply migrations
-pnpm db:seed
+pnpm install                # also generates the Prisma client and bundles the migrations
+pnpm db:deploy              # apply migrations (the server also does this itself when it starts)
+pnpm db:seed                # first admin, default warehouses, sample products
 pnpm dev
 ```
 
@@ -35,84 +37,104 @@ sample catalogue; stock is always zero until you record entries.
 
 | Script | What it does |
 | --- | --- |
-| `pnpm dev` / `build` / `start` | Next.js dev server / production build / run build |
-| `pnpm lint` / `typecheck` / `test` | ESLint / TypeScript / Vitest (unit + integration) |
+| `pnpm dev` / `build` / `start` | Next.js dev server / production build / run the build. On start the server applies pending migrations and creates the base data (`AUTO_MIGRATE`). |
+| `pnpm lint` / `typecheck` / `test` | ESLint / TypeScript / Vitest (unit + integration against MariaDB) |
 | `pnpm verify` | Everything: lint, typecheck, tests, rule checker, build |
 | `pnpm check:rules` | Project rule checker (ledger, auth, hard deletes, migrations) |
 | `pnpm screenshots` | Phone/desktop × EN/AR screenshots of the running app |
-| `pnpm db:migrate` | Create + apply a migration (`prisma migrate dev`) |
-| `pnpm db:deploy` | Apply pending migrations |
-| `pnpm db:seed` | Idempotent seed: first admin, warehouses (Riyadh Main, Damaged Stock), counters; sample products if `SEED_SAMPLE_PRODUCTS=true` |
-| `pnpm vercel-build` | What Vercel runs: `prisma migrate deploy` (only when `DIRECT_URL` is set), then `next build` |
+| `pnpm db:deploy` | Apply pending migrations to `DATABASE_URL` (same runner the server uses at start-up) |
+| `pnpm db:seed` | Base data (counters; default warehouses if none; first admin if no users) + sample products if `SEED_SAMPLE_PRODUCTS=true` |
+| `pnpm db:migrate` | Create a migration with `prisma migrate dev` (needs Prisma's native engine — see CLAUDE.md) |
 | `pnpm db:studio` | Prisma Studio |
-| `pnpm db:migrate:wasm create <name>` / `deploy` | Migration fallback when the Prisma engine download is blocked |
 
-## Deploy to Vercel + Neon
+## Deploy to Hostinger
 
-The app is a normal Next.js app. Stock movements, users and delivery-note photos all live in PostgreSQL,
-so the database is the only thing to back up. Nothing is stored on the Vercel server.
+Everything runs on your Hostinger **Business** (or Cloud) plan:
 
-### 1. Create the database (Neon)
+- **The app**: a Node.js web app built from this GitHub repository. Every push to the chosen branch redeploys it.
+- **The data**: a MariaDB database in the same hosting account (Hostinger lists it under "MySQL").
+- **Set-up and upgrades are automatic**: when the app starts, it creates or updates its own tables
+  (migrations), the entry counters, the two default warehouses and, on an empty database only, the first
+  admin. There is no command to run on the server.
 
-1. Create a Neon project. Pick the region closest to Riyadh that Neon offers (for example Frankfurt,
-   `aws-eu-central-1`), and remember it for step 3.
-2. In **Connection details**, copy two connection strings for the main branch:
-   - **Pooled** (the host contains `-pooler`). This becomes `DATABASE_URL`, used by the app.
-   - **Direct** (turn pooling off). This becomes `DIRECT_URL`, used only for migrations, because migrations
-     need a direct connection.
+### 1. Create the database
 
-   Both end in `?sslmode=require`. Keep that.
+1. In hPanel open **Websites → (your site) → Dashboard → Databases → Management**.
+2. Create a database and a user, e.g. `stock` / `stock`. Hostinger adds your account prefix, so the real
+   names look like `u123456789_stock`. Use a long password **made of letters and digits only**, so it
+   needs no escaping in the connection string.
+3. Write down the full database name, user name and password. The host is `localhost`, port `3306`.
 
-### 2. Create the first admin from your computer (once)
+Your connection string is then:
 
-With the repo cloned and `pnpm install` done, run these against the **direct** URL:
-
-```bash
-export DATABASE_URL="<Neon DIRECT connection string>"
-export DIRECT_URL="$DATABASE_URL"                # so a DIRECT_URL in your local .env can't redirect the migration
-pnpm db:deploy                                  # create the tables
-SEED_ADMIN_EMAIL="you@hamoodtv.com" \
-SEED_ADMIN_PASSWORD="<a strong password, 8+ characters>" \
-SEED_SAMPLE_PRODUCTS=false \
-pnpm db:seed                                    # first admin + warehouses + counters, no sample products
+```
+mysql://u123456789_stock:THE_PASSWORD@localhost:3306/u123456789_stock
 ```
 
-The seed only creates what's missing. It never changes an existing user's password, and it never adds
-stock. You can run it again safely.
+### 2. Create the Node.js web app
 
-### 3. Create the Vercel project
+1. In hPanel go to **Websites → Add website → Node.js web app → Import Git repository**, connect GitHub
+   (already done) and choose this repository and the **`main`** branch.
+2. Choose the domain for the app. A subdomain such as `stock.hamoodtv.com` keeps it separate from the
+   WooCommerce shop.
+3. Build settings (Hostinger detects most of them):
 
-1. Import the GitHub repository in Vercel. The framework (Next.js) and pnpm are detected automatically.
-2. **Settings → Environment Variables**. Add each one with **only Production ticked**. Vercel ticks
-   Preview and Development too by default, so untick them:
+   | Setting | Value |
+   | --- | --- |
+   | Framework | Next.js |
+   | Node.js version | 22 |
+   | Package manager | pnpm (detected from `pnpm-lock.yaml`) |
+   | Build command | `pnpm build` (or Hostinger's suggested `npm run build`, which runs the same script) |
+
+4. **Environment variables**: add these. You can also import a file in the same `KEY=value` format.
 
    | Name | Value |
    | --- | --- |
-   | `DATABASE_URL` | Neon **pooled** connection string |
-   | `DIRECT_URL` | Neon **direct** connection string (production deploys apply new migrations with it) |
-   | `AUTH_SECRET` | output of `openssl rand -base64 32` (a new value, not your local one) |
+   | `DATABASE_URL` | the connection string from step 1 |
+   | `AUTH_SECRET` | a long random value, e.g. from `openssl rand -base64 32` (keep it secret, never reuse it) |
+   | `AUTH_TRUST_HOST` | `true` |
+   | `SEED_ADMIN_EMAIL` | the first admin's email, e.g. `you@hamoodtv.com` |
+   | `SEED_ADMIN_PASSWORD` | the first admin's password (8+ characters) |
 
-   Don't set `AUTH_TRUST_HOST` or the `SEED_*` variables on Vercel. They aren't needed there.
-3. **Settings → Functions → Function Region**: choose the same region as the Neon database.
-4. Deploy. Vercel runs `pnpm install` (which also generates the Prisma client) and then `pnpm vercel-build`
-   (`prisma migrate deploy` on production deployments, then `next build`).
-5. Open the site and sign in with the admin email and password from step 2.
+   Leave `SEED_SAMPLE_PRODUCTS` unset in production, so no sample products are added.
 
-**Preview deployments.** With the variables above set for Production only, preview builds fail at
-`pnpm install`, because Prisma needs a `DATABASE_URL`. That's safe, but noisy. Pick one:
-- Skip preview builds: in **Settings → Git → Ignored Build Step**, use the command
-  `[ "$VERCEL_ENV" != "production" ]`. Exit code 0 means Vercel skips the build.
-- Give Preview its **own** database. Create a Neon branch, then for **Preview only** set `DATABASE_URL`
-  and `DIRECT_URL` to that branch, plus `AUTH_SECRET` and `MIGRATE_ON_BUILD=1` so previews migrate
-  their branch.
+5. **Deploy**. When the build finishes, the app starts. Its **Runtime logs** should show:
 
-Preview builds never migrate unless `MIGRATE_ON_BUILD=1`. Never point Preview at the production database.
+   ```
+   [startup] applied migration 20261010160000_init
+   [startup] created warehouses: Riyadh Main, Damaged Stock
+   [startup] created the first admin: you@hamoodtv.com
+   ```
 
-**Updates.** Merge to the production branch. The deploy applies any new migrations, then builds.
-Migrations are only ever added, never edited, so this is safe to repeat.
+6. Open the app's address and sign in with that email and password. After that you can delete
+   `SEED_ADMIN_PASSWORD` from the environment variables: it is only ever used while the database has no
+   users, so it can never create or reset an account later.
 
-**Backups.** Neon keeps point-in-time history (how far back depends on the plan). Excel exports
-(Reports → Download Excel) are a quick human-readable snapshot.
+### Updates
+
+Merge to `main` and push. Hostinger rebuilds and restarts the app, and the app applies any new migrations
+as it starts (logs: `[startup] applied migration …`, or `database schema is up to date`). If a deployment
+fails, Hostinger keeps the previous version running, and the build logs and its "AI failure analysis"
+show why.
+
+### Backups
+
+All data, including delivery-note photos, is in the database. Hostinger's backups include databases. For
+an extra copy, export the database from **Databases → phpMyAdmin → Export**, or use **Reports → Download
+Excel** for a readable snapshot.
+
+### Troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| Runtime log: `DATABASE_URL is not set` / `must start with mysql://` | Check the variable name and the value format in Environment Variables, then redeploy. |
+| Runtime log: `Access denied for user` | Wrong user/password, or the user isn't attached to the database. Re-check both in **Databases → Management**. A password with symbols must be URL-encoded (`@` → `%40`), so prefer letters and digits. |
+| Runtime log: `no users yet — set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD` | Add both variables (password 8+ characters) and redeploy or restart. |
+| Runtime log: `Migration … failed earlier and must be fixed by hand` | A migration stopped half-way, which should be rare. MariaDB can't roll back table changes, so a developer must first undo what it already did (the row's `logs` column has the error, `applied_steps_count` how many statements ran), then delete that row from `_prisma_migrations` in phpMyAdmin and restart. On a brand-new install the simplest fix is to drop all tables in the database and restart. |
+| Signing in redirects in a loop | `AUTH_TRUST_HOST` must be `true`, and `AUTH_SECRET` must be set. |
+| Runtime log: `DATABASE_URL is not a valid URL` | The password contains `@ # / ? :` or a space. URL-encode them, or choose a letters-and-digits password. |
+| Runtime log: `warning: … STATEMENT format … using REPEATABLE READ` | The app still works. Hostinger's database logs changes in an older format, so the app uses a slightly weaker read mode. The database constraints still prevent negative stock and double voids. |
+| Build fails with "out of memory" | Retry the deployment. If it keeps failing, the plan's build memory is too small. Check the plan's limits in hPanel. |
 
 ## Adding users
 

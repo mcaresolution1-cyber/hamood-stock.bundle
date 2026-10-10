@@ -12,7 +12,7 @@ REL="$(realpath -m --relative-to="$(pwd)" "$FILE" 2>/dev/null || echo "$FILE")"
 case "$REL" in
   prisma/migrations/*/migration.sql)
     if git cat-file -e "HEAD:$REL" 2>/dev/null; then
-      echo "Blocked: $REL is already committed. Applied migrations must never change — edit prisma/schema.prisma and create a NEW migration (pnpm db:migrate, or pnpm db:migrate:wasm create <name>)." >&2
+      echo "Blocked: $REL is already committed. Applied migrations must never change — edit prisma/schema.prisma and create a NEW migration (see CLAUDE.md → Database: MariaDB, migrations and start-up)." >&2
       exit 2
     fi
     ;;

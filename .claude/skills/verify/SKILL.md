@@ -5,7 +5,7 @@ allowed-tools: Bash(pnpm verify) Bash(pnpm lint) Bash(pnpm typecheck) Bash(pnpm 
 
 # /verify
 
-1. Make sure PostgreSQL is running (`pg_isready`; start it with `bash scripts/cloud-setup.sh` if not —
+1. Make sure MariaDB is running (`mariadb-admin ping`; start it with `bash scripts/cloud-setup.sh` if not —
    integration tests need it).
 2. Run `pnpm verify`. If it fails, run the failing step alone to get the full output.
 3. Report a table: `check | result | detail` for lint, typecheck, tests (passed/failed counts),

@@ -27,7 +27,8 @@ agents in `.claude/agents/`. Rules for every session:
 | Concern | Choice |
 | --- | --- |
 | Framework | Next.js 16 (App Router, `src/`), TypeScript, pnpm |
-| Database | PostgreSQL 16 + Prisma 7 (`prisma-client` generator, `@prisma/adapter-pg`) |
+| Database | MariaDB 10.6+ (Hostinger; MySQL 8 also works) + Prisma 7 (`prisma-client` generator, `@prisma/adapter-mariadb`) |
+| Hosting | Hostinger Business web hosting: Node.js web app from GitHub + Hostinger MariaDB — nothing else |
 | Auth | Auth.js / NextAuth v5 (beta), Credentials provider (email + password, bcryptjs), JWT sessions |
 | UI | Tailwind CSS v4 + shadcn/ui (new-york style, Radix) — components in `src/components/ui` |
 | Forms | React Hook Form + Zod 4 + `@hookform/resolvers` |
@@ -47,54 +48,69 @@ pnpm build            # production build
 pnpm start            # run production build
 pnpm lint             # ESLint
 pnpm typecheck        # next typegen + tsc --noEmit
-pnpm test             # Vitest: unit + integration (integration needs PostgreSQL)
-pnpm db:migrate       # prisma migrate dev (create + apply a migration)
-pnpm db:deploy        # prisma migrate deploy (apply pending migrations)
-pnpm db:seed          # idempotent seed (admin, warehouses, sample products, counters)
+pnpm test             # Vitest: unit + integration (integration needs MariaDB)
+pnpm db:migrate       # prisma migrate dev (create a migration — needs the native engine, see below)
+pnpm db:deploy        # apply pending migrations with our runner (the server also does this at start-up)
+pnpm db:seed          # idempotent seed (base data + sample products if SEED_SAMPLE_PRODUCTS=true)
 pnpm db:studio        # Prisma Studio
 pnpm db:generate      # regenerate the Prisma client (also runs on pnpm install)
-pnpm db:migrate:wasm create <name>   # fallback: create a migration without the native engine
-pnpm db:migrate:wasm deploy          # fallback: apply migrations without the native engine
 pnpm setup:cloud      # = bash scripts/cloud-setup.sh (see below)
 pnpm test:unit        # unit tests only (no database needed)
-pnpm test:integration # PostgreSQL tests against <db>_test (created + migrated automatically)
+pnpm test:integration # MariaDB tests against <db>_test (created + migrated automatically)
 pnpm check:rules      # project rule checker (ledger, auth, hard deletes, migrations, i18n)
 pnpm verify           # lint + typecheck + all tests + check:rules + build
 pnpm screenshots      # phone/desktop × EN/AR screenshots of the running app → docs/screenshots/
-pnpm vercel-build     # what Vercel runs: migrate deploy (only if DIRECT_URL is set) + next build
 ```
 
-Deploying (Vercel + Neon), creating the first admin and adding users: see **README.md**.
+Deploying to Hostinger, the first admin and adding users: see **README.md**.
 
 Before finishing any change run `pnpm verify`.
 
 ### Fresh cloud session / new machine
 
-Run `bash scripts/cloud-setup.sh`. It is idempotent: installs/starts PostgreSQL, writes `.env` from
-`.env.example` (random `AUTH_SECRET`, DB password and `SEED_ADMIN_PASSWORD`) if missing, creates the DB role
-and database, then `pnpm install`, `prisma generate`, migrations and seed.
+Run `bash scripts/cloud-setup.sh`. It is idempotent: installs/starts MariaDB, writes `.env` from
+`.env.example` (random `AUTH_SECRET`, DB password and `SEED_ADMIN_PASSWORD`) if missing (and converts an old
+PostgreSQL `DATABASE_URL`), creates the DB user + `<db>` and `<db>_test`, then `pnpm install`, migrations and seed.
 Log in as `admin@hamoodtv.local` with `SEED_ADMIN_PASSWORD` from `.env`.
-Seed env: `SEED_ADMIN_EMAIL` (default `admin@hamoodtv.local`), `SEED_SAMPLE_PRODUCTS=true` adds the sample catalogue
-(dev only). `DIRECT_URL`, if set, is used for migrations instead of `DATABASE_URL` (Neon: direct vs pooled).
+Env: `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` create the first admin only while there are no users at all;
+`SEED_SAMPLE_PRODUCTS=true` adds the sample catalogue (dev only); `AUTO_MIGRATE=false` skips start-up migrations.
 
-### Migrations when binaries.prisma.sh is blocked
+### Database: MariaDB, migrations and start-up
 
-The Prisma CLI downloads a native schema engine from `binaries.prisma.sh`. Claude Code cloud sessions block
-that host, so `prisma migrate dev/deploy` fail there. `cloud-setup.sh` detects this and uses
-`scripts/prisma-wasm.mjs`, which runs Prisma's **WASM** schema engine (same engine, same SQL, same
-`_prisma_migrations` table — fully compatible with the normal CLI). In that environment:
+Production is Hostinger (README → Deploy): MariaDB at `localhost`, no shell step for migrations. So:
 
-1. Edit `prisma/schema.prisma`.
-2. `pnpm db:migrate:wasm create <name>` — diffs the **git HEAD** schema against your working-tree schema.
-   So always commit a schema change together with its migration, or HEAD will be out of sync.
-3. Review the SQL, then `pnpm db:migrate:wasm deploy` and `pnpm db:generate`.
+- **The server migrates itself.** `src/instrumentation.ts` → `src/server/db/bootstrap.ts` runs once per
+  server start: `applyMigrations` (`src/server/db/migrator.ts`, a MariaDB named lock + Prisma's own
+  `_prisma_migrations` table and checksums) over the SQL embedded at install/build time
+  (`scripts/bundle-migrations.mjs` → `src/generated/migrations.ts`), then `ensureBaseData`
+  (`src/server/db/base-data.ts`: counters; default warehouses only if none; first admin only if NO users).
+  `pnpm db:deploy` (scripts/migrate.ts) and the test setup use the same runner.
+- **Connections** (`src/lib/db-config.ts`): every session runs `time_zone = '+00:00'` and
+  `READ COMMITTED` — the stock/void/admin checks lock a row and then must see the latest committed data.
+  Keep the pool small (shared hosting limits connections). `src/lib/db.ts` creates the client lazily, so
+  `next build` needs no database.
+- **Creating a migration.** `prisma migrate dev` needs Prisma's native schema engine (downloaded from
+  binaries.prisma.sh, which cloud sessions block; Prisma's WASM engine has no MySQL support). Where it works:
+  edit `prisma/schema.prisma`, `pnpm db:migrate` (or `prisma migrate diff --from-migrations … --script`).
+  In a blocked session, write the SQL by hand in Prisma's MySQL style (backtick identifiers, `DATETIME(3)`,
+  `VARCHAR(191)`, `DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`) into a new
+  `prisma/migrations/<UTC timestamp>_<name>/migration.sql`, then `pnpm db:generate && pnpm db:deploy`.
+  Commit the schema change together with its migration.
+- **Rules for migration SQL:** no semicolons inside comments (statements are split on `;` at line end);
+  CHECK constraints and the generated-column unique guards are hand-written at the end of the file;
+  never edit a committed migration — add a new one. Prisma doesn't know the guards (`voidOfId`,
+  `transferInOfId` + their unique indexes), so a migration it generates may try to DROP them: delete those
+  lines (`pnpm check:rules` → `migration-guard` blocks them).
+- **Isolation fallback:** if the server logs binary changes in STATEMENT format, MariaDB refuses writes under
+  READ COMMITTED; start-up detects it and uses REPEATABLE READ (warning in the logs). The DB constraints
+  (no negative stock, one void per entry) still hold.
+- **SQL in code** is MariaDB: backtick identifiers, `LOCK IN SHARE MODE` (not FOR SHARE),
+  `ON DUPLICATE KEY UPDATE`, `LAST_INSERT_ID(expr)` for the counter (no RETURNING), no partial indexes
+  (use a generated column + unique index), case-insensitive matching comes from the `utf8mb4_unicode_ci`
+  collation (Prisma's `mode: "insensitive"` is Postgres-only).
 
-`pnpm install` / `pnpm db:generate` run `scripts/prisma-generate.mjs`, which retries `prisma generate`
-without the engine download when it is blocked, so they work in both kinds of environment.
-
-Rules for migration SQL: **no semicolons inside SQL comments** (the WASM runner splits statements on `;`),
-and Prisma can't express CHECK constraints, so hand-written ones are appended at the end of migration files.
-Never edit a migration that has already been applied/committed — add a new one.
+`pnpm install` / `pnpm db:generate` run `scripts/prisma-generate.mjs` (prisma generate with a fallback when the
+engine download is blocked) and then bundle the migrations.
 
 ## Folder structure
 
@@ -109,7 +125,8 @@ scripts/
   check-rules.mjs        # project rule checker (pnpm check:rules), used by hooks and /verify
   screenshots.mjs        # phone/desktop × EN/AR screenshots (pnpm screenshots)
   cloud-setup.sh         # idempotent environment setup
-  prisma-wasm.mjs        # migration fallback (see above)
+  migrate.ts             # pnpm db:deploy (same runner as start-up)
+  bundle-migrations.mjs  # embed migrations for the server (install + build)
   prisma-generate.mjs    # prisma generate with blocked-engine fallback (postinstall)
 src/
   proxy.ts               # optimistic auth redirect only (NOT the security boundary)
@@ -137,7 +154,8 @@ src/
     page-skeleton.tsx, error-view.tsx, not-found-view.tsx, empty-state.tsx
   i18n/                  # locale config + next-intl request config (cookie NEXT_LOCALE)
   lib/
-    db.ts                # Prisma client singleton (server-only)
+    db.ts                # Prisma client (lazy singleton, server-only)
+    db-config.ts         # MariaDB connection settings from DATABASE_URL (UTC, READ COMMITTED, small pool)
     permissions.ts       # pure role rules (can, canWriteToWarehouse) + tests
     stock/numbering.ts   # entry number prefixes/format (pure) + tests
     validation/          # Zod schemas (shared by client forms and server actions)
@@ -148,11 +166,12 @@ src/
     stock/               # createEntry / voidEntry — the ONLY code that changes StockLevel
     queries/             # reads: entries, reports, product-stock, dashboard, … (cost only for cost:view)
     export/              # xlsx writer + report exports + routeGuard
+    db/                  # start-up: migrator, base data, bootstrap (called from src/instrumentation.ts)
   generated/prisma/      # Prisma client output (gitignored, built by `prisma generate`)
   types/                 # module augmentation for next-auth and next-intl
 tests/
   *.test.ts              # unit: translation parity, rule checker, workflow config
-  integration/           # PostgreSQL tests (own <db>_test database, TRUNCATE between tests)
+  integration/           # MariaDB tests (own <db>_test database, TRUNCATE between tests)
   helpers/db.ts          # testDb, resetDatabase(), makeUser/makeWarehouse/makeProduct
   setup/                 # vitest globalSetup (creates + migrates the test DB)
 docs/
@@ -183,7 +202,7 @@ helpers in `src/lib/stock/` so they can be unit tested.
 | Test fixtures / ledger check | `tests/helpers/db.ts`, `tests/helpers/ledger.ts` (`expectLedgerMatchesLevels`), `tests/helpers/auth.ts` (`signInAs`) |
 
 Races: checks that must hold at write time (stock before deactivating a warehouse, last admin, opening-stock
-confirmation) run **inside** a transaction with a row lock or advisory lock — see warehouses/users/opening-stock
+confirmation) run **inside** a transaction with a row lock (`FOR UPDATE`) — see warehouses/users/opening-stock
 actions for the pattern.
 
 ## Business rules — must always hold
@@ -200,15 +219,16 @@ actions for the pattern.
 ### Saving an entry — ONE database transaction
 Inside a single `db.$transaction(async (tx) => …)`:
 1. Get the next number from `Counter` atomically:
-   `UPDATE "Counter" SET value = value + 1 WHERE key = $prefix RETURNING value`
+   ``UPDATE `Counter` SET value = LAST_INSERT_ID(value + 1) WHERE `key` = ?`` then `SELECT LAST_INSERT_ID()`
+   on the same (transaction) connection
    (prefixes: `IN`, `OUT`, `TRF` for transfers, `COR` for corrections, `VOID`), then
    `formatEntryNumber()` from `src/lib/stock/numbering.ts` → `IN-000123`. Never compute numbers with
    `MAX()+1` or outside the transaction.
 2. Insert the `StockEntry` and its `StockEntryLine`s (merge duplicate products into one line first).
 3. Update `StockLevel` for every line:
-   - **Stock coming in:** upsert — `INSERT … ON CONFLICT ("productId","warehouseId") DO UPDATE SET quantity = "StockLevel".quantity + x`.
+   - **Stock coming in:** upsert — `INSERT … ON DUPLICATE KEY UPDATE quantity = quantity + x`.
    - **Stock going out:** conditional update —
-     `UPDATE "StockLevel" SET quantity = quantity - x WHERE "productId" = … AND "warehouseId" = … AND quantity >= x`.
+     `UPDATE StockLevel SET quantity = quantity - x WHERE productId = … AND warehouseId = … AND quantity >= x`.
      If it affects 0 rows (missing row or not enough stock), **throw and abort the whole transaction**
      — nothing from that entry is saved. Report which product is short.
 4. Never read-then-write quantities in JS (`findUnique` → compute → `update`); always let SQL do the
@@ -262,8 +282,9 @@ Inside a single `db.$transaction(async (tx) => …)`:
 ## Conventions
 - Server actions return `{ ok: true, … } | { ok: false, error: <translation key> }` for expected failures
   and throw for programming errors. Validate input with the same Zod schema the form uses.
-- Dates: store `timestamptz`; display in `Asia/Riyadh` (set in next-intl config). Day/month filters are Riyadh
-  days (`riyadhDayStart`); SQL buckets use `AT TIME ZONE 'Asia/Riyadh'`.
+- Dates: stored as UTC `DATETIME(3)` (sessions run in UTC); display in `Asia/Riyadh` (set in next-intl config).
+  Day/month filters are Riyadh days (`riyadhDayStart`); SQL month buckets add `INTERVAL 3 HOUR` (Riyadh is
+  UTC+3 all year) — no named time zones, Hostinger's MariaDB may not have the tz tables.
 - Phones: interactive controls are ≥ 44px tall below `md` (Button/Input/Select sizes are set that way in
   `src/components/ui` — don't override them with a smaller `h-*` without an `md:` prefix).
 - Excel: text is written as plain text cells, never formulas (decision B13); keep exports .xlsx, not CSV.

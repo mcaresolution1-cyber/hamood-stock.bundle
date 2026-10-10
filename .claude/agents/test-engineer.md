@@ -1,6 +1,6 @@
 ---
 name: test-engineer
-description: Writes and runs Vitest tests for a Hamood Stock phase — pure unit tests and PostgreSQL integration tests for the stock ledger, permissions and imports. Use after implementing a phase, or when asked to prove a behaviour.
+description: Writes and runs Vitest tests for a Hamood Stock phase — pure unit tests and MariaDB integration tests for the stock ledger, permissions and imports. Use after implementing a phase, or when asked to prove a behaviour.
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: inherit
 color: yellow

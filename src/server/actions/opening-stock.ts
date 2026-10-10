@@ -58,9 +58,10 @@ export async function applyOpeningStock(formData: FormData): Promise<ActionResul
 
     const entry = await db.$transaction(
       async (tx) => {
-        // Serialise opening-stock saves per warehouse, then re-check Q6 inside the transaction so two
-        // simultaneous submits can't both skip the confirmation.
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`opening-stock:${preview.warehouse.id}`}))`;
+        // Serialise opening-stock saves per warehouse (row lock on the warehouse, held until commit),
+        // then re-check Q6 inside the transaction so two simultaneous submits can't both skip the
+        // confirmation. The entry service's share lock on the same row is then already covered.
+        await tx.$queryRaw`SELECT id FROM \`Warehouse\` WHERE id = ${preview.warehouse.id} FOR UPDATE`;
         const earlier = await tx.stockEntry.count({
           where: { warehouseId: preview.warehouse.id, reason: "OPENING_STOCK", voidedAt: null },
         });

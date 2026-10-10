@@ -1,28 +1,20 @@
 /**
  * Idempotent seed: safe to run any number of times.
- * - Creates (never overwrites) the admin user, base warehouses and counters.
+ * - Base data via ensureBaseData (counters, default warehouses if none, first admin if no users) —
+ *   the server does the same at start-up, so production needs no seed run.
  * - Sample products only when SEED_SAMPLE_PRODUCTS=true (local dev); production starts with none.
- * - Admin email: SEED_ADMIN_EMAIL, default admin@hamoodtv.local.
+ * - Admin email: SEED_ADMIN_EMAIL, default admin@hamoodtv.local. Run migrations first (pnpm db:deploy).
  * - Does NOT create stock entries; stock only ever comes from saved entries.
  */
 import "dotenv/config";
-import bcrypt from "bcryptjs";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient, Prisma } from "../src/generated/prisma/client";
-import { ENTRY_NUMBER_PREFIXES } from "../src/lib/stock/numbering";
+import { ensureBaseData, firstAdminFromEnv } from "../src/server/db/base-data";
+import { mariadbConfig } from "../src/lib/db-config";
 
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) throw new Error("DATABASE_URL is not set");
+const prisma = new PrismaClient({ adapter: new PrismaMariaDb(mariadbConfig(process.env.DATABASE_URL)) });
 
-const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
-
-const ADMIN_EMAIL = (process.env.SEED_ADMIN_EMAIL || "admin@hamoodtv.local").trim().toLowerCase();
 const SAMPLE_PRODUCTS = process.env.SEED_SAMPLE_PRODUCTS === "true";
-
-const warehouses: Prisma.WarehouseCreateInput[] = [
-  { name: "Riyadh Main", city: "Riyadh", kind: "SELLABLE" },
-  { name: "Damaged Stock", city: "Riyadh", kind: "DAMAGED" },
-];
 
 const products: Prisma.ProductCreateInput[] = [
   {
@@ -92,32 +84,13 @@ const products: Prisma.ProductCreateInput[] = [
 ];
 
 async function main() {
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD;
-  if (!adminPassword || adminPassword === "CHANGE_ME") {
-    throw new Error("Set SEED_ADMIN_PASSWORD in .env before seeding");
-  }
-  if (adminPassword.length < 8) throw new Error("SEED_ADMIN_PASSWORD must be at least 8 characters");
-  if (!/^[^\s@]+@[^\s@]+$/.test(ADMIN_EMAIL)) throw new Error(`SEED_ADMIN_EMAIL is not an email: ${ADMIN_EMAIL}`);
+  const admin = firstAdminFromEnv();
+  if (!admin.password || admin.password === "CHANGE_ME") throw new Error("Set SEED_ADMIN_PASSWORD in .env before seeding");
+  if (admin.password.length < 8) throw new Error("SEED_ADMIN_PASSWORD must be at least 8 characters");
 
-  const existingAdmin = await prisma.user.findUnique({ where: { email: ADMIN_EMAIL } });
-  if (existingAdmin) {
-    console.log(`• admin ${ADMIN_EMAIL} already exists (password left unchanged)`);
-  } else {
-    await prisma.user.create({
-      data: {
-        name: "Admin",
-        email: ADMIN_EMAIL,
-        passwordHash: await bcrypt.hash(adminPassword, 12),
-        role: "ADMIN",
-      },
-    });
-    console.log(`✓ created admin ${ADMIN_EMAIL}`);
-  }
-
-  for (const w of warehouses) {
-    await prisma.warehouse.upsert({ where: { name: w.name }, create: w, update: {} });
-  }
-  console.log(`✓ warehouses: ${warehouses.map((w) => w.name).join(", ")}`);
+  // Same base data the server creates at start-up (counters, default warehouses, first admin).
+  const { adminCreated } = await ensureBaseData(prisma, admin, (m) => console.log(`✓ ${m}`));
+  if (!adminCreated) console.log("• users already exist — no admin created (passwords are never changed)");
 
   if (SAMPLE_PRODUCTS) {
     for (const p of products) {
@@ -127,12 +100,6 @@ async function main() {
   } else {
     console.log("• sample products skipped (set SEED_SAMPLE_PRODUCTS=true to add them)");
   }
-
-  await prisma.counter.createMany({
-    data: Object.values(ENTRY_NUMBER_PREFIXES).map((key) => ({ key, value: 0 })),
-    skipDuplicates: true,
-  });
-  console.log("✓ counters");
 }
 
 main()

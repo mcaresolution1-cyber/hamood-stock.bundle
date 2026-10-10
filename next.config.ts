@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
   logging: { serverFunctions: false },
   experimental: {
     // Imports (≤ 2 MB) and delivery-note photos (≤ 4 MB) go through server actions.
-    // Vercel rejects request bodies over 4.5 MB, so don't raise this further (decision Q10).
+    // Photos are capped at 4 MB (decision Q10, MEDIUMBLOB); keep the body limit just above that.
     serverActions: { bodySizeLimit: "4mb" },
   },
   turbopack: {

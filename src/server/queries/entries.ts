@@ -62,7 +62,7 @@ export function entryWhere(f: EntryFilters): Prisma.StockEntryWhereInput {
     ...(f.type ? { type: f.type } : {}),
     ...(f.reason ? { reason: f.reason } : {}),
     ...(f.userId ? { createdById: f.userId } : {}),
-    ...(product ? { lines: { some: { product: { modelCode: { contains: product, mode: "insensitive" } } } } } : {}),
+    ...(product ? { lines: { some: { product: { modelCode: { contains: product } } } } } : {}),
   };
 }
 
