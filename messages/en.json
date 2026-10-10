@@ -526,5 +526,14 @@
     "fromMonth": "From month",
     "toMonth": "To month",
     "apply": "Show"
+  },
+  "states": {
+    "errorTitle": "Something went wrong",
+    "errorBody": "This page couldn't load. Try again, or go back to the dashboard.",
+    "errorReference": "Reference:",
+    "retry": "Try again",
+    "home": "Go to dashboard",
+    "notFoundTitle": "Page not found",
+    "notFoundBody": "This page or item doesn't exist, or the link is wrong."
   }
 }

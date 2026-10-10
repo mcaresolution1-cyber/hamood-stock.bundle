@@ -80,7 +80,7 @@ function timestamp() {
 
 async function main() {
   const [command, rawName] = process.argv.slice(2);
-  const url = process.env.DATABASE_URL;
+  const url = process.env.DIRECT_URL || process.env.DATABASE_URL; // same rule as prisma.config.ts
   if (!url) throw new Error("DATABASE_URL is not set");
 
   const schema = fs.readFileSync(SCHEMA_PATH, "utf8");

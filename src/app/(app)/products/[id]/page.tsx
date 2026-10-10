@@ -139,7 +139,7 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
                 </option>
               ))}
             </NativeSelect>
-            <Button type="submit" variant="secondary" className="h-10">
+            <Button type="submit" variant="secondary" className="h-11 md:h-10">
               {t("reports.apply")}
             </Button>
           </form>
@@ -149,7 +149,7 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
           {rows.length === 0 && <li className="p-4 text-sm text-muted-foreground">{t("productPage.empty")}</li>}
           {rows.map((r, i) => (
             <li key={`${r.href}-${i}`} className={cn("flex items-center justify-between gap-3 p-3", r.voided && "text-muted-foreground line-through")}>
-              <Link href={r.href} className="min-w-0">
+              <Link href={r.href} className="flex min-h-11 min-w-0 flex-col justify-center">
                 <Ltr className="block font-medium">{r.number}</Ltr>
                 <span className="block truncate text-xs text-muted-foreground">
                   {r.date} · {r.reason} · {r.warehouse}

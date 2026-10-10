@@ -372,7 +372,7 @@ function LinesEditor({
                       <span className="text-xs text-muted-foreground">{t("available", { count: available })}</span>
                     )}
                   </div>
-                  <Button type="button" variant="ghost" size="icon" className="size-10" aria-label={t("remove")} onClick={() => remove(i)}>
+                  <Button type="button" variant="ghost" size="icon" className="size-11" aria-label={t("remove")} onClick={() => remove(i)}>
                     <Trash2Icon className="size-4" aria-hidden />
                   </Button>
                 </div>

@@ -70,7 +70,7 @@ export default async function ProductsPage({ searchParams }: PageProps<"/admin/p
           defaultValue={filters.q}
           placeholder={t("searchPlaceholder")}
           aria-label={tc("search")}
-          className="h-10"
+          className="h-11 md:h-10"
           type="search"
         />
         <NativeSelect name="category" defaultValue={filters.category ?? ""} aria-label={t("category")}>
@@ -87,11 +87,11 @@ export default async function ProductsPage({ searchParams }: PageProps<"/admin/p
           <option value="all">{t("statusAll")}</option>
         </NativeSelect>
         <div className="flex gap-2">
-          <Button type="submit" variant="secondary" className="h-10 flex-1">
+          <Button type="submit" variant="secondary" className="h-11 md:h-10 flex-1">
             {tc("search")}
           </Button>
           {filtered && (
-            <Button variant="ghost" className="h-10" asChild>
+            <Button variant="ghost" className="h-11 md:h-10" asChild>
               <Link href="/admin/products">{tc("clear")}</Link>
             </Button>
           )}

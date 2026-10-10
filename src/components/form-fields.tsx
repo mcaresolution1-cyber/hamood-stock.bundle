@@ -41,7 +41,7 @@ export function TextField({
         <FormItem>
           <Label label={label} optional={optional} />
           <FormControl>
-            <Input className="h-10" {...input} {...field} value={field.value ?? ""} />
+            <Input className="h-11 md:h-10" {...input} {...field} value={field.value ?? ""} />
           </FormControl>
           {hint && <FormDescription>{hint}</FormDescription>}
           <FormMessage>{message(fieldState.error?.message)}</FormMessage>

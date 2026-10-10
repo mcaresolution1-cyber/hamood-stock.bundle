@@ -41,11 +41,11 @@ export default async function OutByReasonPage({ searchParams }: PageProps<"/repo
       <form method="get" className="mb-3 grid gap-2 sm:grid-cols-[auto_auto_1fr_auto] sm:items-end">
         <label className="grid gap-1 text-sm">
           {t("reports.fromMonth")}
-          <Input type="month" name="from" defaultValue={r.fromMonth} className="h-10" />
+          <Input type="month" name="from" defaultValue={r.fromMonth} className="h-11 md:h-10" />
         </label>
         <label className="grid gap-1 text-sm">
           {t("reports.toMonth")}
-          <Input type="month" name="to" defaultValue={r.toMonth} className="h-10" />
+          <Input type="month" name="to" defaultValue={r.toMonth} className="h-11 md:h-10" />
         </label>
         <label className="grid gap-1 text-sm">
           {t("entries.warehouse")}
@@ -58,7 +58,7 @@ export default async function OutByReasonPage({ searchParams }: PageProps<"/repo
             ))}
           </NativeSelect>
         </label>
-        <Button type="submit" variant="secondary" className="h-10">
+        <Button type="submit" variant="secondary" className="h-11 md:h-10">
           {t("reports.apply")}
         </Button>
       </form>

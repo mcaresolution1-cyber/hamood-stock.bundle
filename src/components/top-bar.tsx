@@ -25,7 +25,7 @@ export async function TopBar({ user }: { user: CurrentUser }) {
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
         <MobileNav items={nav} />
-        <Link href="/" className="flex min-w-0 items-center gap-2">
+        <Link href="/" className="flex min-h-11 min-w-0 items-center gap-2">
           <WarehouseIcon className="size-5 shrink-0" aria-hidden />
           <span className="truncate font-semibold">{t("common.appName")}</span>
         </Link>

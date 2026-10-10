@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { ArrowDownToLineIcon, ArrowUpFromLineIcon, ChevronRightIcon } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardAction, Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeniedToast } from "@/components/denied-toast";
 import { ProductSearch } from "@/components/product-search";
 import { EntryTypeBadge } from "@/components/entry-badges";
@@ -86,12 +86,14 @@ export default async function DashboardPage() {
       </div>
 
       <Card>
-        <CardHeader className="flex-row items-center justify-between">
+        <CardHeader className="items-center">
           <CardTitle className="text-base">{t("dashboard.recent")}</CardTitle>
-          <Link href="/entries" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            {t("dashboard.viewAll")}
-            <ChevronRightIcon className="size-4 rtl:rotate-180" aria-hidden />
-          </Link>
+          <CardAction className="self-center">
+            <Link href="/entries" className="flex min-h-11 items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+              {t("dashboard.viewAll")}
+              <ChevronRightIcon className="size-4 rtl:rotate-180" aria-hidden />
+            </Link>
+          </CardAction>
         </CardHeader>
         <CardContent>
           {stats.recent.length === 0 ? (

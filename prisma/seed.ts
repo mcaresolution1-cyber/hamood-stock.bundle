@@ -1,6 +1,8 @@
 /**
  * Idempotent seed: safe to run any number of times.
- * - Creates (never overwrites) the admin user, base warehouses, sample products and counters.
+ * - Creates (never overwrites) the admin user, base warehouses and counters.
+ * - Sample products only when SEED_SAMPLE_PRODUCTS=true (local dev); production starts with none.
+ * - Admin email: SEED_ADMIN_EMAIL, default admin@hamoodtv.local.
  * - Does NOT create stock entries; stock only ever comes from saved entries.
  */
 import "dotenv/config";
@@ -14,7 +16,8 @@ if (!connectionString) throw new Error("DATABASE_URL is not set");
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
-const ADMIN_EMAIL = "admin@hamoodtv.local";
+const ADMIN_EMAIL = (process.env.SEED_ADMIN_EMAIL || "admin@hamoodtv.local").trim().toLowerCase();
+const SAMPLE_PRODUCTS = process.env.SEED_SAMPLE_PRODUCTS === "true";
 
 const warehouses: Prisma.WarehouseCreateInput[] = [
   { name: "Riyadh Main", city: "Riyadh", kind: "SELLABLE" },
@@ -93,6 +96,8 @@ async function main() {
   if (!adminPassword || adminPassword === "CHANGE_ME") {
     throw new Error("Set SEED_ADMIN_PASSWORD in .env before seeding");
   }
+  if (adminPassword.length < 8) throw new Error("SEED_ADMIN_PASSWORD must be at least 8 characters");
+  if (!/^[^\s@]+@[^\s@]+$/.test(ADMIN_EMAIL)) throw new Error(`SEED_ADMIN_EMAIL is not an email: ${ADMIN_EMAIL}`);
 
   const existingAdmin = await prisma.user.findUnique({ where: { email: ADMIN_EMAIL } });
   if (existingAdmin) {
@@ -114,10 +119,14 @@ async function main() {
   }
   console.log(`✓ warehouses: ${warehouses.map((w) => w.name).join(", ")}`);
 
-  for (const p of products) {
-    await prisma.product.upsert({ where: { modelCode: p.modelCode }, create: p, update: {} });
+  if (SAMPLE_PRODUCTS) {
+    for (const p of products) {
+      await prisma.product.upsert({ where: { modelCode: p.modelCode }, create: p, update: {} });
+    }
+    console.log(`✓ sample products: ${products.length}`);
+  } else {
+    console.log("• sample products skipped (set SEED_SAMPLE_PRODUCTS=true to add them)");
   }
-  console.log(`✓ products: ${products.length}`);
 
   await prisma.counter.createMany({
     data: Object.values(ENTRY_NUMBER_PREFIXES).map((key) => ({ key, value: 0 })),

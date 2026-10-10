@@ -8,7 +8,7 @@ export async function ReportBar({ hint, exportHref }: { hint: string; exportHref
   return (
     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
       <p className="text-sm text-muted-foreground">{hint}</p>
-      <Button variant="outline" asChild className="h-10">
+      <Button variant="outline" asChild className="h-11 md:h-10">
         <a href={exportHref} download>
           <DownloadIcon className="size-4" aria-hidden />
           {t("export")}

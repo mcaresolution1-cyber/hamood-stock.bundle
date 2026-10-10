@@ -15,7 +15,7 @@ export async function CategoryFilter({ value }: { value?: string }) {
           </option>
         ))}
       </NativeSelect>
-      <Button type="submit" variant="secondary" className="h-10">
+      <Button type="submit" variant="secondary" className="h-11 md:h-10">
         {t("reports.apply")}
       </Button>
     </form>

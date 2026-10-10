@@ -20,11 +20,11 @@ export async function EntryFilterForm({ filters, basePath }: { filters: EntryFil
         <form method="get" className="grid gap-3 border-t p-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="grid gap-1 text-sm">
             {t("entries.from")}
-            <Input type="date" name="from" defaultValue={filters.from ?? ""} className="h-10" />
+            <Input type="date" name="from" defaultValue={filters.from ?? ""} className="h-11 md:h-10" />
           </label>
           <label className="grid gap-1 text-sm">
             {t("entries.to")}
-            <Input type="date" name="to" defaultValue={filters.to ?? ""} className="h-10" />
+            <Input type="date" name="to" defaultValue={filters.to ?? ""} className="h-11 md:h-10" />
           </label>
           <label className="grid gap-1 text-sm">
             {t("entries.warehouse")}
@@ -72,14 +72,14 @@ export async function EntryFilterForm({ filters, basePath }: { filters: EntryFil
           </label>
           <label className="grid gap-1 text-sm">
             {t("entries.product")}
-            <Input name="product" defaultValue={filters.product ?? ""} placeholder={t("entries.productPlaceholder")} dir="ltr" className="h-10" />
+            <Input name="product" defaultValue={filters.product ?? ""} placeholder={t("entries.productPlaceholder")} dir="ltr" className="h-11 md:h-10" />
           </label>
           <div className="flex items-end gap-2">
-            <Button type="submit" className="h-10 flex-1">
+            <Button type="submit" className="h-11 md:h-10 flex-1">
               {t("entries.filter")}
             </Button>
             {activeFilters > 0 && (
-              <Button variant="ghost" className="h-10" asChild>
+              <Button variant="ghost" className="h-11 md:h-10" asChild>
                 <Link href={basePath}>{tc("clear")}</Link>
               </Button>
             )}
