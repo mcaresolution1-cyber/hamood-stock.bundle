@@ -117,7 +117,7 @@ export async function movements(filters: EntryFilters, opts: { page?: number; al
   const product = filters.product?.trim();
   const where: Prisma.StockEntryLineWhereInput = {
     entry: entryWhere({ ...filters, product: undefined }),
-    ...(product ? { product: { modelCode: { contains: product, mode: "insensitive" } } } : {}),
+    ...(product ? { product: { modelCode: { contains: product } } } : {}),
   };
   const [total, lines] = await Promise.all([
     db.stockEntryLine.count({ where }),
@@ -248,19 +248,21 @@ export async function outByReason(filters: { from?: string; to?: string; warehou
     ? ((await db.warehouse.findFirst({ where: { id: filters.warehouseId, active: true }, select: { id: true } }))?.id ??
       undefined)
     : undefined;
-  const warehouseFilter = warehouseId ? Prisma.sql`AND e."warehouseId" = ${warehouseId}` : Prisma.empty;
-  const raw = await db.$queryRaw<{ month: string; reason: EntryReason; units: number }[]>`
-    SELECT to_char(date_trunc('month', e."entryDate" AT TIME ZONE 'Asia/Riyadh'), 'YYYY-MM') AS month,
+  const warehouseFilter = warehouseId ? Prisma.sql`AND e.warehouseId = ${warehouseId}` : Prisma.empty;
+  // Riyadh is UTC+3 all year (no daylight saving), and every session runs in UTC (src/lib/db-config.ts),
+  // so adding 3 hours gives the Riyadh calendar month. A fixed offset needs no time-zone tables on the server.
+  const raw = await db.$queryRaw<{ month: string; reason: EntryReason; units: number | bigint | string }[]>`
+    SELECT DATE_FORMAT(e.entryDate + INTERVAL 3 HOUR, '%Y-%m') AS month,
            e.reason,
-           SUM(l.quantity)::int AS units
-    FROM "StockEntryLine" l
-    JOIN "StockEntry" e ON e.id = l."entryId"
+           CAST(SUM(l.quantity) AS SIGNED) AS units
+    FROM StockEntryLine l
+    JOIN StockEntry e ON e.id = l.entryId
     WHERE e.type IN ('OUT', 'TRANSFER_OUT', 'CORRECTION_OUT')
-      AND e."voidedAt" IS NULL
-      AND e."entryDate" >= ${range.start} AND e."entryDate" < ${range.end}
+      AND e.voidedAt IS NULL
+      AND e.entryDate >= ${range.start} AND e.entryDate < ${range.end}
       ${warehouseFilter}
-    GROUP BY 1, 2
-    ORDER BY 1 DESC`;
+    GROUP BY month, e.reason
+    ORDER BY month DESC`;
 
   const reasons = [...OUT_REASONS] as EntryReason[];
   const months = new Map<string, Record<string, number>>();

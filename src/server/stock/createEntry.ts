@@ -1,7 +1,7 @@
 /**
  * THE single write path for stock (CLAUDE.md "Saving an entry"). Every stock change — forms, opening
  * stock import, transfers, voids — goes through here, in one database transaction:
- *   1. reserve the next number from Counter (UPDATE … RETURNING)
+ *   1. reserve the next number from Counter (UPDATE … LAST_INSERT_ID, same connection)
  *   2. insert the StockEntry and its merged lines
  *   3. update StockLevel per line, sorted by product: IN = upsert, OUT = conditional decrement that
  *      aborts the whole transaction when stock would go below zero.
@@ -139,19 +139,25 @@ export async function createEntryInTx(tx: Tx, actor: EntryActor, input: EntryInp
 /**
  * Share-lock an active warehouse for the rest of the transaction. Deactivating a warehouse or changing
  * its kind takes FOR UPDATE, so it waits for (and then sees) every save in progress.
+ * (`LOCK IN SHARE MODE` is MariaDB's spelling of FOR SHARE.)
  */
 export async function lockActiveWarehouse(tx: Tx, warehouseId: string) {
-  await tx.$queryRaw`SELECT id FROM "Warehouse" WHERE id = ${warehouseId} FOR SHARE`;
+  await tx.$queryRaw`SELECT id FROM \`Warehouse\` WHERE id = ${warehouseId} LOCK IN SHARE MODE`;
   const warehouse = await tx.warehouse.findUnique({ where: { id: warehouseId } });
   if (!warehouse || !warehouse.active) throw new EntryRuleError("stock.errors.warehouseInactive");
   return warehouse;
 }
 
-/** Atomically take the next value of a counter. Rows are created by the seed (and the test reset). */
+/**
+ * Atomically take the next value of a counter. MariaDB has no UPDATE … RETURNING, so the new value is
+ * stored with LAST_INSERT_ID(expr) and read back on the SAME connection (the transaction's).
+ * Rows are created at start-up (src/server/db/base-data.ts) and by the test reset.
+ */
 export async function nextCounterValue(tx: Tx, key: CounterKey): Promise<number> {
-  const rows = await tx.$queryRaw<{ value: number }[]>`
-    UPDATE "Counter" SET value = value + 1 WHERE key = ${key} RETURNING value`;
-  if (rows.length !== 1) throw new Error(`Counter "${key}" is missing — run pnpm db:seed`);
+  const updated = await tx.$executeRaw`
+    UPDATE \`Counter\` SET value = LAST_INSERT_ID(value + 1) WHERE \`key\` = ${key}`;
+  if (updated !== 1) throw new Error(`Counter "${key}" is missing — restart the app (it creates counters) or run pnpm db:seed`);
+  const rows = await tx.$queryRaw<{ value: bigint | number }[]>`SELECT LAST_INSERT_ID() AS value`;
   return Number(rows[0].value);
 }
 
@@ -174,16 +180,15 @@ export async function applyLevelChanges(tx: Tx, changes: LevelChange[]): Promise
   for (const { productId, warehouseId, delta } of sorted) {
     if (delta > 0) {
       await tx.$executeRaw`
-        INSERT INTO "StockLevel" ("productId", "warehouseId", quantity)
+        INSERT INTO \`StockLevel\` (\`productId\`, \`warehouseId\`, quantity)
         VALUES (${productId}, ${warehouseId}, ${delta})
-        ON CONFLICT ("productId", "warehouseId")
-        DO UPDATE SET quantity = "StockLevel".quantity + EXCLUDED.quantity`;
+        ON DUPLICATE KEY UPDATE quantity = quantity + ${delta}`;
       continue;
     }
     const take = -delta;
     const updated = await tx.$executeRaw`
-      UPDATE "StockLevel" SET quantity = quantity - ${take}
-      WHERE "productId" = ${productId} AND "warehouseId" = ${warehouseId} AND quantity >= ${take}`;
+      UPDATE \`StockLevel\` SET quantity = quantity - ${take}
+      WHERE \`productId\` = ${productId} AND \`warehouseId\` = ${warehouseId} AND quantity >= ${take}`;
     if (updated === 0) {
       const [level, product, warehouse] = await Promise.all([
         tx.stockLevel.findUnique({ where: { productId_warehouseId: { productId, warehouseId } } }),
@@ -206,7 +211,7 @@ function clean(value: string | null | undefined): string | null {
   return v ? v : null;
 }
 
-/** Retry a whole transaction on deadlock / write conflict (Postgres 40P01 / 40001, Prisma P2034). */
+/** Retry a whole transaction on deadlock / lock wait timeout (MariaDB 1213 / 1205, Prisma P2034). */
 export async function withRetry<T>(run: () => Promise<T>, attempts = 3): Promise<T> {
   for (let i = 1; ; i++) {
     try {
@@ -220,5 +225,5 @@ export async function withRetry<T>(run: () => Promise<T>, attempts = 3): Promise
 
 function isRetryable(e: unknown): boolean {
   const err = e as { code?: string; message?: string };
-  return err?.code === "P2034" || /deadlock detected|could not serialize|40P01|40001/i.test(err?.message ?? "");
+  return err?.code === "P2034" || /deadlock found|lock wait timeout|\b1213\b|\b1205\b|40001/i.test(err?.message ?? "");
 }

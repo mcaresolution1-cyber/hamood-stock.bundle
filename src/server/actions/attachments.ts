@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { requirePermission } from "@/server/auth/dal";
 import { guarded, UserFacingError, type ActionResult } from "./result";
 
-const MAX_BYTES = 4 * 1024 * 1024; // decision Q10 (Vercel rejects bodies over 4.5 MB)
+const MAX_BYTES = 4 * 1024 * 1024; // decision Q10 (also the database CHECK on Attachment.size)
 const TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 /** Store a delivery-note photo (already resized in the browser). Returns the URL to save on the entry. */

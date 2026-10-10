@@ -1,51 +1,38 @@
 #!/usr/bin/env bash
 # Idempotent dev-environment setup for Hamood Stock (cloud sessions / fresh Linux boxes).
-# Safe to run any number of times:
-#   - installs and starts PostgreSQL if missing
+# Same database as production (Hostinger): MariaDB. Safe to run any number of times:
+#   - installs and starts MariaDB if missing
 #   - writes .env from .env.example if missing (random AUTH_SECRET, DB password, admin password)
-#   - creates the database role and database from DATABASE_URL if missing
-#   - pnpm install, prisma generate, prisma migrate deploy, seed
+#   - creates the database user and database from DATABASE_URL if missing
+#   - pnpm install (also generates the Prisma client), migrations, seed
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-ROOT="$(pwd)"
 
 log() { printf '\n\033[1;34m[cloud-setup]\033[0m %s\n' "$*"; }
 
 SUDO=""
 if [ "$(id -u)" -ne 0 ]; then SUDO="sudo"; fi
 
-as_postgres() {
-  if [ "$(id -u)" -eq 0 ]; then
-    runuser -u postgres -- "$@"
-  else
-    sudo -u postgres "$@"
-  fi
-}
-
 rand() { openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c "${1:-32}"; }
+sql_root() { $SUDO mariadb -uroot "$@"; }
 
-# --- 1. PostgreSQL ----------------------------------------------------------
-if ! command -v psql >/dev/null 2>&1 || ! command -v pg_lsclusters >/dev/null 2>&1; then
-  log "Installing PostgreSQL"
-  $SUDO apt-get update -y
-  DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y postgresql postgresql-contrib
+# --- 1. MariaDB -------------------------------------------------------------
+if ! command -v mariadb >/dev/null 2>&1 || ! command -v mariadbd >/dev/null 2>&1; then
+  log "Installing MariaDB"
+  $SUDO apt-get update -y || true
+  DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y mariadb-server mariadb-client
 fi
 
-if ! as_postgres pg_isready -q -h localhost 2>/dev/null; then
-  log "Starting PostgreSQL"
-  $SUDO service postgresql start || {
-    # Fallback for environments without service wrappers
-    for cluster in $(pg_lsclusters -h | awk '{print $1"/"$2}'); do
-      $SUDO pg_ctlcluster "${cluster%/*}" "${cluster#*/}" start || true
-    done
-  }
+if ! $SUDO mariadb-admin ping --silent >/dev/null 2>&1; then
+  log "Starting MariaDB"
+  $SUDO service mariadb start || $SUDO service mysql start
   for _ in $(seq 1 30); do
-    as_postgres pg_isready -q -h localhost && break
+    $SUDO mariadb-admin ping --silent >/dev/null 2>&1 && break
     sleep 1
   done
 fi
-as_postgres pg_isready -h localhost
+$SUDO mariadb-admin ping
 
 # --- 2. .env ----------------------------------------------------------------
 if [ ! -f .env ]; then
@@ -56,21 +43,27 @@ if [ ! -f .env ]; then
   ADMIN_PASS="$(rand 16)"
   # Use | as sed delimiter; generated values contain only [A-Za-z0-9+/=]
   sed -i \
-    -e "s|postgresql://hamood:CHANGE_ME@|postgresql://hamood:${DB_PASS}@|" \
+    -e "s|mysql://hamood:CHANGE_ME@|mysql://hamood:${DB_PASS}@|" \
     -e "s|^AUTH_SECRET=.*|AUTH_SECRET=\"${AUTH_SECRET_VAL}\"|" \
     -e "s|^SEED_ADMIN_PASSWORD=.*|SEED_ADMIN_PASSWORD=\"${ADMIN_PASS}\"|" \
     .env
   log "Seed admin password written to .env (SEED_ADMIN_PASSWORD)"
 fi
-# Older .env files predate SEED_SAMPLE_PRODUCTS: a dev/cloud machine wants the sample catalogue.
+# .env files from the PostgreSQL era: switch DATABASE_URL to MariaDB, keeping user/password/db name.
+if grep -qE '^DATABASE_URL="?postgres(ql)?://' .env; then
+  log "Switching DATABASE_URL in .env from PostgreSQL to MariaDB"
+  sed -i -E 's#^DATABASE_URL="?postgres(ql)?://([^:]+):([^@]+)@([^:/]+)(:[0-9]+)?/([^?"]+)[^"]*"?#DATABASE_URL="mysql://\2:\3@\4:3306/\6"#' .env
+  sed -i -E '/^DIRECT_URL=/d' .env
+fi
 grep -q '^SEED_SAMPLE_PRODUCTS=' .env || echo 'SEED_SAMPLE_PRODUCTS=true' >> .env
+grep -q '^AUTO_MIGRATE=' .env || echo 'AUTO_MIGRATE=true' >> .env
 
-# --- 3. Database role + database (taken from DATABASE_URL) -----------------
+# --- 3. Database user + database (taken from DATABASE_URL) -------------------
 DATABASE_URL="$(grep -E '^DATABASE_URL=' .env | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'")"
-# postgresql://USER:PASS@HOST:PORT/DB?params
-re='^postgres(ql)?://([^:]+):([^@]+)@([^:/]+)(:([0-9]+))?/([^?]+)'
+# mysql://USER:PASS@HOST:PORT/DB?params
+re='^(mysql|mariadb)://([^:]+):([^@]+)@([^:/]+)(:([0-9]+))?/([^?]+)'
 if [[ ! "$DATABASE_URL" =~ $re ]]; then
-  echo "Could not parse DATABASE_URL in .env" >&2
+  echo "Could not parse DATABASE_URL in .env (expected mysql://user:pass@host:3306/db)" >&2
   exit 1
 fi
 DB_USER="${BASH_REMATCH[2]}"
@@ -82,44 +75,27 @@ if [ "$DB_PASS" = "CHANGE_ME" ]; then
   exit 1
 fi
 
-log "Ensuring role '${DB_USER}' and database '${DB_NAME}' exist"
-as_postgres psql -v ON_ERROR_STOP=1 -q -d postgres \
-  -v db_user="$DB_USER" -v db_pass="$DB_PASS" <<'SQL'
-SELECT format('CREATE ROLE %I LOGIN', :'db_user')
-WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'db_user') \gexec
--- Keep password in sync with .env; CREATEDB is needed for Prisma's shadow database (migrate dev)
-SELECT format('ALTER ROLE %I WITH LOGIN CREATEDB PASSWORD %L', :'db_user', :'db_pass') \gexec
-SQL
-
-as_postgres psql -v ON_ERROR_STOP=1 -q -d postgres \
-  -v db_user="$DB_USER" -v db_name="$DB_NAME" <<'SQL'
-SELECT format('CREATE DATABASE %I OWNER %I', :'db_name', :'db_user')
-WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = :'db_name') \gexec
+log "Ensuring user '${DB_USER}' and databases '${DB_NAME}' + '${DB_NAME}_test' exist"
+# Values come from our own .env (letters/digits from rand); quote defensively anyway.
+q() { printf "%s" "$1" | sed "s/'/''/g"; }
+sql_root <<SQL
+CREATE DATABASE IF NOT EXISTS \`$(q "$DB_NAME")\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS \`$(q "$DB_NAME")_test\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS '$(q "$DB_USER")'@'localhost' IDENTIFIED BY '$(q "$DB_PASS")';
+ALTER USER '$(q "$DB_USER")'@'localhost' IDENTIFIED BY '$(q "$DB_PASS")';
+GRANT ALL PRIVILEGES ON \`$(q "$DB_NAME")\`.* TO '$(q "$DB_USER")'@'localhost';
+GRANT ALL PRIVILEGES ON \`$(q "$DB_NAME")_test\`.* TO '$(q "$DB_USER")'@'localhost';
+-- The migrator tests create and drop their own scratch database.
+GRANT ALL PRIVILEGES ON \`$(q "$DB_NAME")_test_migrator\`.* TO '$(q "$DB_USER")'@'localhost';
+FLUSH PRIVILEGES;
 SQL
 
 # --- 4. App dependencies, migrations, seed -----------------------------------
-# The Prisma CLI downloads a native schema-engine from binaries.prisma.sh. Some sandboxes
-# block that host; then migrations run on the WASM engine (scripts/prisma-wasm.mjs) and
-# `pnpm db:generate` (scripts/prisma-generate.mjs) skips the engine download by itself.
-USE_WASM_ENGINE=0
-PRISMA_BIN_STATUS="$(curl -s -o /dev/null --max-time 10 -w '%{http_code}' https://binaries.prisma.sh/ 2>/dev/null || true)"
-if [ -z "$PRISMA_BIN_STATUS" ] || [ "$PRISMA_BIN_STATUS" = "000" ]; then
-  USE_WASM_ENGINE=1
-  log "binaries.prisma.sh unreachable — using the WASM schema engine for migrations"
-fi
-
-log "Installing dependencies"
+log "Installing dependencies (also generates the Prisma client and bundles migrations)"
 pnpm install --frozen-lockfile
 
-log "Generating Prisma client"
-pnpm db:generate
-
 log "Applying migrations"
-if [ "$USE_WASM_ENGINE" = "1" ]; then
-  pnpm db:migrate:wasm deploy
-else
-  pnpm exec prisma migrate deploy
-fi
+pnpm db:deploy
 
 log "Seeding"
 pnpm db:seed

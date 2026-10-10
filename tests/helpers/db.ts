@@ -3,13 +3,15 @@
  * StockLevel or entries directly (scripts/check-rules.mjs enforces this).
  */
 import bcrypt from "bcryptjs";
-import { PrismaPg } from "@prisma/adapter-pg";
+import mariadb from "mariadb";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "@/generated/prisma/client";
 import type { Role, WarehouseKind } from "@/generated/prisma/enums";
 import { ENTRY_NUMBER_PREFIXES } from "@/lib/stock/numbering";
+import { mariadbConfig } from "@/lib/db-config";
 import { testDatabaseUrl } from "../setup/test-db-url";
 
-export const testDb = new PrismaClient({ adapter: new PrismaPg({ connectionString: testDatabaseUrl() }) });
+export const testDb = new PrismaClient({ adapter: new PrismaMariaDb(mariadbConfig(testDatabaseUrl())) });
 
 const TABLES = [
   "StockEntryLine",
@@ -25,14 +27,16 @@ const TABLES = [
 
 /** Empty every application table and re-create the entry counters (as the seed does). Call in beforeEach. */
 export async function resetDatabase() {
-  const existing = await testDb.$queryRaw<{ tablename: string }[]>`
-    SELECT tablename FROM pg_tables WHERE schemaname = 'public'`;
-  const names = new Set(existing.map((t) => t.tablename));
-  const list = TABLES.filter((t) => names.has(t))
-    .map((t) => `"${t}"`)
-    .join(", ");
-  await testDb.$executeRawUnsafe(`TRUNCATE ${list} RESTART IDENTITY CASCADE`);
-  // Counters are advanced with a plain UPDATE … RETURNING (CLAUDE.md), so the rows must exist.
+  // One dedicated connection, because FOREIGN_KEY_CHECKS is per session.
+  const conn = await mariadb.createConnection(mariadbConfig(testDatabaseUrl()));
+  try {
+    await conn.query("SET FOREIGN_KEY_CHECKS = 0");
+    for (const t of TABLES) await conn.query(`TRUNCATE TABLE \`${t}\``);
+    await conn.query("SET FOREIGN_KEY_CHECKS = 1");
+  } finally {
+    await conn.end();
+  }
+  // Counters are advanced with a plain UPDATE (CLAUDE.md), so the rows must exist.
   await testDb.counter.createMany({
     data: Object.values(ENTRY_NUMBER_PREFIXES).map((key) => ({ key, value: 0 })),
   });
