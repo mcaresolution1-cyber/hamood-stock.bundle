@@ -160,7 +160,7 @@ describe("rules", () => {
 
   it("blocks sales from a damaged warehouse (Q4) and inactive warehouses", async () => {
     const damaged = (await makeWarehouse("DAMAGED")).id;
-    await createEntry(testDb, admin, { direction: "IN", reason: "CUSTOMER_RETURN", warehouseId: damaged, lines: [{ productId: p1, quantity: 1 }] });
+    await createEntry(testDb, admin, { direction: "IN", reason: "CUSTOMER_RETURN", returnCondition: "DAMAGED", warehouseId: damaged, lines: [{ productId: p1, quantity: 1 }] });
     await expect(stockOut([{ productId: p1, quantity: 1 }], { warehouseId: damaged })).rejects.toMatchObject({
       key: "stock.errors.reasonNotForWarehouse",
     });

@@ -22,17 +22,24 @@ export type Tx = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
 export type EntryInput = {
   direction: Direction;
   reason: EntryReason;
+  /** Where stock moves in or out — the SOURCE for a transfer. */
   warehouseId: string;
+  /** Transfers only: where the stock goes. */
+  destinationWarehouseId?: string | null;
+  /** Customer returns: decides whether the goods may go to a SELLABLE or a DAMAGED warehouse. */
+  returnCondition?: "RESELLABLE" | "DAMAGED" | null;
   lines: LineInput[];
   reference?: string | null;
   customerName?: string | null;
+  customerPhone?: string | null;
   technicianName?: string | null;
   supplierName?: string | null;
   note?: string | null;
   photoUrl?: string | null;
 };
 
-export type SavedEntry = { id: string; number: string };
+/** For a transfer this is the OUT half; `linked` is the IN half. */
+export type SavedEntry = { id: string; number: string; linked?: { id: string; number: string } };
 
 export const MAX_QUANTITY = 100_000;
 const TX_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
@@ -41,12 +48,9 @@ export async function createEntry(client: PrismaClient, actor: EntryActor, input
   return withRetry(() => client.$transaction((tx) => createEntryInTx(tx, actor, input), TX_OPTIONS));
 }
 
-/** Same as createEntry, inside a transaction the caller already opened (used to compose transfers / voids). */
+/** Same as createEntry, inside a transaction the caller already opened. */
 export async function createEntryInTx(tx: Tx, actor: EntryActor, input: EntryInput): Promise<SavedEntry> {
   const type = entryTypeFor(input.direction, input.reason);
-  if (type === "TRANSFER_OUT") {
-    throw new EntryRuleError("stock.errors.invalidReason"); // transfers are saved by createTransfer
-  }
   if (input.lines.length === 0) throw new EntryRuleError("stock.errors.noLines");
   for (const line of input.lines) {
     if (!Number.isInteger(line.quantity) || line.quantity < 1 || line.quantity > MAX_QUANTITY) {
@@ -54,13 +58,23 @@ export async function createEntryInTx(tx: Tx, actor: EntryActor, input: EntryInp
     }
   }
 
-  // Share lock: warehouse deactivation / kind change (which take FOR UPDATE) wait for this save.
-  await tx.$queryRaw`SELECT id FROM "Warehouse" WHERE id = ${input.warehouseId} FOR SHARE`;
-  const warehouse = await tx.warehouse.findUnique({ where: { id: input.warehouseId } });
-  if (!warehouse || !warehouse.active) throw new EntryRuleError("stock.errors.warehouseInactive");
-
+  const warehouse = await lockActiveWarehouse(tx, input.warehouseId);
   const denied = entryPermissionError(actor, { direction: input.direction, reason: input.reason, warehouse });
   if (denied) throw new EntryRuleError(denied);
+
+  // Customer returns: resellable goods go to a SELLABLE warehouse, damaged ones to a DAMAGED one (Q2).
+  if (input.reason === "CUSTOMER_RETURN") {
+    const expected = input.returnCondition === "DAMAGED" ? "DAMAGED" : "SELLABLE";
+    if (warehouse.kind !== expected) throw new EntryRuleError("stock.errors.returnWarehouseKind");
+  }
+
+  let destination: Awaited<ReturnType<typeof lockActiveWarehouse>> | null = null;
+  if (type === "TRANSFER_OUT") {
+    if (!input.destinationWarehouseId) throw new EntryRuleError("stock.errors.noDestination");
+    if (input.destinationWarehouseId === warehouse.id) throw new EntryRuleError("stock.errors.sameWarehouse");
+    // Q1: STAFF need only the source assigned; the destination can be any active warehouse.
+    destination = await lockActiveWarehouse(tx, input.destinationWarehouseId);
+  }
 
   const lines = mergeLines(input.lines);
   const products = await tx.product.findMany({
@@ -71,37 +85,66 @@ export async function createEntryInTx(tx: Tx, actor: EntryActor, input: EntryInp
   for (const line of lines) {
     const product = byId.get(line.productId);
     if (!product) throw new EntryRuleError("stock.errors.productNotFound");
-    // Q7: discontinued products can still leave (sell-off) but can't come in.
+    // Q7: discontinued products can still leave or move (sell-off) but can't be received.
     if (!product.active && input.direction === "IN") {
       throw new EntryRuleError("stock.errors.productInactive", { modelCode: product.modelCode });
     }
   }
 
-  const number = formatEntryNumber(counterKeyFor(type), await nextCounterValue(tx, counterKeyFor(type)), type);
+  const prefix = counterKeyFor(type);
+  const value = await nextCounterValue(tx, prefix);
+  const fields = {
+    reason: input.reason,
+    reference: clean(input.reference),
+    customerName: clean(input.customerName),
+    customerPhone: clean(input.customerPhone),
+    technicianName: clean(input.technicianName),
+    supplierName: clean(input.supplierName),
+    note: clean(input.note),
+    photoUrl: clean(input.photoUrl),
+    createdById: actor.id,
+  };
+
   const entry = await tx.stockEntry.create({
-    data: {
-      number,
-      type,
-      reason: input.reason,
-      warehouseId: warehouse.id,
-      reference: clean(input.reference),
-      customerName: clean(input.customerName),
-      technicianName: clean(input.technicianName),
-      supplierName: clean(input.supplierName),
-      note: clean(input.note),
-      photoUrl: clean(input.photoUrl),
-      createdById: actor.id,
-      lines: { create: lines },
-    },
+    data: { ...fields, number: formatEntryNumber(prefix, value, type), type, warehouseId: warehouse.id, lines: { create: lines } },
     select: { id: true, number: true },
   });
+  const changes: LevelChange[] = lines.map((l) => ({
+    productId: l.productId,
+    warehouseId: warehouse.id,
+    delta: directionOf(type) * l.quantity,
+  }));
 
-  const sign = directionOf(type);
-  await applyLevelChanges(
-    tx,
-    lines.map((l) => ({ productId: l.productId, warehouseId: warehouse.id, delta: sign * l.quantity })),
-  );
-  return entry;
+  let linked: SavedEntry["linked"];
+  if (destination) {
+    // The IN half shares the counter value and links back to the OUT half (one-way link, decision T2).
+    linked = await tx.stockEntry.create({
+      data: {
+        ...fields,
+        number: formatEntryNumber(prefix, value, "TRANSFER_IN"),
+        type: "TRANSFER_IN",
+        warehouseId: destination.id,
+        linkedEntryId: entry.id,
+        lines: { create: lines },
+      },
+      select: { id: true, number: true },
+    });
+    for (const l of lines) changes.push({ productId: l.productId, warehouseId: destination.id, delta: l.quantity });
+  }
+
+  await applyLevelChanges(tx, changes);
+  return linked ? { ...entry, linked } : entry;
+}
+
+/**
+ * Share-lock an active warehouse for the rest of the transaction. Deactivating a warehouse or changing
+ * its kind takes FOR UPDATE, so it waits for (and then sees) every save in progress.
+ */
+export async function lockActiveWarehouse(tx: Tx, warehouseId: string) {
+  await tx.$queryRaw`SELECT id FROM "Warehouse" WHERE id = ${warehouseId} FOR SHARE`;
+  const warehouse = await tx.warehouse.findUnique({ where: { id: warehouseId } });
+  if (!warehouse || !warehouse.active) throw new EntryRuleError("stock.errors.warehouseInactive");
+  return warehouse;
 }
 
 /** Atomically take the next value of a counter. Rows are created by the seed (and the test reset). */
@@ -164,7 +207,7 @@ function clean(value: string | null | undefined): string | null {
 }
 
 /** Retry a whole transaction on deadlock / write conflict (Postgres 40P01 / 40001, Prisma P2034). */
-async function withRetry<T>(run: () => Promise<T>, attempts = 3): Promise<T> {
+export async function withRetry<T>(run: () => Promise<T>, attempts = 3): Promise<T> {
   for (let i = 1; ; i++) {
     try {
       return await run();
