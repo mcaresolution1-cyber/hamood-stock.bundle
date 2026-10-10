@@ -33,6 +33,19 @@ export type EntryFilters = {
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
+/** True for a real calendar day in YYYY-MM-DD form (rejects 2026-13-01 and 2026-02-30). */
+export function isValidDay(day: string | undefined): day is string {
+  if (!day || !DAY.test(day)) return false;
+  const d = new Date(`${day}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === day;
+}
+
+/** Page number from a URL value: a positive integer, capped so skip stays a safe Int. */
+export function parsePage(v: unknown): number {
+  const n = Math.trunc(Number(v));
+  return Number.isFinite(n) && n >= 1 ? Math.min(n, 10_000) : 1;
+}
+
 /** Start of a Riyadh calendar day (UTC+3, no daylight saving) as a UTC instant. */
 export function riyadhDayStart(day: string): Date {
   return new Date(`${day}T00:00:00+03:00`);
@@ -40,8 +53,8 @@ export function riyadhDayStart(day: string): Date {
 
 export function entryWhere(f: EntryFilters): Prisma.StockEntryWhereInput {
   const entryDate: Prisma.DateTimeFilter = {};
-  if (f.from && DAY.test(f.from)) entryDate.gte = riyadhDayStart(f.from);
-  if (f.to && DAY.test(f.to)) entryDate.lt = new Date(riyadhDayStart(f.to).getTime() + 86_400_000);
+  if (isValidDay(f.from)) entryDate.gte = riyadhDayStart(f.from);
+  if (isValidDay(f.to)) entryDate.lt = new Date(riyadhDayStart(f.to).getTime() + 86_400_000);
   const product = f.product?.trim();
   return {
     ...(entryDate.gte || entryDate.lt ? { entryDate } : {}),
@@ -54,7 +67,7 @@ export function entryWhere(f: EntryFilters): Prisma.StockEntryWhereInput {
 }
 
 export async function listEntries(f: EntryFilters) {
-  const page = Math.max(1, f.page ?? 1);
+  const page = parsePage(f.page);
   const where = entryWhere(f);
   const [total, rows] = await Promise.all([
     db.stockEntry.count({ where }),
@@ -142,5 +155,23 @@ export function relatedEntries(e: EntryDetail) {
     transferIn: e.type === "TRANSFER_OUT" ? (e.linkedFrom.find((x) => x.type === "TRANSFER_IN") ?? null) : null,
     transferOut: e.type === "TRANSFER_IN" ? e.linkedEntry : null,
     reverses: e.type === "VOID" ? e.linkedEntry : null,
+  };
+}
+
+/** Read entry/movement filters from URL search params, ignoring anything invalid. */
+export function parseEntryFilters(sp: Record<string, string | string[] | undefined>): EntryFilters {
+  const one = (k: string) => {
+    const v = sp[k];
+    return (Array.isArray(v) ? v[0] : v) ?? "";
+  };
+  return {
+    from: isValidDay(one("from")) ? one("from") : undefined,
+    to: isValidDay(one("to")) ? one("to") : undefined,
+    warehouseId: one("warehouseId") || undefined,
+    type: (ENTRY_TYPES as string[]).includes(one("type")) ? (one("type") as EntryType) : undefined,
+    reason: (ENTRY_REASONS as string[]).includes(one("reason")) ? (one("reason") as EntryReason) : undefined,
+    userId: one("userId") || undefined,
+    product: one("product").slice(0, 50) || undefined,
+    page: parsePage(one("page")),
   };
 }

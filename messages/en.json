@@ -67,8 +67,21 @@
   "dashboard": {
     "title": "Dashboard",
     "welcome": "Welcome, {name}",
-    "empty": "Stock screens are coming soon. This is where the stock overview will live.",
-    "denied": "You don't have access to that page."
+    "denied": "You don't have access to that page.",
+    "stockIn": "Stock in",
+    "stockInHint": "Deliveries, returns",
+    "stockOut": "Stock out",
+    "stockOutHint": "Orders, sales, transfers",
+    "searchTitle": "Find a product",
+    "searchPlaceholder": "Model code or name…",
+    "searchEmpty": "No products found.",
+    "sellable": "{count} in stock",
+    "products": "Active products",
+    "lowStock": "Low stock",
+    "today": "Entries today",
+    "recent": "Latest entries",
+    "viewAll": "View all",
+    "noEntries": "No entries yet."
   },
   "categories": {
     "wall-mount": "TV wall mounts",
@@ -92,7 +105,8 @@
     "openingStock": "Opening stock",
     "stockIn": "Stock in",
     "stockOut": "Stock out",
-    "entries": "Entries"
+    "entries": "Entries",
+    "reports": "Reports"
   },
   "validation": {
     "required": "This field is required.",
@@ -457,5 +471,60 @@
     "address": "Riyadh, Saudi Arabia · hamoodtv.com",
     "notOutgoing": "Delivery notes are only for stock out and transfers.",
     "voided": "{number} was voided, so it has no delivery note."
+  },
+  "productPage": {
+    "perWarehouse": "Stock per warehouse",
+    "total": "Total",
+    "sellable": "Sellable stock",
+    "lowStock": "Low stock",
+    "lowLevel": "Low-stock level: {level}",
+    "card": "Stock card",
+    "cardHint": "Every movement of this product, newest first. Balance is the stock right after that movement.",
+    "allWarehouses": "All warehouses",
+    "change": "Change",
+    "balance": "Balance",
+    "showingLatest": "Showing the latest {count} movements.",
+    "empty": "No movements yet.",
+    "edit": "Edit product",
+    "cost": "Unit cost: {cost} SAR",
+    "inactive": "Deactivated"
+  },
+  "reports": {
+    "title": "Reports",
+    "subtitle": "Stock positions and history. Every report can be downloaded as an Excel file.",
+    "tabs": {
+      "stockOnHand": "Stock on hand",
+      "movements": "Movement history",
+      "lowStock": "Low stock",
+      "outByReason": "Stock out by reason"
+    },
+    "hint": {
+      "stockOnHand": "Current quantity of every product in every warehouse.",
+      "movements": "Every product line of every entry, newest first.",
+      "lowStock": "Products whose total sellable stock is at or below their low-stock level.",
+      "outByReason": "Units that left per reason, per month (Riyadh time). Voided entries are excluded."
+    },
+    "export": "Download Excel",
+    "col": {
+      "model": "Model code",
+      "product": "Product",
+      "total": "Total",
+      "cost": "Unit cost",
+      "value": "Stock value",
+      "level": "Low-stock level",
+      "shortBy": "Short by",
+      "month": "Month",
+      "change": "Qty"
+    },
+    "noCost": "{count, plural, =1 {1 product has} other {# products have}} no cost, so {count, plural, =1 {it is} other {they are}} not in the value total.",
+    "transfersExcluded": "Transfers between warehouses are shown but not counted in the total — they don't leave the company. Choose a warehouse to include them.",
+    "truncated": "Only the first 50,000 rows were exported. Narrow the filters to get the rest.",
+    "empty": "Nothing to show for these filters.",
+    "noLowStock": "No product is low on stock.",
+    "category": "Category",
+    "allCategories": "All categories",
+    "fromMonth": "From month",
+    "toMonth": "To month",
+    "apply": "Show"
   }
 }
