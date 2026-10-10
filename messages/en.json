@@ -1,0 +1,50 @@
+{
+  "common": {
+    "appName": "Hamood Stock",
+    "companyName": "Hamood TV",
+    "loading": "Loading…"
+  },
+  "auth": {
+    "title": "Sign in",
+    "subtitle": "Use your Hamood Stock account to continue.",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "submitting": "Signing in…",
+    "logout": "Log out",
+    "errors": {
+      "invalidCredentials": "Incorrect email or password.",
+      "emailInvalid": "Enter a valid email address.",
+      "passwordRequired": "Enter your password.",
+      "generic": "Something went wrong. Please try again."
+    }
+  },
+  "topBar": {
+    "language": "Language",
+    "signedInAs": "Signed in as",
+    "openMenu": "Open user menu"
+  },
+  "language": {
+    "en": "English",
+    "ar": "العربية"
+  },
+  "roles": {
+    "ADMIN": "Admin",
+    "STAFF": "Staff",
+    "VIEWER": "Viewer"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome, {name}",
+    "empty": "Stock screens are coming soon. This is where the stock overview will live."
+  },
+  "categories": {
+    "wall-mount": "TV wall mounts",
+    "floor-stand": "Floor stands",
+    "monitor-mount": "Monitor mounts",
+    "tv-table": "TV tables"
+  },
+  "errors": {
+    "forbidden": "You don't have permission to do that."
+  }
+}
