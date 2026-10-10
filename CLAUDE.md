@@ -61,7 +61,10 @@ pnpm test:integration # PostgreSQL tests against <db>_test (created + migrated a
 pnpm check:rules      # project rule checker (ledger, auth, hard deletes, migrations, i18n)
 pnpm verify           # lint + typecheck + all tests + check:rules + build
 pnpm screenshots      # phone/desktop × EN/AR screenshots of the running app → docs/screenshots/
+pnpm vercel-build     # what Vercel runs: migrate deploy (only if DIRECT_URL is set) + next build
 ```
+
+Deploying (Vercel + Neon), creating the first admin and adding users: see **README.md**.
 
 Before finishing any change run `pnpm verify`.
 
@@ -71,6 +74,8 @@ Run `bash scripts/cloud-setup.sh`. It is idempotent: installs/starts PostgreSQL,
 `.env.example` (random `AUTH_SECRET`, DB password and `SEED_ADMIN_PASSWORD`) if missing, creates the DB role
 and database, then `pnpm install`, `prisma generate`, migrations and seed.
 Log in as `admin@hamoodtv.local` with `SEED_ADMIN_PASSWORD` from `.env`.
+Seed env: `SEED_ADMIN_EMAIL` (default `admin@hamoodtv.local`), `SEED_SAMPLE_PRODUCTS=true` adds the sample catalogue
+(dev only). `DIRECT_URL`, if set, is used for migrations instead of `DATABASE_URL` (Neon: direct vs pooled).
 
 ### Migrations when binaries.prisma.sh is blocked
 
@@ -112,12 +117,24 @@ src/
   auth.config.ts         # Auth.js edge-safe config shared with proxy (no DB imports)
   app/
     layout.tsx           # <html lang dir>, NextIntlClientProvider, Radix direction, Toaster
+    not-found.tsx        # unknown URLs
     login/               # login page + client form
     (app)/               # protected area: layout = top bar; page.tsx = dashboard ("/")
+      loading.tsx, error.tsx, not-found.tsx   # skeleton / translated error (retry) / 404 inside the app
+      stock/in, stock/out                     # entry wizard pages
+      entries/, entries/[id]/                 # entry list, detail (+ void dialog)
+      products/[id]/                          # product page: stock per warehouse + stock card
+      reports/<name>/page.tsx + export/route.ts   # 4 reports, each with an Excel export of the same rows
+      admin/                                  # products (+ import), warehouses, users, opening stock
+    print/entries/[id]/  # printable bilingual A4 delivery note (outside the app layout)
+    api/attachments/[id] # delivery-note photos (auth-checked)
     api/auth/[...nextauth]/route.ts
   components/
     ui/                  # shadcn/ui components (generated — keep edits minimal and commented)
     top-bar.tsx, language-switch.tsx, direction-provider.tsx
+    stock/               # entry wizard, product picker, quantity stepper, photo input
+    reports/             # ReportTable (tanstack v9, sort keys), tabs, report bar, category filter
+    page-skeleton.tsx, error-view.tsx, not-found-view.tsx, empty-state.tsx
   i18n/                  # locale config + next-intl request config (cookie NEXT_LOCALE)
   lib/
     db.ts                # Prisma client singleton (server-only)
@@ -128,6 +145,9 @@ src/
   server/
     auth/dal.ts          # getCurrentUser / requireUser / requirePermission / assertCanWriteToWarehouse
     actions/             # server actions ("use server"), one file per area
+    stock/               # createEntry / voidEntry — the ONLY code that changes StockLevel
+    queries/             # reads: entries, reports, product-stock, dashboard, … (cost only for cost:view)
+    export/              # xlsx writer + report exports + routeGuard
   generated/prisma/      # Prisma client output (gitignored, built by `prisma generate`)
   types/                 # module augmentation for next-auth and next-intl
 tests/
@@ -143,6 +163,28 @@ docs/
 
 Put stock business logic in `src/server/stock/` (services that take a Prisma transaction client) and keep pure
 helpers in `src/lib/stock/` so they can be unit tested.
+
+### Building blocks (use these, don't re-invent them)
+| Need | Use |
+| --- | --- |
+| Save any stock movement | `createEntry(db, user, input)` / `createEntryInTx(tx, …)` in `src/server/stock/createEntry.ts` |
+| Who may use which reason / warehouse | `src/lib/stock/policy.ts` (`entryPermissionError`, `formReasons`, `entryTypeFor`) |
+| Server action shape | `guarded(async () => { await requirePermission(…); schema.parse(input); … })` → `ActionResult` (`src/server/actions/result.ts`); throw `UserFacingError(key)` for expected failures |
+| Page access | `requireUser()` or `requirePagePermission(action)` (redirects to `/?denied=1`) |
+| Route handler access | `routeGuard(action)` (`src/server/export/template.ts`) → 401/403 |
+| Read product data | `src/server/queries/*` — select `cost` only when `can(role, "cost:view")` |
+| Spreadsheet upload | `readSheet(file)` (xlsx/csv, 2 MB, 2,000 rows) + a pure validator in `src/lib/import/` |
+| Forms | RHF + `zodResolver(schema)`, `TextField`/`SelectField`/`applyActionErrors` (`src/components/form-fields.tsx`); translate keys with `useMessage()` |
+| Lists on phones | `ResponsiveList` + `MobileCard` (cards < md, table ≥ md); LTR text in RTL with `<Ltr>` |
+| Report screen + export | a query in `src/server/queries/reports.ts` returning plain rows, used by BOTH the page (`ReportTable`) and the export (`src/server/export/reports.ts` → `xlsxFile`); never compute rows twice |
+| URL filters | `parseEntryFilters`, `isValidDay`, `parsePage` (`src/server/queries/entries.ts`) — ignore bad values, never throw |
+| Loading / errors | `loading.tsx` → `PageSkeleton`; `error.tsx` → `ErrorView` (Next 16.4 passes `retry`, not `reset`); `notFound()` → translated 404 |
+| Confirm + run an action | `ConfirmAction` (`src/components/confirm-action.tsx`) |
+| Test fixtures / ledger check | `tests/helpers/db.ts`, `tests/helpers/ledger.ts` (`expectLedgerMatchesLevels`), `tests/helpers/auth.ts` (`signInAs`) |
+
+Races: checks that must hold at write time (stock before deactivating a warehouse, last admin, opening-stock
+confirmation) run **inside** a transaction with a row lock or advisory lock — see warehouses/users/opening-stock
+actions for the pattern.
 
 ## Business rules — must always hold
 
@@ -220,7 +262,11 @@ Inside a single `db.$transaction(async (tx) => …)`:
 ## Conventions
 - Server actions return `{ ok: true, … } | { ok: false, error: <translation key> }` for expected failures
   and throw for programming errors. Validate input with the same Zod schema the form uses.
-- Dates: store `timestamptz`; display in `Asia/Riyadh` (set in next-intl config).
+- Dates: store `timestamptz`; display in `Asia/Riyadh` (set in next-intl config). Day/month filters are Riyadh
+  days (`riyadhDayStart`); SQL buckets use `AT TIME ZONE 'Asia/Riyadh'`.
+- Phones: interactive controls are ≥ 44px tall below `md` (Button/Input/Select sizes are set that way in
+  `src/components/ui` — don't override them with a smaller `h-*` without an `md:` prefix).
+- Excel: text is written as plain text cells, never formulas (decision B13); keep exports .xlsx, not CSV.
 - Money (`cost`) is `Decimal(12,2)` SAR; never use JS floats for arithmetic on it.
 - Don't commit `.env`. Add new env vars to `.env.example` with placeholder values.
 - shadcn components were copied from the shadcn GitHub registry (the `shadcn` CLI can't reach

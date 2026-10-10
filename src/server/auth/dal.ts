@@ -76,3 +76,13 @@ export async function requirePermission(action: Action): Promise<CurrentUser> {
 export function assertCanWriteToWarehouse(user: CurrentUser, warehouseId: string): void {
   if (!canWriteToWarehouse(user, warehouseId)) throw new AuthorizationError();
 }
+
+/**
+ * For pages: like requirePermission, but sends the user to the dashboard with a "not allowed"
+ * notice instead of throwing (a thrown error would show the error page).
+ */
+export async function requirePagePermission(action: Action): Promise<CurrentUser> {
+  const user = await requireUser();
+  if (!can(user.role, action)) redirect("/?denied=1");
+  return user;
+}

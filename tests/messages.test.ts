@@ -19,4 +19,11 @@ describe("translations", () => {
     expect(empty(en)).toEqual([]);
     expect(empty(ar)).toEqual([]);
   });
+
+  it("translates every Arabic value (only language names may match English)", () => {
+    const allowed = new Set(["language.en", "language.ar"]);
+    const value = (obj: Record<string, unknown>, k: string) => k.split(".").reduce<unknown>((o, p) => (o as never)[p], obj);
+    const untranslated = keys(en).filter((k) => !allowed.has(k) && value(ar, k) === value(en, k));
+    expect(untranslated).toEqual([]);
+  });
 });

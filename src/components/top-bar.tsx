@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { LogOutIcon, UserIcon, WarehouseIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,19 +12,24 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LanguageSwitch } from "@/components/language-switch";
+import { DesktopNav, MobileNav } from "@/components/app-nav";
+import { navItemsFor } from "@/lib/nav";
 import { logoutAction } from "@/server/actions/auth";
 import type { CurrentUser } from "@/server/auth/dal";
 
 export async function TopBar({ user }: { user: CurrentUser }) {
   const t = await getTranslations();
+  const nav = navItemsFor(user.role);
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
-        <div className="flex min-w-0 items-center gap-2">
+        <MobileNav items={nav} />
+        <Link href="/" className="flex min-h-11 min-w-0 items-center gap-2">
           <WarehouseIcon className="size-5 shrink-0" aria-hidden />
           <span className="truncate font-semibold">{t("common.appName")}</span>
-        </div>
+        </Link>
+        <DesktopNav items={nav} />
 
         <div className="ms-auto flex items-center gap-2">
           <LanguageSwitch />

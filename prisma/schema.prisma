@@ -64,6 +64,7 @@ model User {
 
   createdEntries StockEntry[] @relation("EntryCreatedBy")
   voidedEntries  StockEntry[] @relation("EntryVoidedBy")
+  attachments    Attachment[]
 }
 
 model Warehouse {
@@ -92,7 +93,7 @@ model Product {
   imageUrl      String?
   /// Unit cost in SAR. Never exposed to STAFF.
   cost          Decimal? @db.Decimal(12, 2)
-  /// Show as low stock when total sellable quantity <= this value
+  /// Low stock when total quantity across active SELLABLE warehouses <= this value; 0 = never (decision Q5)
   lowStockLevel Int      @default(0)
   /// Linked WooCommerce product on hamoodtv.com
   wooProductId  Int?
@@ -122,6 +123,8 @@ model StockEntry {
   /// Free reference: website order number, invoice number, supplier DN, …
   reference      String?
   customerName   String?
+  /// Direct sale: customer's phone (normalised, Western digits)
+  customerPhone  String?
   technicianName String?
   supplierName   String?
   note           String?
@@ -181,4 +184,17 @@ model StockLevel {
 model Counter {
   key   String @id
   value Int    @default(0)
+}
+
+/// Delivery-note photos. Stored in Postgres so the app needs no separate file storage (decision Q10).
+/// Served to signed-in users by GET /api/attachments/[id]; StockEntry.photoUrl holds that path.
+model Attachment {
+  id          String   @id @default(cuid())
+  mimeType    String
+  size        Int
+  data        Bytes
+  createdById String
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
 }

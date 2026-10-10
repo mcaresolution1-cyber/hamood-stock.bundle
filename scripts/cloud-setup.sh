@@ -62,6 +62,8 @@ if [ ! -f .env ]; then
     .env
   log "Seed admin password written to .env (SEED_ADMIN_PASSWORD)"
 fi
+# Older .env files predate SEED_SAMPLE_PRODUCTS: a dev/cloud machine wants the sample catalogue.
+grep -q '^SEED_SAMPLE_PRODUCTS=' .env || echo 'SEED_SAMPLE_PRODUCTS=true' >> .env
 
 # --- 3. Database role + database (taken from DATABASE_URL) -----------------
 DATABASE_URL="$(grep -E '^DATABASE_URL=' .env | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'")"
