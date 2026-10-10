@@ -9,6 +9,19 @@ between warehouses and corrections. Managers see current stock per warehouse and
 
 Users work on phones in the warehouse → **mobile-first**, and in **English and Arabic (RTL)**.
 
+## How we work — read docs/workflow.md
+
+Features go through **plan → cross-question → decide → build → test → audit → verify → ship** using the
+project commands `/plan`, `/decide`, `/build`, `/verify`, `/audit`, `/screens`, `/ship`, `/status` and the
+agents in `.claude/agents/`. Rules for every session:
+
+- Don't start coding a feature without a plan in `docs/plans/<slug>.md` whose status is `approved`
+  (small fixes are exempt). Decisions in a plan's **Decisions log** override the spec.
+- One phase per commit (`Phase N: <title>`), on a `feature/<slug>` branch, never on `main`.
+- Hooks run the rule checker + ESLint after every edit and typecheck/tests/rules before you stop —
+  fix what they report rather than working around them. `// rules-allow: <rule> — <reason>` only with a
+  real reason.
+
 ## Stack
 
 | Concern | Choice |
@@ -34,7 +47,7 @@ pnpm build            # production build
 pnpm start            # run production build
 pnpm lint             # ESLint
 pnpm typecheck        # next typegen + tsc --noEmit
-pnpm test             # Vitest (unit tests)
+pnpm test             # Vitest: unit + integration (integration needs PostgreSQL)
 pnpm db:migrate       # prisma migrate dev (create + apply a migration)
 pnpm db:deploy        # prisma migrate deploy (apply pending migrations)
 pnpm db:seed          # idempotent seed (admin, warehouses, sample products, counters)
@@ -43,9 +56,14 @@ pnpm db:generate      # regenerate the Prisma client (also runs on pnpm install)
 pnpm db:migrate:wasm create <name>   # fallback: create a migration without the native engine
 pnpm db:migrate:wasm deploy          # fallback: apply migrations without the native engine
 pnpm setup:cloud      # = bash scripts/cloud-setup.sh (see below)
+pnpm test:unit        # unit tests only (no database needed)
+pnpm test:integration # PostgreSQL tests against <db>_test (created + migrated automatically)
+pnpm check:rules      # project rule checker (ledger, auth, hard deletes, migrations, i18n)
+pnpm verify           # lint + typecheck + all tests + check:rules + build
+pnpm screenshots      # phone/desktop × EN/AR screenshots of the running app → docs/screenshots/
 ```
 
-Before finishing any change run: `pnpm lint && pnpm typecheck && pnpm test && pnpm build`.
+Before finishing any change run `pnpm verify`.
 
 ### Fresh cloud session / new machine
 
@@ -83,6 +101,8 @@ prisma/
 prisma.config.ts         # Prisma 7 config (datasource URL, seed command)
 messages/en.json, ar.json  # ALL user-facing text; keys must match (tested)
 scripts/
+  check-rules.mjs        # project rule checker (pnpm check:rules), used by hooks and /verify
+  screenshots.mjs        # phone/desktop × EN/AR screenshots (pnpm screenshots)
   cloud-setup.sh         # idempotent environment setup
   prisma-wasm.mjs        # migration fallback (see above)
   prisma-generate.mjs    # prisma generate with blocked-engine fallback (postinstall)
@@ -110,7 +130,15 @@ src/
     actions/             # server actions ("use server"), one file per area
   generated/prisma/      # Prisma client output (gitignored, built by `prisma generate`)
   types/                 # module augmentation for next-auth and next-intl
-tests/                   # cross-cutting tests (e.g. translation key parity)
+tests/
+  *.test.ts              # unit: translation parity, rule checker, workflow config
+  integration/           # PostgreSQL tests (own <db>_test database, TRUNCATE between tests)
+  helpers/db.ts          # testDb, resetDatabase(), makeUser/makeWarehouse/makeProduct
+  setup/                 # vitest globalSetup (creates + migrates the test DB)
+docs/
+  workflow.md            # the AI development workflow
+  specs/  plans/         # feature specs (verbatim) and plans (from plans/_template.md)
+.claude/                 # agents, slash commands (skills/), hooks, settings.json
 ```
 
 Put stock business logic in `src/server/stock/` (services that take a Prisma transaction client) and keep pure
@@ -153,19 +181,26 @@ Inside a single `db.$transaction(async (tx) => …)`:
   and VOID entries themselves cannot be voided. Voiding one half of a transfer voids both halves.
 
 ### Transfers
-- A transfer saves a linked pair in the **same transaction**: `TRANSFER_OUT` from the source warehouse and
-  `TRANSFER_IN` to the destination, both `reason: TRANSFER`, with `linkedEntryId` pointing at each other.
+- A transfer saves a linked pair in the **same transaction**: `TRANSFER_OUT` from the source warehouse first,
+  then `TRANSFER_IN` to the destination with `linkedEntryId` = the OUT entry's id (one-way link — saved
+  entries are never updated to add links). Both `reason: TRANSFER`. Find the IN half of an OUT through
+  `linkedFrom` **filtered by `type: TRANSFER_IN`** (VOID entries also link to the entry they reverse).
   Both share one `TRF` counter value: `TRF-000012` (out) and `TRF-000012-IN` (in).
 - Source and destination must differ.
 
 ### Roles — enforced on the server, every time
 - **ADMIN:** everything (all warehouses, cost, void, corrections, products, warehouses, users).
-- **STAFF:** create `IN` / `OUT` / `TRANSFER` entries **only in their assigned warehouses** (for a transfer,
-  both source and destination must be assigned). Cannot see `cost`, cannot void, cannot create corrections.
+- **STAFF:** create `IN` / `OUT` / `TRANSFER` entries **only in their assigned warehouses**, with two
+  exceptions (decided in docs/plans/v1.md):
+  - a **transfer** needs only the *source* warehouse assigned; the destination may be any active warehouse;
+  - a **damaged customer return** (`CUSTOMER_RETURN` marked damaged) may go into any active `DAMAGED`
+    warehouse without assignment — this reason only.
+  Cannot see `cost`, cannot void, cannot create corrections, return-to-supplier or damaged/lost entries.
 - **VIEWER:** read-only.
 - Enforce this **in every server action and route handler**, not just by hiding UI:
   start with `requireUser()` / `requirePermission(action)` from `src/server/auth/dal.ts`, then
-  `assertCanWriteToWarehouse(user, warehouseId)` for each warehouse touched.
+  the warehouse checks from `src/lib/stock/policy.ts` for each warehouse touched (source of a transfer;
+  the DAMAGED destination of a damaged return is the one exception).
   Pages call `requireUser()` too (layouts don't re-run on every navigation).
 - The DAL re-reads role, active flag and warehouses from the DB on each request; never trust the role in
   the JWT/session for authorization.

@@ -6,6 +6,7 @@ import { loginSchema, type LoginInput } from "@/lib/validation/auth";
 
 export type LoginResult = { ok: true } | { ok: false; error: "invalidCredentials" | "generic" };
 
+// rules-allow: action-auth — signing in is how a user gets authenticated
 export async function loginAction(input: LoginInput): Promise<LoginResult> {
   const parsed = loginSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalidCredentials" };
@@ -24,6 +25,7 @@ export async function loginAction(input: LoginInput): Promise<LoginResult> {
   }
 }
 
+// rules-allow: action-auth — signing out only clears the caller's own session
 export async function logoutAction(): Promise<void> {
   await signOut({ redirectTo: "/login" });
 }
