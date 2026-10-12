@@ -50,7 +50,7 @@ export async function getProductStock(user: CurrentUser, productId: string, ware
   const total = perWarehouse.reduce((s, w) => s + w.quantity, 0);
 
   // Running balance over the WHOLE history (window), then show the newest rows first.
-  const whereWarehouse = warehouseId ? Prisma.sql`AND e."warehouseId" = ${warehouseId}` : Prisma.empty;
+  const whereWarehouse = warehouseId ? Prisma.sql`AND e.warehouseId = ${warehouseId}` : Prisma.empty;
   const card = await db.$queryRaw<
     {
       entryId: string;
@@ -58,23 +58,23 @@ export async function getProductStock(user: CurrentUser, productId: string, ware
       type: EntryType;
       reason: EntryReason;
       entryDate: Date;
-      voided: boolean;
+      voided: boolean | number | bigint;
       warehouse: string;
-      change: number;
-      balance: number;
+      change: number | bigint | string;
+      balance: number | bigint | string;
     }[]
   >`
-    SELECT e.id AS "entryId", e.number, e.type, e.reason, e."entryDate",
-           (e."voidedAt" IS NOT NULL) AS voided,
+    SELECT e.id AS entryId, e.\`number\`, e.type, e.reason, e.entryDate,
+           (e.voidedAt IS NOT NULL) AS voided,
            w.name AS warehouse,
-           (${SIGNED_QTY})::int AS change,
-           SUM(${SIGNED_QTY}) OVER (ORDER BY e."entryDate", e."createdAt", e.id ROWS UNBOUNDED PRECEDING)::int AS balance
-    FROM "StockEntryLine" l
-    JOIN "StockEntry" e ON e.id = l."entryId"
-    JOIN "Warehouse" w ON w.id = e."warehouseId"
-    LEFT JOIN "StockEntry" v ON v.id = e."linkedEntryId" AND e.type = 'VOID'
-    WHERE l."productId" = ${productId} ${whereWarehouse}
-    ORDER BY e."entryDate" DESC, e."createdAt" DESC, e.id DESC
+           CAST(${SIGNED_QTY} AS SIGNED) AS \`change\`,
+           CAST(SUM(${SIGNED_QTY}) OVER (ORDER BY e.entryDate, e.createdAt, e.id ROWS UNBOUNDED PRECEDING) AS SIGNED) AS balance
+    FROM StockEntryLine l
+    JOIN StockEntry e ON e.id = l.entryId
+    JOIN Warehouse w ON w.id = e.warehouseId
+    LEFT JOIN StockEntry v ON v.id = e.linkedEntryId AND e.type = 'VOID'
+    WHERE l.productId = ${productId} ${whereWarehouse}
+    ORDER BY e.entryDate DESC, e.createdAt DESC, e.id DESC
     LIMIT ${STOCK_CARD_LIMIT}`;
 
   return {
@@ -85,7 +85,7 @@ export async function getProductStock(user: CurrentUser, productId: string, ware
     perWarehouse: perWarehouse as (typeof perWarehouse[number] & { kind: WarehouseKind })[],
     sellable,
     total,
-    card: card.map((r) => ({ ...r, change: Number(r.change), balance: Number(r.balance) })),
+    card: card.map((r) => ({ ...r, voided: Boolean(Number(r.voided)), change: Number(r.change), balance: Number(r.balance) })),
     lowStock: product.lowStockLevel > 0 && sellable <= product.lowStockLevel,
   };
 }

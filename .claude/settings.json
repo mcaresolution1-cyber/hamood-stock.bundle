@@ -12,7 +12,7 @@
       "Bash(pnpm screenshots *)",
       "Bash(pnpm db:generate)",
       "Bash(pnpm db:seed)",
-      "Bash(pnpm db:migrate:wasm deploy)",
+      "Bash(pnpm db:deploy)",
       "Bash(node scripts/check-rules.mjs *)",
       "Bash(git status *)",
       "Bash(git diff *)",

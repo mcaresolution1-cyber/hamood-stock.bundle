@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkFile } from "../scripts/check-rules.mjs";
+import { checkFile, checkMigrationSql } from "../scripts/check-rules.mjs";
 
 type Violation = { rule: string; severity: string; line: number };
 const rules = (file: string, src: string) =>
@@ -15,6 +15,20 @@ describe("stocklevel-write", () => {
     expect(rules("src/lib/x.ts", 'tx.$executeRaw`UPDATE "StockLevel" SET quantity = 0`')).toContain(
       "error:stocklevel-write",
     );
+  });
+
+  it("flags MariaDB-style raw SQL on StockLevel and the ledger (backticks or no quotes)", () => {
+    for (const sql of [
+      "tx.$executeRaw`UPDATE \\`StockLevel\\` SET quantity = 0`",
+      "conn.query('INSERT INTO StockLevel (productId) VALUES (1) ON DUPLICATE KEY UPDATE quantity = 0')",
+      "conn.query('TRUNCATE TABLE `StockLevel`')",
+    ]) {
+      expect(rules("src/lib/x.ts", sql)).toContain("error:stocklevel-write");
+    }
+    for (const sql of ["conn.query('UPDATE StockEntry SET note = 1')", "conn.query('DELETE FROM `StockEntryLine`')"]) {
+      expect(rules("src/server/actions/x.ts", sql)).toContain("error:ledger-mutation");
+    }
+    expect(rules("src/server/queries/x.ts", "db.$queryRaw`SELECT * FROM StockLevel`")).toEqual([]);
   });
 
   it("allows reads anywhere and writes inside src/server/stock/", () => {
@@ -103,5 +117,14 @@ describe("hardcoded-text", () => {
 
   it("still warns about multi-line JSX text that contains a colon", () => {
     expect(rules("src/app/x/page.tsx", "<p>\n  Warning: stock will be added\n</p>")).toEqual(["warning:hardcoded-text"]);
+  });
+
+  it("blocks migrations that drop the hand-written ledger guards", () => {
+    const sql = "-- generated\nDROP INDEX `StockEntry_one_void_per_entry` ON `StockEntry`;\nALTER TABLE `StockEntry` DROP COLUMN `voidOfId`;\n";
+    expect(checkMigrationSql("prisma/migrations/x/migration.sql", sql).map((v) => [v.rule, v.line])).toEqual([
+      ["migration-guard", 2],
+      ["migration-guard", 3],
+    ]);
+    expect(checkMigrationSql("m.sql", "ALTER TABLE `Product` DROP COLUMN `wooProductId`;")).toEqual([]);
   });
 });

@@ -33,7 +33,7 @@ async function guardAdminChange(
   targetId: string,
   change: { role?: Role; active?: boolean },
 ) {
-  await tx.$queryRaw`SELECT id FROM "User" WHERE role = 'ADMIN' AND active = true ORDER BY id FOR UPDATE`;
+  await tx.$queryRaw`SELECT id FROM \`User\` WHERE role = 'ADMIN' AND active = true ORDER BY id FOR UPDATE`;
   const target = await tx.user.findUnique({ where: { id: targetId }, select: { role: true, active: true } });
   if (!target) throw new UserFacingError("errors.notFound");
   const losesAdmin =

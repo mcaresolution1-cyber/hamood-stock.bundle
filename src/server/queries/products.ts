@@ -26,10 +26,10 @@ export async function listProducts(user: CurrentUser, filters: ProductFilters) {
     ...(q
       ? {
           OR: [
-            { modelCode: { contains: q, mode: "insensitive" } },
-            { nameEn: { contains: q, mode: "insensitive" } },
-            { nameAr: { contains: q, mode: "insensitive" } },
-            { variant: { contains: q, mode: "insensitive" } },
+            { modelCode: { contains: q } },
+            { nameEn: { contains: q } },
+            { nameAr: { contains: q } },
+            { variant: { contains: q } },
           ],
         }
       : {}),

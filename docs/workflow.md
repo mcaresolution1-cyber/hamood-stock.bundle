@@ -37,7 +37,7 @@ flowchart LR
 | `planner` | Spec → phased plan with tasks, permissions, tests and translations | plan file only |
 | `cross-examiner` | Finds ambiguities, rule conflicts and edge cases; gives a recommended answer for each | read-only |
 | `implementer` | Implements one phase following CLAUDE.md | yes |
-| `test-engineer` | Unit and PostgreSQL integration tests; tries to break the ledger | tests |
+| `test-engineer` | Unit and MariaDB integration tests; tries to break the ledger | tests |
 | `ledger-auditor` | Reviews diffs for ledger, permission, cost-leak, i18n and migration problems | read-only |
 | `ui-verifier` | Screenshots and visual review (375px and desktop, EN and AR) | read-only |
 

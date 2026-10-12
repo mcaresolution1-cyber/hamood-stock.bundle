@@ -35,7 +35,10 @@ export function ProductForm({ product }: { product?: { id: string } & ProductFor
     defaultValues: product ?? EMPTY,
   });
 
-  function onSubmit(values: ProductInput) {
+  // The server re-validates with the same schema, so it must get the RAW form values (text), not the
+  // parsed ones handleSubmit passes in (null / numbers would fail the server's string checks).
+  function onSubmit() {
+    const values = form.getValues();
     startTransition(async () => {
       const result = product ? await updateProduct(product.id, values) : await createProduct(values);
       if (result.ok) {

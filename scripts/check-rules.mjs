@@ -12,6 +12,8 @@
  *   action-auth        an exported server action that never calls the auth DAL
  *   route-auth         a route handler (src/app/**\/route.ts) that never calls the auth DAL
  *   migration-edit     an already-committed migration file was modified
+ *   migration-guard    a migration drops the DB-level ledger guards Prisma doesn't know about
+ *                      (generated columns voidOfId / transferInOfId and their unique indexes)
  * Warnings (exit 0):
  *   hardcoded-text     JSX text that looks user-facing but isn't going through next-intl
  *
@@ -94,7 +96,7 @@ export function checkFile(file, content) {
     scanPattern(
       file,
       content,
-      /\b(INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+"StockLevel"/gi,
+      /\b(INSERT\s+INTO|REPLACE\s+INTO|UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+(?:\\?`|")?StockLevel\b/gi,
       "stocklevel-write",
       "Raw SQL write to StockLevel outside the entry service.",
       out,
@@ -110,7 +112,7 @@ export function checkFile(file, content) {
     scanPattern(
       file,
       content,
-      /\bUPDATE\s+"(StockEntry|StockEntryLine)"/gi,
+      /\b(UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?)\s+(?:\\?`|")?(StockEntry|StockEntryLine)\b/gi,
       "ledger-mutation",
       "Raw SQL update of the ledger outside the entry service.",
       out,
@@ -228,6 +230,34 @@ export function changedCommittedMigrations(root = ROOT) {
   }
 }
 
+/** Names of the hand-written ledger guards (prisma/migrations/20261010160000_init). Prisma doesn't model
+ * them, so a migration it generates may try to drop them — that must never be committed. */
+const LEDGER_GUARDS = /\bDROP\s+(?:INDEX|COLUMN|CONSTRAINT|CHECK)\s+(?:IF\s+EXISTS\s+)?`?(voidOfId|transferInOfId|StockEntry_one_void_per_entry|StockEntry_one_transfer_in_per_out|StockEntry_void_type_reason|StockLevel_quantity_non_negative|StockEntryLine_quantity_positive|Counter_value_non_negative)`?/gi;
+
+/** @returns {Violation[]} */
+export function checkMigrationSql(file, content) {
+  const out = [];
+  for (const m of content.matchAll(LEDGER_GUARDS)) {
+    out.push({
+      rule: "migration-guard",
+      severity: "error",
+      file,
+      line: lineOf(content, m.index ?? 0),
+      message: `This migration drops the ledger guard ${m[1]}. Prisma doesn't know about it — delete this line from the migration.`,
+    });
+  }
+  return out;
+}
+
+function migrationSqlFiles(root = ROOT) {
+  const dir = path.join(root, "prisma", "migrations");
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && fs.existsSync(path.join(dir, d.name, "migration.sql")))
+    .map((d) => `prisma/migrations/${d.name}/migration.sql`);
+}
+
 function main() {
   const args = process.argv.slice(2);
   const filesFlag = args.indexOf("--files");
@@ -243,6 +273,7 @@ function main() {
   const violations = files.flatMap((f) => checkFile(f, fs.readFileSync(path.join(ROOT, f), "utf8")));
 
   if (filesFlag < 0) {
+    for (const f of migrationSqlFiles()) violations.push(...checkMigrationSql(f, fs.readFileSync(path.join(ROOT, f), "utf8")));
     for (const f of changedCommittedMigrations()) {
       violations.push({
         rule: "migration-edit",

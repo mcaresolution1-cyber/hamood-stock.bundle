@@ -14,7 +14,7 @@ import { guarded, isUniqueViolation, UserFacingError, type ActionResult } from "
  * (createEntryInTx), so no entry can land between this check and the caller's update.
  */
 async function lockAndCountUnits(tx: Tx, warehouseId: string) {
-  await tx.$queryRaw`SELECT id FROM "Warehouse" WHERE id = ${warehouseId} FOR UPDATE`;
+  await tx.$queryRaw`SELECT id FROM \`Warehouse\` WHERE id = ${warehouseId} FOR UPDATE`;
   const sum = await tx.stockLevel.aggregate({ where: { warehouseId }, _sum: { quantity: true } });
   return sum._sum.quantity ?? 0;
 }

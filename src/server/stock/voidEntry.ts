@@ -7,7 +7,7 @@
  *   3. reverse the stock through applyLevelChanges — refused if it would go negative (Q12b)
  * Voiding either half of a transfer voids both halves (two VOID numbers, Q12a).
  */
-import type { PrismaClient } from "@/generated/prisma/client";
+import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import type { EntryType } from "@/generated/prisma/enums";
 import { can } from "@/lib/permissions";
 import { directionOf } from "@/lib/stock/lines";
@@ -59,7 +59,7 @@ export async function voidEntryInTx(tx: Tx, actor: EntryActor, input: VoidInput)
   // Lock in id order so two admins voiding the two halves at once can't deadlock; the loser then sees
   // voidedAt set below and gets "already voided".
   const sorted = [...ids].sort();
-  await tx.$queryRaw`SELECT id FROM "StockEntry" WHERE id = ANY(${sorted}) ORDER BY id FOR UPDATE`;
+  await tx.$queryRaw`SELECT id FROM \`StockEntry\` WHERE id IN (${Prisma.join(sorted)}) ORDER BY id FOR UPDATE`;
   const originals = await tx.stockEntry.findMany({
     where: { id: { in: sorted } },
     select: { id: true, type: true, warehouseId: true, voidedAt: true, lines: { select: { productId: true, quantity: true } } },
