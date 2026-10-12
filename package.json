@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/bundle-migrations.mjs && next build && node scripts/standalone-assets.mjs",
+    "build": "node scripts/bundle-migrations.mjs && next build --webpack && node scripts/standalone-assets.mjs",
     "start": "node --env-file-if-exists=.env .next/standalone/server.js",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
@@ -50,8 +50,10 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@next/swc-wasm-nodejs": "16.4.0",
     "@prisma/driver-adapter-utils": "7.10.0",
     "@prisma/schema-engine-wasm": "7.10.0-7.561d7b42579a2459cc8edf3788918b626c640023",
+    "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
