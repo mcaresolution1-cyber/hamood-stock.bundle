@@ -81,14 +81,17 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
     devDependencies:
+      '@next/swc-wasm-nodejs':
+        specifier: 16.4.0
+        version: 16.4.0
       '@prisma/driver-adapter-utils':
         specifier: 7.10.0
         version: 7.10.0
       '@prisma/schema-engine-wasm':
         specifier: 7.10.0-7.561d7b42579a2459cc8edf3788918b626c640023
         version: 7.10.0-7.561d7b42579a2459cc8edf3788918b626c640023
-      '@tailwindcss/turbopack':
-        specifier: ^4
+      '@tailwindcss/postcss':
+        specifier: ^4.3.3
         version: 4.3.3
       '@types/node':
         specifier: ^20
@@ -805,6 +808,9 @@ packages:
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
+
+  '@next/swc-wasm-nodejs@16.4.0':
+    resolution: {integrity: sha512-TwBaNnKE70G6knIFLgO4suQPM+LTx0ka0HjLWYnFkwnxQKaEL9XnB2fw1+/s8N3Vz9IqK3UxC1PqUBUtxsLS5Q==}
 
   '@next/swc-win32-arm64-msvc@16.4.0':
     resolution: {integrity: sha512-sQuOIiW3snb48UwrBcDMvFA/u03qtw2LeuSIxFIQ9AJuW9UG/4Ddsfo+eV73PnZwBhyncMtsKVh7PrzMol2/fA==}
@@ -2026,8 +2032,8 @@ packages:
     resolution: {integrity: sha512-krXjAikiaFSPaK/FkAQT5UTx3VormQaiZ5hBFlJZ9UFQGB/rwg1MZIhHAG9smMQRTdyJxP6Qt5MwMtdyU5FWrA==}
     engines: {node: '>= 20'}
 
-  '@tailwindcss/turbopack@4.3.3':
-    resolution: {integrity: sha512-FgL4wRgItNdXcDjcgYUSd59gNsWqNVK4GotjZimZMmt7OOIkRNqH2QEUcRXLdBDXvwTsi5rkYxDxzfrFUkmObQ==}
+  '@tailwindcss/postcss@4.3.3':
+    resolution: {integrity: sha512-JTSZZGQi1AyKirbLN3azmjVzef92tcX7h+iSqPdaeStyFpGpDlKvvpxeOE8njhbUanbRwr3z8DyzhICWnMtQeg==}
 
   '@tanstack/react-store@0.11.2':
     resolution: {integrity: sha512-oj5O5DmiMWE+ih+SioX2ayC1kbK7d3fpLx0B75fPJr9nY3zU+hoW010yr64qXsY/9fyiLVE2bn5mGNV3owm8RQ==}
@@ -5121,6 +5127,8 @@ snapshots:
   '@next/swc-linux-x64-musl@16.4.0':
     optional: true
 
+  '@next/swc-wasm-nodejs@16.4.0': {}
+
   '@next/swc-win32-arm64-msvc@16.4.0':
     optional: true
 
@@ -6293,11 +6301,12 @@ snapshots:
       '@tailwindcss/oxide-win32-arm64-msvc': 4.3.3
       '@tailwindcss/oxide-win32-x64-msvc': 4.3.3
 
-  '@tailwindcss/turbopack@4.3.3':
+  '@tailwindcss/postcss@4.3.3':
     dependencies:
       '@alloc/quick-lru': 5.3.0
       '@tailwindcss/node': 4.3.3
       '@tailwindcss/oxide': 4.3.3
+      postcss: 8.5.29
       tailwindcss: 4.3.3
 
   '@tanstack/react-store@0.11.2(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':

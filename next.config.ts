@@ -20,14 +20,6 @@ const nextConfig: NextConfig = {
     // Photos are capped at 4 MB (decision Q10, MEDIUMBLOB); keep the body limit just above that.
     serverActions: { bodySizeLimit: "4mb" },
   },
-  turbopack: {
-    rules: {
-      "*.css": {
-        loaders: ["@tailwindcss/turbopack"],
-        as: "*.css",
-      },
-    },
-  },
 };
 
 export default withNextIntl(nextConfig);
