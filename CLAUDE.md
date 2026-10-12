@@ -44,8 +44,8 @@ Read `node_modules/next/dist/docs/` before using an unfamiliar API (see AGENTS.m
 
 ```bash
 pnpm dev              # dev server on http://localhost:3000
-pnpm build            # production build
-pnpm start            # run production build
+pnpm build            # production build (output: standalone, like Hostinger) + copy static assets
+pnpm start            # run .next/standalone/server.js with .env — the same server Hostinger runs
 pnpm lint             # ESLint
 pnpm typecheck        # next typegen + tsc --noEmit
 pnpm test             # Vitest: unit + integration (integration needs MariaDB)

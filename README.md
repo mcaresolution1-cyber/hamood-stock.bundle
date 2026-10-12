@@ -37,7 +37,7 @@ sample catalogue; stock is always zero until you record entries.
 
 | Script | What it does |
 | --- | --- |
-| `pnpm dev` / `build` / `start` | Next.js dev server / production build / run the build. On start the server applies pending migrations and creates the base data (`AUTO_MIGRATE`). |
+| `pnpm dev` / `build` / `start` | Next.js dev server / production build (standalone, like Hostinger) / run that standalone server (`.next/standalone/server.js`, reads `.env`). On start the server applies pending migrations and creates the base data (`AUTO_MIGRATE`). |
 | `pnpm lint` / `typecheck` / `test` | ESLint / TypeScript / Vitest (unit + integration against MariaDB) |
 | `pnpm verify` | Everything: lint, typecheck, tests, rule checker, build |
 | `pnpm check:rules` | Project rule checker (ledger, auth, hard deletes, migrations) |
@@ -81,10 +81,17 @@ mysql://u123456789_stock:THE_PASSWORD@localhost:3306/u123456789_stock
 
    | Setting | Value |
    | --- | --- |
-   | Framework | Next.js |
+   | Framework / application type | Next.js |
+   | Branch | `main` |
    | Node.js version | 22 |
    | Package manager | pnpm (detected from `pnpm-lock.yaml`) |
-   | Build command | `pnpm build` (or Hostinger's suggested `npm run build`, which runs the same script) |
+   | Build script | `build` |
+   | Output directory | `.next` (leave as is) |
+   | Entry file | leave empty (Hostinger ignores it for Next.js) |
+
+   Hostinger builds Next.js as a *standalone* server and starts it itself. This app already sets
+   `output: "standalone"` and copies its static files after the build, so the bundle Hostinger runs is the
+   same one tested locally with `pnpm build && pnpm start`.
 
 4. **Environment variables**: add these. You can also import a file in the same `KEY=value` format.
 
@@ -134,6 +141,7 @@ Excel** for a readable snapshot.
 | Signing in redirects in a loop | `AUTH_TRUST_HOST` must be `true`, and `AUTH_SECRET` must be set. |
 | Runtime log: `DATABASE_URL is not a valid URL` | The password contains `@ # / ? :` or a space. URL-encode them, or choose a letters-and-digits password. |
 | Runtime log: `warning: … STATEMENT format … using REPEATABLE READ` | The app still works. Hostinger's database logs changes in an older format, so the app uses a slightly weaker read mode. The database constraints still prevent negative stock and double voids. |
+| Build log: `Next.js build produced no standalone server` | `next.config.ts` must export a plain config object (it does: `withNextIntl({...})`). Don't turn it into a function. |
 | Build fails with "out of memory" | Retry the deployment. If it keeps failing, the plan's build memory is too small. Check the plan's limits in hPanel. |
 
 ## Adding users

@@ -140,11 +140,11 @@ describe("voidEntryAction", () => {
 
 describe("entry form data", () => {
   it("never includes cost and marks only assigned warehouses writable for STAFF", async () => {
-    await testDb.product.update({ where: { id: p1 }, data: { cost: "85.00" } });
+    await testDb.product.update({ where: { id: p1 }, data: { cost: "4321.97" } });
     const user = { id: staff.id, name: staff.name, email: staff.email, role: staff.role, warehouseIds: [main] };
     const data = await loadEntryForm(user, "OUT");
     expect(JSON.stringify(data)).not.toContain("cost");
-    expect(JSON.stringify(data)).not.toContain("85");
+    expect(JSON.stringify(data)).not.toContain("4321");
     expect(data.warehouses.map((w) => [w.name, w.writable])).toEqual([
       ["Jeddah", false],
       ["Riyadh Main", true],

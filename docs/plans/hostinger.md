@@ -64,6 +64,7 @@ a browser run (create product → stock in → stock out → reports → Excel) 
 | 2026-10-10 | H9 | Vercel/Neon deployment removed (`vercel-build`, `DIRECT_URL`). Supersedes B18. | user |
 | 2026-10-10 | H10 | Bug found in the rehearsal and fixed: the product form sent the already-parsed values (null / numbers) to the server, which re-validates the raw text, so "New product" / "Edit product" failed whenever an optional field was empty. It now sends the raw form values. | Claude |
 | 2026-10-10 | H11 | Servers that write the binary log in STATEMENT format refuse writes under READ COMMITTED. Start-up checks `@@log_bin`/`@@binlog_format` and then uses REPEATABLE READ for every connection, with a warning in the logs. The DB constraints still block negative stock and double voids. Tested end to end on MariaDB with `binlog_format=STATEMENT`. | Claude (audit) |
+| 2026-10-12 | H12 | Hostinger builds Next.js with `output: "standalone"` (it patches the config) and runs `.next/standalone/server.js`. We set it ourselves, copy `.next/static` + `public` after the build, and `pnpm start` runs that server, so local runs match production. Rehearsed by running ONLY the copied standalone folder (outside the repo) on an empty DB. | Claude (Hostinger docs) |
 
 ## Verification log
 | Date | Phase | pnpm verify | Tests | Auditor |

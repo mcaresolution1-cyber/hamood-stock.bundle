@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/bundle-migrations.mjs && next build",
-    "start": "next start",
+    "build": "node scripts/bundle-migrations.mjs && next build && node scripts/standalone-assets.mjs",
+    "start": "node --env-file-if-exists=.env .next/standalone/server.js",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
