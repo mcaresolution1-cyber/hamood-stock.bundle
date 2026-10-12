@@ -44,7 +44,7 @@ Read `node_modules/next/dist/docs/` before using an unfamiliar API (see AGENTS.m
 
 ```bash
 pnpm dev              # dev server on http://localhost:3000
-pnpm build            # production build (output: standalone, like Hostinger) + copy static assets
+pnpm build            # production build like Hostinger's: webpack + WASM compiler, output standalone, static assets copied
 pnpm start            # run .next/standalone/server.js with .env — the same server Hostinger runs
 pnpm lint             # ESLint
 pnpm typecheck        # next typegen + tsc --noEmit
@@ -109,6 +109,16 @@ Production is Hostinger (README → Deploy): MariaDB at `localhost`, no shell st
   (use a generated column + unique index), case-insensitive matching comes from the `utf8mb4_unicode_ci`
   collation (Prisma's `mode: "insensitive"` is Postgres-only).
 
+### Building for Hostinger (old glibc)
+
+Hostinger's build server has glibc < 2.30, so Next's native compiler (`@next/swc-linux-x64-gnu`) and
+Turbopack can't run there. `pnpm build` therefore runs `next build --webpack` with Next's WASM compiler:
+`scripts/prepare-wasm-swc.mjs` copies the `@next/swc-wasm-nodejs` devDependency to `<next>/wasm/…`, where
+Next looks before trying a download (which fails on Hostinger). **When upgrading `next`, bump
+`@next/swc-wasm-nodejs` to the same version** (the script fails the build if they differ). Tailwind runs
+through `postcss.config.mjs` (`@tailwindcss/postcss`) in both dev (Turbopack) and build (webpack). Every
+other native binary in the build needs glibc ≤ 2.17.
+
 `pnpm install` / `pnpm db:generate` run `scripts/prisma-generate.mjs` (prisma generate with a fallback when the
 engine download is blocked) and then bundle the migrations.
 
@@ -127,6 +137,8 @@ scripts/
   cloud-setup.sh         # idempotent environment setup
   migrate.ts             # pnpm db:deploy (same runner as start-up)
   bundle-migrations.mjs  # embed migrations for the server (install + build)
+  prepare-wasm-swc.mjs   # make Next's WASM compiler available offline (Hostinger build)
+  standalone-assets.mjs  # copy .next/static + public next to the standalone server
   prisma-generate.mjs    # prisma generate with blocked-engine fallback (postinstall)
 src/
   proxy.ts               # optimistic auth redirect only (NOT the security boundary)

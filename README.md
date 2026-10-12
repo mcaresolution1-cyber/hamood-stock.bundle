@@ -93,6 +93,10 @@ mysql://u123456789_stock:THE_PASSWORD@localhost:3306/u123456789_stock
    `output: "standalone"` and copies its static files after the build, so the bundle Hostinger runs is the
    same one tested locally with `pnpm build && pnpm start`.
 
+   Hostinger's build server is too old for Next's fast native compiler (it needs glibc 2.30). So the build
+   uses webpack with Next's WebAssembly compiler, which ships in this repo's dependencies. Nothing needs
+   downloading during the build. Building takes a little longer, but the app that runs is the same.
+
 4. **Environment variables**: add these. You can also import a file in the same `KEY=value` format.
 
    | Name | Value |
@@ -141,6 +145,7 @@ Excel** for a readable snapshot.
 | Signing in redirects in a loop | `AUTH_TRUST_HOST` must be `true`, and `AUTH_SECRET` must be set. |
 | Runtime log: `DATABASE_URL is not a valid URL` | The password contains `@ # / ? :` or a space. URL-encode them, or choose a letters-and-digits password. |
 | Runtime log: `warning: … STATEMENT format … using REPEATABLE READ` | The app still works. Hostinger's database logs changes in an older format, so the app uses a slightly weaker read mode. The database constraints still prevent negative stock and double voids. |
+| Build log: `Failed to load SWC binary` / `GLIBC_2.29 not found` | `pnpm build` must run `scripts/prepare-wasm-swc.mjs` and `next build --webpack` (it does). Keep `@next/swc-wasm-nodejs` at the same version as `next` when upgrading Next. |
 | Build log: `Next.js build produced no standalone server` | `next.config.ts` must export a plain config object (it does: `withNextIntl({...})`). Don't turn it into a function. |
 | Build fails with "out of memory" | Retry the deployment. If it keeps failing, the plan's build memory is too small. Check the plan's limits in hPanel. |
 
