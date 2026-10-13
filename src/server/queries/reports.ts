@@ -6,6 +6,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
+import { lowStockOf } from "@/lib/stock/low-stock";
 import type { EntryReason, EntryType } from "@/generated/prisma/enums";
 import { can } from "@/lib/permissions";
 import { signedQuantity } from "@/lib/stock/lines";
@@ -28,7 +29,7 @@ export type StockOnHandRow = {
   nameEn: string;
   nameAr: string;
   category: string;
-  active: boolean;
+  status: "ACTIVE" | "DISCONTINUED" | "INACTIVE";
   qty: Record<string, number>;
   total: number;
   /** ADMIN only — absent (not null) for everyone else. */
@@ -47,10 +48,10 @@ export async function stockOnHand(user: CurrentUser, filters: { category?: strin
     db.product.findMany({
       where: {
         ...(filters.category ? { category: filters.category } : {}),
-        // inactive products only while they still hold stock (Q7 sell-off)
-        OR: [{ active: true }, { levels: { some: { quantity: { gt: 0 } } } }],
+        // discontinued products only while they still hold stock (Q7 sell-off), inactive never (no stock)
+        OR: [{ status: "ACTIVE" }, { levels: { some: { quantity: { gt: 0 } } } }],
       },
-      select: { id: true, modelCode: true, nameEn: true, nameAr: true, category: true, active: true, cost: showCost },
+      select: { id: true, modelCode: true, nameEn: true, nameAr: true, category: true, status: true, cost: showCost },
       orderBy: { modelCode: "asc" },
     }),
     db.stockLevel.findMany({ where: { quantity: { gt: 0 } }, select: { productId: true, warehouseId: true, quantity: true } }),
@@ -75,7 +76,7 @@ export async function stockOnHand(user: CurrentUser, filters: { category?: strin
       nameEn: p.nameEn,
       nameAr: p.nameAr,
       category: p.category,
-      active: p.active,
+      status: p.status,
       qty,
       total,
     };
@@ -174,7 +175,7 @@ export async function movements(filters: EntryFilters, opts: { page?: number; al
   };
 }
 
-// ─── Low stock (decision Q5: total across active SELLABLE warehouses, level 0 = never) ─────────────
+// ─── Low stock (Q5 + per-warehouse reorder levels, src/lib/stock/low-stock.ts) ────────────────────
 
 export async function lowStock(filters: { category?: string }) {
   const [warehouses, products] = await Promise.all([
@@ -184,7 +185,11 @@ export async function lowStock(filters: { category?: string }) {
       orderBy: { name: "asc" },
     }),
     db.product.findMany({
-      where: { active: true, lowStockLevel: { gt: 0 }, ...(filters.category ? { category: filters.category } : {}) },
+      where: {
+        status: "ACTIVE", // discontinued: sell what's left, don't reorder
+        OR: [{ lowStockLevel: { gt: 0 } }, { reorder: { some: { reorderLevel: { gt: 0 } } } }],
+        ...(filters.category ? { category: filters.category } : {}),
+      },
       select: {
         id: true,
         modelCode: true,
@@ -193,27 +198,36 @@ export async function lowStock(filters: { category?: string }) {
         category: true,
         lowStockLevel: true,
         levels: { where: { warehouse: { active: true, kind: "SELLABLE" } }, select: { warehouseId: true, quantity: true } },
+        reorder: { select: { warehouseId: true, reorderLevel: true, reorderQty: true } },
       },
       orderBy: { modelCode: "asc" },
     }),
   ]);
+  const sellableWarehouseIds = warehouses.map((w) => w.id);
   const rows = products
     .map((p) => {
       const qty = Object.fromEntries(p.levels.map((l) => [l.warehouseId, l.quantity]));
       const total = p.levels.reduce((s, l) => s + l.quantity, 0);
+      const status = lowStockOf({ lowStockLevel: p.lowStockLevel, qty, reorder: p.reorder, sellableWarehouseIds });
+      const ownLevels = p.reorder.filter((r) => r.reorderLevel > 0 && sellableWarehouseIds.includes(r.warehouseId));
       return {
         productId: p.id,
         modelCode: p.modelCode,
         nameEn: p.nameEn,
         nameAr: p.nameAr,
         category: p.category,
-        lowStockLevel: p.lowStockLevel,
+        /** The default level, or null when the product has its own per-warehouse levels */
+        lowStockLevel: ownLevels.length ? null : p.lowStockLevel,
+        levels: Object.fromEntries(ownLevels.map((r) => [r.warehouseId, r.reorderLevel])),
+        lowWarehouseIds: status.lowWarehouseIds,
         qty,
         total,
-        shortBy: p.lowStockLevel - total,
+        shortBy: status.shortBy,
+        suggestedQty: status.suggestedQty,
+        low: status.low,
       };
     })
-    .filter((r) => r.total <= r.lowStockLevel)
+    .filter((r) => r.low)
     .sort((a, b) => b.shortBy - a.shortBy || a.modelCode.localeCompare(b.modelCode));
   return { warehouses, rows };
 }

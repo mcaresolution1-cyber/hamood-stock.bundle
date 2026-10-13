@@ -3,8 +3,8 @@ import { sheetFromMatrix } from "./sheet";
 import { validateOpeningStock, type OpeningStockProduct } from "./opening-stock";
 
 const products = new Map<string, OpeningStockProduct>([
-  ["HMD-772", { id: "p1", modelCode: "HMD-772", nameEn: "Mount", nameAr: "حامل", active: true }],
-  ["OLD-1", { id: "p2", modelCode: "OLD-1", nameEn: "Old", nameAr: "قديم", active: false }],
+  ["HMD-772", { id: "p1", modelCode: "HMD-772", nameEn: "Mount", nameAr: "حامل", status: "ACTIVE" }],
+  ["OLD-1", { id: "p2", modelCode: "OLD-1", nameEn: "Old", nameAr: "قديم", status: "DISCONTINUED" }],
 ]);
 const run = (rows: string[][]) => validateOpeningStock(sheetFromMatrix([["modelCode", "quantity"], ...rows]), products);
 

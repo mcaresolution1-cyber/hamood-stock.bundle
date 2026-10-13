@@ -36,6 +36,7 @@ export default async function AuditPage({ searchParams }: PageProps<"/admin/audi
     const s = String(v);
     const ns = { role: "roles", kind: "warehouseKinds", category: "categories", status: "approvals.status" }[field];
     if (ns && /^[\w-]+$/.test(s) && has(`${ns}.${s}`)) return tr(`${ns}.${s}`);
+    if (field === "status" && /^\w+$/.test(s) && has(`products.statuses.${s}`)) return tr(`products.statuses.${s}`);
     return s;
   };
   const changes = (before: Json, after: Json) => {

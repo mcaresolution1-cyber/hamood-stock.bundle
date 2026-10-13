@@ -13,6 +13,7 @@ describe("navItemsFor", () => {
       "reports",
       "approvals",
       "products",
+      "suppliers",
       "openingStock",
       "warehouses",
       "users",
@@ -21,10 +22,9 @@ describe("navItemsFor", () => {
     ]);
   });
 
-  it("gives MANAGER and STAFF the stock pages and approvals, no admin pages", () => {
-    for (const role of ["MANAGER", "STAFF"] as const) {
-      expect(keys(role)).toEqual(["dashboard", "stockIn", "stockOut", "entries", "reports", "approvals"]);
-    }
+  it("gives MANAGER and STAFF the stock pages and approvals; managers also suppliers", () => {
+    expect(keys("STAFF")).toEqual(["dashboard", "stockIn", "stockOut", "entries", "reports", "approvals"]);
+    expect(keys("MANAGER")).toEqual(["dashboard", "stockIn", "stockOut", "entries", "reports", "approvals", "suppliers"]);
   });
 
   it("gives ACCOUNTANT read pages and the audit log, TECHNICIAN only his jobs", () => {

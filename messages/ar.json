@@ -122,7 +122,8 @@
     "approvals": "الموافقات",
     "audit": "سجل التدقيق",
     "settings": "الإعدادات",
-    "jobs": "مهامي"
+    "jobs": "مهامي",
+    "suppliers": "الموردون"
   },
   "validation": {
     "required": "هذا الحقل مطلوب.",
@@ -135,7 +136,8 @@
     "positiveWhole": "أدخل رقمًا صحيحًا من 1 فأكثر.",
     "tooLarge": "هذا الرقم كبير جدًا.",
     "phone": "أدخل رقم جوال مثل 0501234567.",
-    "photo": "تعذّر العثور على الصورة. يرجى إضافتها مرة أخرى."
+    "photo": "تعذّر العثور على الصورة. يرجى إضافتها مرة أخرى.",
+    "code": "استخدم حروفًا أو أرقامًا أو نقطة أو شرطة أو شرطة مائلة (حتى 64)."
   },
   "warehouseKinds": {
     "SELLABLE": "قابل للبيع",
@@ -215,7 +217,7 @@
   },
   "products": {
     "title": "المنتجات",
-    "subtitle": "قائمة منتجاتك. المنتجات الموقوفة تبقى في السجل.",
+    "subtitle": "الكتالوج مع المخزون في كل مستودع.",
     "new": "منتج جديد",
     "import": "استيراد",
     "newTitle": "منتج جديد",
@@ -225,33 +227,92 @@
     "nameEn": "الاسم (إنجليزي)",
     "nameAr": "الاسم (عربي)",
     "category": "الفئة",
-    "variant": "المواصفة",
-    "variantHint": "المقاس أو اللون، مثل 32–70 بوصة، أسود.",
-    "imageUrl": "رابط الصورة",
+    "variant": "تفاصيل أخرى",
+    "variantHint": "أي شيء آخر يميّز الأصناف.",
+    "imageUrl": "أو رابط صورة",
     "cost": "التكلفة (ريال)",
-    "costHint": "التكلفة تظهر للمدير فقط.",
-    "lowStockLevel": "حد المخزون المنخفض",
-    "lowStockHint": "تنبيه عندما يصل إجمالي المخزون القابل للبيع إلى هذا الحد أو أقل. 0 = بدون تنبيه.",
+    "costHint": "لا يرى التكلفة إلا مسؤول النظام والمحاسب. يُحفظ كل تغيير.",
+    "lowStockLevel": "حد المخزون المنخفض الافتراضي",
+    "lowStockHint": "نبّه عندما يصل إجمالي المخزون القابل للبيع إلى هذا الحد أو أقل. 0 = لا تنبيه.",
     "searchPlaceholder": "رقم الموديل أو الاسم",
     "allCategories": "كل الفئات",
-    "statusActive": "نشط",
-    "statusInactive": "موقوف",
     "statusAll": "الكل",
     "empty": "لا توجد منتجات مطابقة.",
     "emptyCatalogue": "لا توجد منتجات بعد. أضف منتجًا أو استورد ملفًا.",
-    "deactivateConfirm": "إيقاف {modelCode}؟ لن يمكن استلامه بعد الآن، لكن يمكن إخراج المخزون المتبقي.",
-    "activateConfirm": "إعادة تفعيل {modelCode}؟",
     "created": "تمت إضافة المنتج",
     "updated": "تم تحديث المنتج",
     "errors": {
-      "codeTaken": "يوجد منتج برقم الموديل هذا بالفعل."
-    }
+      "codeTaken": "يوجد منتج بهذا الرقم بالفعل.",
+      "skuTaken": "يستخدم منتج آخر رمز SKU هذا.",
+      "barcodeTaken": "يستخدم منتج آخر هذا الباركود.",
+      "unknownSupplier": "اختر موردًا نشطًا.",
+      "retireHasStock": "ما زال لهذا المنتج مخزون. انقله أو اشطبه أولًا، أو اجعله متوقفًا.",
+      "newInactive": "لا يمكن أن يبدأ منتج جديد بحالة غير نشط."
+    },
+    "sections": {
+      "identity": "المنتج",
+      "details": "التفاصيل والصورة",
+      "prices": "الأسعار والمورد",
+      "stock": "مستويات المخزون",
+      "website": "الموقع (hamoodtv.com)"
+    },
+    "sku": "رمز SKU",
+    "skuHint": "رمز داخلي. إن تُرك فارغًا يُستخدم رقم الموديل.",
+    "barcode": "الباركود",
+    "barcodeHint": "للمسح لاحقًا. يجب ألا يتكرر.",
+    "status": "الحالة",
+    "statuses": {
+      "ACTIVE": "نشط",
+      "DISCONTINUED": "متوقف",
+      "INACTIVE": "غير نشط"
+    },
+    "statusHelp": {
+      "ACTIVE": "عادي: يُستلم ويُباع ويُعاد طلبه.",
+      "DISCONTINUED": "بيع المتبقي: لا يُستلم ولا يُعاد طلبه، ويمكن إخراجه.",
+      "INACTIVE": "موقوف نهائيًا: فقط إن لم يبقَ منه مخزون، ولا يمكن تحريكه."
+    },
+    "sizeRange": "نطاق المقاس",
+    "colour": "اللون",
+    "maxLoadKg": "أقصى حمولة (كغ)",
+    "vesa": "معيار VESA",
+    "kg": "كغ",
+    "image": "الصورة",
+    "imageUrlHint": "أو الصق رابط صورة من موقعك (https://).",
+    "uploadImage": "رفع صورة",
+    "replaceImage": "تغيير الصورة",
+    "removeImage": "حذف الصورة",
+    "uploading": "جارٍ الرفع…",
+    "sellingPrice": "سعر البيع (ريال شامل الضريبة)",
+    "defaultSupplier": "المورد الافتراضي",
+    "leadTimeDays": "مدة التوريد (أيام)",
+    "reorderHint": "حدّ لكل مستودع يحل محل الحد الافتراضي لذلك المستودع. اتركه فارغًا لاستخدام الافتراضي.",
+    "reorderLevel": "أعد الطلب عند",
+    "reorderQty": "كمية إعادة الطلب",
+    "reorderLevelFor": "حد إعادة الطلب لـ {warehouse}",
+    "reorderQtyFor": "كمية إعادة الطلب لـ {warehouse}",
+    "wooProductId": "رقم المنتج في ووكومرس",
+    "wooSku": "رمز SKU في ووكومرس",
+    "statusCurrent": "النشطة والمتوقفة",
+    "sellable": "قابل للبيع",
+    "damaged": "تالف",
+    "value": "قيمة المخزون",
+    "price": "السعر",
+    "export": "تنزيل Excel",
+    "setStatus": "تغيير الحالة",
+    "statusConfirm": "تغيير حالة {modelCode} إلى {status}؟",
+    "costHistory": "سجل التكلفة",
+    "costSource": {
+      "MANUAL": "تعديل",
+      "IMPORT": "استيراد",
+      "DELIVERY": "توريد"
+    },
+    "noCostHistory": "لا توجد تكلفة مسجلة بعد."
   },
   "import": {
     "title": "استيراد المنتجات",
     "subtitle": "ارفع ملف Excel (.xlsx) أو CSV. يتم تحديث أرقام الموديلات الموجودة، والخلايا الفارغة تُبقي القيمة الحالية.",
     "columns": "الأعمدة",
-    "columnsHelp": "عمود modelCode مطلوب. وللمنتجات الجديدة أيضًا nameEn وnameAr وcategory. اختياري: variant وimageUrl وcost وlowStockLevel.",
+    "columnsHelp": "رقم الموديل (modelCode) مطلوب، والمنتجات الجديدة تحتاج أيضًا nameEn وnameAr وcategory. اختياري: sku وbarcode وsizeRange وcolour وmaxLoadKg وvesa وvariant وimageUrl وcost وsellingPrice وlowStockLevel وleadTimeDays وwooProductId وwooSku وsupplier (الاسم).",
     "file": "الملف",
     "chooseFile": "اختر ملفًا",
     "preview": "فحص الملف",
@@ -277,12 +338,15 @@
       "empty": "لا يحتوي الملف على صفوف بيانات.",
       "missingModelCode": "يجب أن يحتوي الملف على عمود modelCode.",
       "missingQuantity": "يجب أن يحتوي الملف على عمود quantity.",
-      "duplicateInFile": "رقم الموديل هذا مكرر في الملف.",
+      "duplicateInFile": "تتكرر هذه القيمة أكثر من مرة في الملف.",
       "unknownCategory": "فئة غير معروفة. استخدم wall-mount أو floor-stand أو monitor-mount أو tv-table.",
       "unknownProduct": "لا يوجد منتج برقم الموديل هذا.",
-      "inactiveProduct": "هذا المنتج موقوف.",
-      "fixFirst": "الملف يحتوي على أخطاء. لم يتم حفظ أي شيء."
-    }
+      "inactiveProduct": "هذا المنتج متوقف أو غير نشط.",
+      "fixFirst": "الملف يحتوي على أخطاء. لم يتم حفظ أي شيء.",
+      "unknownSupplier": "لا يوجد مورد نشط بهذا الاسم."
+    },
+    "errorsColumn": "الأخطاء",
+    "downloadErrors": "تنزيل الصفوف التي بها أخطاء"
   },
   "openingStock": {
     "title": "المخزون الافتتاحي",
@@ -309,13 +373,14 @@
       "warehouseInactive": "هذا المستودع غير نشط.",
       "reasonNotForWarehouse": "لا يمكن تسجيل مبيعات من مستودع المخزون التالف.",
       "productNotFound": "أحد المنتجات لم يعد موجودًا.",
-      "productInactive": "{modelCode} موقوف ولا يمكن استلامه.",
+      "productInactive": "{modelCode} متوقف ولا يمكن استلامه.",
       "noLines": "أضف منتجًا واحدًا على الأقل.",
       "invalidQuantity": "يجب أن تكون الكميات أرقامًا صحيحة من 1 إلى 100,000.",
       "returnWarehouseKind": "المرتجعات التالفة تذهب إلى مستودع المخزون التالف، والقابلة للبيع إلى مستودع قابل للبيع.",
       "noDestination": "اختر المستودع المحوَّل إليه.",
       "sameWarehouse": "اختر مستودعًا مختلفًا للتحويل إليه.",
-      "duplicateSubmit": "تم إرسال هذا النموذج من قبل مستخدم آخر. أعد تحميل الصفحة وحاول مرة أخرى."
+      "duplicateSubmit": "تم إرسال هذا النموذج من قبل مستخدم آخر. أعد تحميل الصفحة وحاول مرة أخرى.",
+      "productRetired": "{modelCode} غير نشط — غيّر حالته إلى نشط أو متوقف أولًا."
     }
   },
   "reasons": {
@@ -416,7 +481,9 @@
     },
     "sentForApproval": "أُرسل للموافقة",
     "approvalHint": "لن يتغير المخزون إلا بعد موافقة مدير المستودع أو مسؤول النظام.",
-    "viewRequest": "عرض الطلب"
+    "viewRequest": "عرض الطلب",
+    "supplier": "المورد",
+    "duplicateInvoice": "الفاتورة {reference} من هذا المورد استُلمت من قبل في {number}. احفظ فقط إن كان هذا توريدًا ثانيًا فعلًا."
   },
   "productPicker": {
     "add": "إضافة منتج",
@@ -530,7 +597,8 @@
     "empty": "لا توجد حركات بعد.",
     "edit": "تعديل المنتج",
     "cost": "تكلفة الوحدة: {cost} ريال",
-    "inactive": "موقوف"
+    "price": "السعر {price} ريال",
+    "reorderAt": "إعادة الطلب عند {level}"
   },
   "reports": {
     "title": "التقارير",
@@ -544,7 +612,7 @@
     "hint": {
       "stockOnHand": "الكمية الحالية لكل منتج في كل مستودع.",
       "movements": "كل سطر منتج في كل قيد، الأحدث أولًا.",
-      "lowStock": "المنتجات التي وصل إجمالي مخزونها القابل للبيع إلى حدها المنخفض أو أقل.",
+      "lowStock": "المنتجات النشطة التي وصلت إلى حد إعادة الطلب في مستودع أو أقل، أو (دون حدود للمستودعات) التي وصل إجمالي مخزونها القابل للبيع إلى الحد الافتراضي أو أقل.",
       "outByReason": "الوحدات الخارجة حسب السبب لكل شهر (بتوقيت الرياض). القيود الملغاة مستبعدة."
     },
     "export": "تنزيل Excel",
@@ -557,7 +625,8 @@
       "level": "حد المخزون المنخفض",
       "shortBy": "العجز",
       "month": "الشهر",
-      "change": "الكمية"
+      "change": "الكمية",
+      "reorderQty": "كمية إعادة الطلب"
     },
     "noCost": "{count, plural, =1 {منتج واحد بدون تكلفة، فلم يُحسب} =2 {منتجان بدون تكلفة، فلم يُحسبا} few {# منتجات بدون تكلفة، فلم تُحسب} many {# منتجًا بدون تكلفة، فلم تُحسب} other {# منتج بدون تكلفة، فلم تُحسب}} في إجمالي القيمة.",
     "transfersExcluded": "التحويلات بين المستودعات معروضة لكنها لا تدخل في الإجمالي لأنها لا تخرج من الشركة. اختر مستودعًا لتضمينها.",
@@ -682,7 +751,8 @@
       "user": "المستخدمون",
       "warehouse": "المستودعات",
       "setting": "الإعدادات",
-      "approval": "الموافقات"
+      "approval": "الموافقات",
+      "supplier": "الموردون"
     },
     "actions": {
       "product_create": "إنشاء منتج",
@@ -699,7 +769,11 @@
       "warehouse_deactivate": "إيقاف مستودع",
       "setting_update": "تعديل الإعدادات",
       "approval_approve": "الموافقة على طلب",
-      "approval_reject": "رفض طلب"
+      "approval_reject": "رفض طلب",
+      "supplier_create": "إنشاء مورد",
+      "supplier_update": "تعديل مورد",
+      "supplier_activate": "تفعيل مورد",
+      "supplier_deactivate": "إيقاف مورد"
     },
     "fields": {
       "modelCode": "رقم الموديل",
@@ -728,7 +802,27 @@
       "note": "ملاحظة",
       "maxUnits": "حد الوحدات",
       "maxValue": "حد الريال",
-      "entry": "القيد"
+      "entry": "القيد",
+      "sku": "رمز SKU",
+      "barcode": "الباركود",
+      "sellingPrice": "سعر البيع",
+      "sizeRange": "نطاق المقاس",
+      "colour": "اللون",
+      "maxLoadKg": "أقصى حمولة",
+      "vesa": "معيار VESA",
+      "leadTimeDays": "مدة التوريد",
+      "wooSku": "SKU ووكومرس",
+      "defaultSupplierId": "المورد الافتراضي",
+      "reorder": "حدود إعادة الطلب",
+      "reorderLevel": "الحد",
+      "reorderQty": "الكمية",
+      "warehouseId": "المستودع",
+      "phone": "الهاتف",
+      "contactPerson": "المسؤول",
+      "vatNumber": "الرقم الضريبي",
+      "paymentTerms": "شروط الدفع",
+      "notes": "ملاحظات",
+      "country": "الدولة"
     }
   },
   "account": {
@@ -750,5 +844,38 @@
     "title": "مهامي",
     "subtitle": "مهام التركيب المسلّمة إليك.",
     "empty": "لا توجد مهام بعد. تظهر هنا عندما يسلّمك مدير المستودع بضاعة لتركيبها."
+  },
+  "suppliers": {
+    "title": "الموردون",
+    "subtitle": "من تشتري منهم. يُختار منهم في التوريد والإرجاع.",
+    "new": "مورد جديد",
+    "editTitle": "تعديل المورد",
+    "empty": "لا يوجد موردون بعد.",
+    "nameEn": "الاسم (إنجليزي)",
+    "nameAr": "الاسم (عربي)",
+    "contactPerson": "الشخص المسؤول",
+    "phone": "الهاتف",
+    "email": "البريد الإلكتروني",
+    "city": "المدينة",
+    "country": "الدولة",
+    "vatNumber": "الرقم الضريبي",
+    "paymentTerms": "شروط الدفع",
+    "notes": "ملاحظات",
+    "deliveries": "القيود",
+    "showInactive": "إظهار الموقوفين",
+    "deactivateConfirm": "إيقاف {name}؟ تبقى القيود القديمة كما هي، لكن لا يمكن اختياره بعد الآن.",
+    "activateConfirm": "تفعيل {name} مرة أخرى؟",
+    "pick": "اختر المورد",
+    "search": "ابحث عن مورد…",
+    "none": "لا يوجد مورد مطابق.",
+    "addNew": "إضافة مورد جديد",
+    "addTitle": "مورد جديد",
+    "added": "تمت إضافة المورد",
+    "change": "تغيير",
+    "errors": {
+      "nameTaken": "يوجد مورد بهذا الاسم بالفعل.",
+      "inactive": "يوجد مورد بهذا الاسم لكنه موقوف. اطلب من مدير المستودع تفعيله.",
+      "required": "اختر المورد."
+    }
   }
 }

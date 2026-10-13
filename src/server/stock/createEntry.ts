@@ -9,10 +9,11 @@
  * Takes the Prisma client as a parameter so tests can pass the test-database client.
  * Permissions are enforced here as well as in the server actions (defence in depth).
  */
-import type { PrismaClient } from "@/generated/prisma/client";
+import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import type { EntryReason } from "@/generated/prisma/enums";
 import { counterKeyFor, formatEntryNumber, type CounterKey } from "@/lib/stock/numbering";
 import { directionOf, mergeLines, type LineInput } from "@/lib/stock/lines";
+import { canMove, canReceive } from "@/lib/products";
 import { entryPermissionError, entryTypeFor, type Direction, type EntryActor } from "@/lib/stock/policy";
 import { ApprovalRequiredError, EntryRuleError, InsufficientStockError } from "./errors";
 import { approvalNeeded, approvalRuleFor } from "./approval-rules";
@@ -35,6 +36,8 @@ export type EntryInput = {
   customerPhone?: string | null;
   technicianName?: string | null;
   supplierName?: string | null;
+  /** Supplier master record (Phase B). The caller checks it exists and is active. */
+  supplierId?: string | null;
   note?: string | null;
   photoUrl?: string | null;
   /** Repeat-submit protection: the same key (from the same user) returns the entry already saved. */
@@ -123,16 +126,24 @@ export async function createEntryInTx(
   }
 
   const lines = mergeLines(input.lines);
+  // Share-lock the products: retiring a product (status INACTIVE) takes FOR UPDATE and then checks it
+  // holds no stock, so it waits for this save (src/server/actions/products.ts).
+  const productIds = [...new Set(lines.map((l) => l.productId))].sort();
+  await tx.$queryRaw`SELECT id FROM \`Product\` WHERE id IN (${Prisma.join(productIds)}) LOCK IN SHARE MODE`;
   const products = await tx.product.findMany({
     where: { id: { in: lines.map((l) => l.productId) } },
-    select: { id: true, modelCode: true, active: true },
+    select: { id: true, modelCode: true, status: true },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
   for (const line of lines) {
     const product = byId.get(line.productId);
     if (!product) throw new EntryRuleError("stock.errors.productNotFound");
+    // PB1: inactive (retired) products don't move at all.
+    if (!canMove(product.status)) {
+      throw new EntryRuleError("stock.errors.productRetired", { modelCode: product.modelCode });
+    }
     // Q7: discontinued products can still leave or move (sell-off) but can't be received.
-    if (!product.active && input.direction === "IN") {
+    if (!canReceive(product.status) && input.direction === "IN") {
       throw new EntryRuleError("stock.errors.productInactive", { modelCode: product.modelCode });
     }
   }
@@ -152,6 +163,7 @@ export async function createEntryInTx(
     customerPhone: clean(input.customerPhone),
     technicianName: clean(input.technicianName),
     supplierName: clean(input.supplierName),
+    supplierId: input.supplierId || null,
     note: clean(input.note),
     photoUrl: clean(input.photoUrl),
     createdById: actor.id,

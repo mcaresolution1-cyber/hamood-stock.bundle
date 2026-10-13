@@ -163,7 +163,7 @@ describe("void and inactive warehouses (B6)", () => {
 
   it("still voids entries for a deactivated product", async () => {
     const e = await receive([{ productId: p1, quantity: 2 }]);
-    await testDb.product.update({ where: { id: p1 }, data: { active: false } });
+    await testDb.product.update({ where: { id: p1 }, data: { status: "DISCONTINUED" } });
     await expect(voidEntry(testDb, admin, { entryId: e.id, reason: "wrong product" })).resolves.toBeTruthy();
   });
 });

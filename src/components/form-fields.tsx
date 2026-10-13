@@ -12,12 +12,13 @@ import { NativeSelect } from "@/components/native-select";
 import { useMessage } from "@/components/use-message";
 import type { ActionResult } from "@/server/actions/result";
 
-type BaseProps = { name: string; label: string; hint?: string; optional?: boolean };
+/** `hideLabel`: the label is read by screen readers only (e.g. inputs inside a table with column headers). */
+type BaseProps = { name: string; label: string; hint?: string; optional?: boolean; hideLabel?: boolean };
 
-function Label({ label, optional }: { label: string; optional?: boolean }) {
+function Label({ label, optional, hidden }: { label: string; optional?: boolean; hidden?: boolean }) {
   const t = useTranslations("common");
   return (
-    <FormLabel>
+    <FormLabel className={hidden ? "sr-only" : undefined}>
       {label}
       {optional && <span className="font-normal text-muted-foreground"> ({t("optional")})</span>}
     </FormLabel>
@@ -29,6 +30,7 @@ export function TextField({
   label,
   hint,
   optional,
+  hideLabel,
   ...input
 }: BaseProps & Omit<React.ComponentProps<typeof Input>, "name">) {
   const { control } = useFormContext();
@@ -39,7 +41,7 @@ export function TextField({
       name={name}
       render={({ field, fieldState }) => (
         <FormItem>
-          <Label label={label} optional={optional} />
+          <Label label={label} optional={optional} hidden={hideLabel} />
           <FormControl>
             <Input className="h-11 md:h-10" {...input} {...field} value={field.value ?? ""} />
           </FormControl>

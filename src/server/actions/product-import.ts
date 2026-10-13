@@ -4,14 +4,12 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/server/auth/dal";
 import { audit } from "@/server/audit";
-import { validateProductImport, type ProductImportResult } from "@/lib/import/products";
-import { readSheet } from "@/server/import/readSheet";
+import type { ProductImportResult } from "@/lib/import/products";
+import { validateImportFile } from "@/server/import/product-import";
 import { guarded, UserFacingError, type ActionResult } from "./result";
 
 async function validate(formData: FormData): Promise<ProductImportResult> {
-  const sheet = await readSheet(formData.get("file"));
-  const existing = await db.product.findMany({ select: { modelCode: true } });
-  return validateProductImport(sheet, new Set(existing.map((p) => p.modelCode)));
+  return (await validateImportFile(formData)).result;
 }
 
 export async function previewProductImport(formData: FormData): Promise<ActionResult<ProductImportResult>> {
@@ -23,7 +21,8 @@ export async function previewProductImport(formData: FormData): Promise<ActionRe
 
 /**
  * Re-reads and re-validates the file (never trusts the preview), then creates/updates every row in
- * one transaction. Nothing is saved if any row has an error. Never touches stock or `active` (Q8).
+ * one transaction. Nothing is saved if any row has an error. Never touches stock or the status (Q8).
+ * Cost changes are added to the cost history.
  */
 export async function applyProductImport(
   formData: FormData,
@@ -37,24 +36,34 @@ export async function applyProductImport(
 
     await db.$transaction(
       async (tx) => {
+        const before = new Map(
+          (await tx.product.findMany({ where: { modelCode: { in: result.rows.map((r) => r.modelCode) } }, select: { modelCode: true, cost: true } })).map(
+            (p) => [p.modelCode, p.cost === null ? null : p.cost.toFixed(2)],
+          ),
+        );
         for (const { action, data } of result.rows) {
           const { modelCode, ...fields } = data;
+          let productId: string;
           if (action === "create") {
-            await tx.product.create({
+            const created = await tx.product.create({
               data: {
+                ...fields,
                 modelCode,
+                sku: fields.sku ?? modelCode,
                 nameEn: fields.nameEn!,
                 nameAr: fields.nameAr!,
                 category: fields.category!,
-                variant: fields.variant ?? null,
-                imageUrl: fields.imageUrl ?? null,
-                cost: fields.cost ?? null,
                 lowStockLevel: fields.lowStockLevel ?? 0,
               },
+              select: { id: true },
             });
+            productId = created.id;
           } else {
             // Empty cells were left out of `fields`, so existing values are kept (Q8).
-            await tx.product.update({ where: { modelCode }, data: fields });
+            productId = (await tx.product.update({ where: { modelCode }, data: fields, select: { id: true } })).id;
+          }
+          if (fields.cost !== undefined && before.get(modelCode) !== Number(fields.cost).toFixed(2)) {
+            await tx.productCost.create({ data: { productId, cost: fields.cost, source: "IMPORT", changedById: actor.id } });
           }
         }
         // One summary row per import (a row per product would bury everything else in the log).

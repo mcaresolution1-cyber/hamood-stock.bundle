@@ -30,7 +30,7 @@ const ACTIONS: [string, () => Promise<{ ok: boolean; error?: string }>][] = [
   ["resetUserPassword", () => users.resetUserPassword("u", { password: "password123" })],
   ["createProduct", () => products.createProduct({})],
   ["updateProduct", () => products.updateProduct("p", {})],
-  ["setProductActive", () => products.setProductActive("p", false)],
+  ["setProductStatus", () => products.setProductStatus("p", "DISCONTINUED")],
   ["previewProductImport", () => productImport.previewProductImport(fd())],
   ["applyProductImport", () => productImport.applyProductImport(fd())],
   ["previewOpeningStock", () => openingStock.previewOpeningStock(fd())],

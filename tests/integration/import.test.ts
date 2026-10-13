@@ -54,9 +54,9 @@ describe("readSheet", () => {
 });
 
 describe("product import", () => {
-  it("previews, then creates and updates by model code without touching stock or active", async () => {
+  it("previews, then creates and updates by model code without touching stock or status", async () => {
     const existing = await makeProduct("HMD-772");
-    await testDb.product.update({ where: { id: existing.id }, data: { active: false, variant: "Black" } });
+    await testDb.product.update({ where: { id: existing.id }, data: { status: "DISCONTINUED", variant: "Black" } });
     const file = await xlsxFile([
       HEAD,
       ["HMD-900", "Floor stand", "ستاند أرضي", "Floor stands", "", "", "1,250.50", 3],
@@ -70,10 +70,10 @@ describe("product import", () => {
     expect(applied).toEqual({ ok: true, data: { created: 1, updated: 1 } });
 
     const created = await testDb.product.findUniqueOrThrow({ where: { modelCode: "HMD-900" } });
-    expect(created).toMatchObject({ category: "floor-stand", lowStockLevel: 3, active: true });
+    expect(created).toMatchObject({ category: "floor-stand", lowStockLevel: 3, status: "ACTIVE" });
     expect(created.cost?.toString()).toBe("1250.5");
     const updated = await testDb.product.findUniqueOrThrow({ where: { id: existing.id } });
-    expect(updated).toMatchObject({ nameEn: "Renamed mount", nameAr: existing.nameAr, variant: "Black", active: false });
+    expect(updated).toMatchObject({ nameEn: "Renamed mount", nameAr: existing.nameAr, variant: "Black", status: "DISCONTINUED" });
     expect(await testDb.stockLevel.count()).toBe(0);
     expect(await testDb.stockEntry.count()).toBe(0);
   });

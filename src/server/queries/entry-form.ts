@@ -11,24 +11,30 @@ import { formReasons, type Direction } from "@/lib/stock/policy";
 import type { CurrentUser } from "@/server/auth/dal";
 
 export async function loadEntryForm(user: CurrentUser, direction: Direction) {
-  const [warehouses, products, levels] = await Promise.all([
+  const [warehouses, products, levels, suppliers] = await Promise.all([
     db.warehouse.findMany({
       where: { active: true },
       select: { id: true, name: true, city: true, kind: true },
       orderBy: { name: "asc" },
     }),
     db.product.findMany({
-      // Q7: inactive products can't come in, but remaining units can still go out.
-      where: direction === "IN" ? { active: true } : {},
+      // Q7/PB1: only ACTIVE products come in; discontinued ones can still go out; inactive ones never move.
+      where: direction === "IN" ? { status: "ACTIVE" } : { status: { not: "INACTIVE" } },
       select: {
         id: true,
         modelCode: true,
+        sku: true,
+        barcode: true,
         nameEn: true,
         nameAr: true,
         variant: true,
+        sizeRange: true,
+        colour: true,
+        vesa: true,
+        wooSku: true,
         imageUrl: true,
         category: true,
-        active: true,
+        status: true,
       },
       orderBy: { modelCode: "asc" },
     }),
@@ -36,6 +42,7 @@ export async function loadEntryForm(user: CurrentUser, direction: Direction) {
       where: { quantity: { gt: 0 }, warehouse: { active: true } },
       select: { productId: true, warehouseId: true, quantity: true },
     }),
+    db.supplier.findMany({ where: { active: true }, select: { id: true, nameEn: true, nameAr: true }, orderBy: { nameEn: "asc" } }),
   ]);
 
   const stock: Record<string, Record<string, number>> = {};
@@ -47,6 +54,7 @@ export async function loadEntryForm(user: CurrentUser, direction: Direction) {
     warehouses: warehouses.map((w) => ({ ...w, writable: canWriteToWarehouse(user, w.id) })),
     products,
     stock,
+    suppliers,
   };
 }
 

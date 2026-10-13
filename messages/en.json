@@ -122,7 +122,8 @@
     "approvals": "Approvals",
     "audit": "Audit log",
     "settings": "Settings",
-    "jobs": "My jobs"
+    "jobs": "My jobs",
+    "suppliers": "Suppliers"
   },
   "validation": {
     "required": "This field is required.",
@@ -135,7 +136,8 @@
     "positiveWhole": "Enter a whole number of 1 or more.",
     "tooLarge": "This number is too large.",
     "phone": "Enter a phone number like 0501234567.",
-    "photo": "The photo couldn't be found. Please add it again."
+    "photo": "The photo couldn't be found. Please add it again.",
+    "code": "Use letters, digits, dot, dash, slash or underscore (max 64)."
   },
   "warehouseKinds": {
     "SELLABLE": "Sellable",
@@ -215,7 +217,7 @@
   },
   "products": {
     "title": "Products",
-    "subtitle": "Your catalogue. Deactivated products stay in history.",
+    "subtitle": "Your catalogue with stock per warehouse.",
     "new": "New product",
     "import": "Import",
     "newTitle": "New product",
@@ -225,33 +227,92 @@
     "nameEn": "Name (English)",
     "nameAr": "Name (Arabic)",
     "category": "Category",
-    "variant": "Variant",
-    "variantHint": "Size or colour, e.g. 32–70 inch, black.",
-    "imageUrl": "Image URL",
+    "variant": "Other details",
+    "variantHint": "Anything else that tells variants apart.",
+    "imageUrl": "Or image link",
     "cost": "Cost (SAR)",
-    "costHint": "Only admins can see cost.",
-    "lowStockLevel": "Low-stock level",
-    "lowStockHint": "Warn when total sellable stock is at or below this. 0 = never warn.",
+    "costHint": "Only admins and accountants see cost. Every change is kept.",
+    "lowStockLevel": "Default low-stock level",
+    "lowStockHint": "Warn when total sellable stock is at or below this. 0 = never.",
     "searchPlaceholder": "Model code or name",
     "allCategories": "All categories",
-    "statusActive": "Active",
-    "statusInactive": "Inactive",
     "statusAll": "All",
     "empty": "No products match.",
     "emptyCatalogue": "No products yet. Add one or import a file.",
-    "deactivateConfirm": "Deactivate {modelCode}? It can't be received any more, but remaining stock can still go out.",
-    "activateConfirm": "Activate {modelCode} again?",
     "created": "Product created",
     "updated": "Product updated",
     "errors": {
-      "codeTaken": "A product with this model code already exists."
-    }
+      "codeTaken": "A product with this model code already exists.",
+      "skuTaken": "Another product already uses this SKU.",
+      "barcodeTaken": "Another product already uses this barcode.",
+      "unknownSupplier": "Choose an active supplier.",
+      "retireHasStock": "This product still has stock. Move or write it off first, or set it to Discontinued.",
+      "newInactive": "A new product can't start as Inactive."
+    },
+    "sections": {
+      "identity": "Product",
+      "details": "Details and photo",
+      "prices": "Prices and supplier",
+      "stock": "Stock levels",
+      "website": "Website (hamoodtv.com)"
+    },
+    "sku": "SKU",
+    "skuHint": "Internal code. Empty = the model code.",
+    "barcode": "Barcode",
+    "barcodeHint": "For scanning later. Must be unique.",
+    "status": "Status",
+    "statuses": {
+      "ACTIVE": "Active",
+      "DISCONTINUED": "Discontinued",
+      "INACTIVE": "Inactive"
+    },
+    "statusHelp": {
+      "ACTIVE": "Normal: can be received, sold and reordered.",
+      "DISCONTINUED": "Sell what's left: can't be received or reordered, can still go out.",
+      "INACTIVE": "Retired: only possible with no stock anywhere; nothing can move."
+    },
+    "sizeRange": "Size range",
+    "colour": "Colour",
+    "maxLoadKg": "Max load (kg)",
+    "vesa": "VESA",
+    "kg": "kg",
+    "image": "Photo",
+    "imageUrlHint": "Or paste a link to a photo on your website (https://).",
+    "uploadImage": "Upload photo",
+    "replaceImage": "Replace photo",
+    "removeImage": "Remove photo",
+    "uploading": "Uploading…",
+    "sellingPrice": "Selling price (SAR incl. VAT)",
+    "defaultSupplier": "Default supplier",
+    "leadTimeDays": "Lead time (days)",
+    "reorderHint": "A level per warehouse replaces the default for that warehouse. Leave empty to use the default.",
+    "reorderLevel": "Reorder at",
+    "reorderQty": "Reorder qty",
+    "reorderLevelFor": "Reorder level for {warehouse}",
+    "reorderQtyFor": "Reorder quantity for {warehouse}",
+    "wooProductId": "WooCommerce product ID",
+    "wooSku": "WooCommerce SKU",
+    "statusCurrent": "Active + discontinued",
+    "sellable": "Sellable",
+    "damaged": "Damaged",
+    "value": "Stock value",
+    "price": "Price",
+    "export": "Download Excel",
+    "setStatus": "Change status",
+    "statusConfirm": "Set {modelCode} to {status}?",
+    "costHistory": "Cost history",
+    "costSource": {
+      "MANUAL": "Edited",
+      "IMPORT": "Import",
+      "DELIVERY": "Delivery"
+    },
+    "noCostHistory": "No cost recorded yet."
   },
   "import": {
     "title": "Import products",
     "subtitle": "Upload an Excel (.xlsx) or CSV file. Existing model codes are updated; empty cells keep the current value.",
     "columns": "Columns",
-    "columnsHelp": "modelCode is required. For new products also nameEn, nameAr and category. Optional: variant, imageUrl, cost, lowStockLevel.",
+    "columnsHelp": "modelCode is required; new products also need nameEn, nameAr and category. Optional: sku, barcode, sizeRange, colour, maxLoadKg, vesa, variant, imageUrl, cost, sellingPrice, lowStockLevel, leadTimeDays, wooProductId, wooSku, supplier (name).",
     "file": "File",
     "chooseFile": "Choose file",
     "preview": "Check file",
@@ -277,12 +338,15 @@
       "empty": "The file has no data rows.",
       "missingModelCode": "The file needs a modelCode column.",
       "missingQuantity": "The file needs a quantity column.",
-      "duplicateInFile": "This model code appears more than once in the file.",
+      "duplicateInFile": "This value appears more than once in the file.",
       "unknownCategory": "Unknown category. Use wall-mount, floor-stand, monitor-mount or tv-table.",
       "unknownProduct": "No product with this model code.",
-      "inactiveProduct": "This product is deactivated.",
-      "fixFirst": "The file has errors. Nothing was saved."
-    }
+      "inactiveProduct": "This product is discontinued or inactive.",
+      "fixFirst": "The file has errors. Nothing was saved.",
+      "unknownSupplier": "No active supplier with this name."
+    },
+    "errorsColumn": "Errors",
+    "downloadErrors": "Download rows with errors"
   },
   "openingStock": {
     "title": "Opening stock",
@@ -309,13 +373,14 @@
       "warehouseInactive": "This warehouse isn't active.",
       "reasonNotForWarehouse": "Sales can't be recorded from a damaged-stock warehouse.",
       "productNotFound": "One of the products no longer exists.",
-      "productInactive": "{modelCode} is deactivated and can't be received.",
+      "productInactive": "{modelCode} is discontinued and can't be received.",
       "noLines": "Add at least one product.",
       "invalidQuantity": "Quantities must be whole numbers from 1 to 100,000.",
       "returnWarehouseKind": "Damaged returns go to a damaged-stock warehouse, resellable ones to a sellable warehouse.",
       "noDestination": "Choose where to send the stock.",
       "sameWarehouse": "Choose a different warehouse to send to.",
-      "duplicateSubmit": "This form was already submitted by someone else. Reload and try again."
+      "duplicateSubmit": "This form was already submitted by someone else. Reload and try again.",
+      "productRetired": "{modelCode} is inactive — set it to Active or Discontinued first."
     }
   },
   "reasons": {
@@ -416,7 +481,9 @@
     },
     "sentForApproval": "Sent for approval",
     "approvalHint": "Stock changes only when a manager or admin approves it.",
-    "viewRequest": "View request"
+    "viewRequest": "View request",
+    "supplier": "Supplier",
+    "duplicateInvoice": "Invoice {reference} from this supplier was already received in {number}. Save anyway only if this is really a second delivery."
   },
   "productPicker": {
     "add": "Add product",
@@ -530,7 +597,8 @@
     "empty": "No movements yet.",
     "edit": "Edit product",
     "cost": "Unit cost: {cost} SAR",
-    "inactive": "Deactivated"
+    "price": "Price {price} SAR",
+    "reorderAt": "reorder at {level}"
   },
   "reports": {
     "title": "Reports",
@@ -544,7 +612,7 @@
     "hint": {
       "stockOnHand": "Current quantity of every product in every warehouse.",
       "movements": "Every product line of every entry, newest first.",
-      "lowStock": "Products whose total sellable stock is at or below their low-stock level.",
+      "lowStock": "Active products at or below their reorder level in a warehouse, or (without warehouse levels) whose total sellable stock is at or below the default level.",
       "outByReason": "Units that left per reason, per month (Riyadh time). Voided entries are excluded."
     },
     "export": "Download Excel",
@@ -557,7 +625,8 @@
       "level": "Low-stock level",
       "shortBy": "Short by",
       "month": "Month",
-      "change": "Qty"
+      "change": "Qty",
+      "reorderQty": "Reorder qty"
     },
     "noCost": "{count, plural, =1 {1 product has} other {# products have}} no cost, so {count, plural, =1 {it is} other {they are}} not in the value total.",
     "transfersExcluded": "Transfers between warehouses are shown but not counted in the total — they don't leave the company. Choose a warehouse to include them.",
@@ -682,7 +751,8 @@
       "user": "Users",
       "warehouse": "Warehouses",
       "setting": "Settings",
-      "approval": "Approvals"
+      "approval": "Approvals",
+      "supplier": "Suppliers"
     },
     "actions": {
       "product_create": "Product created",
@@ -699,7 +769,11 @@
       "warehouse_deactivate": "Warehouse deactivated",
       "setting_update": "Settings changed",
       "approval_approve": "Request approved",
-      "approval_reject": "Request rejected"
+      "approval_reject": "Request rejected",
+      "supplier_create": "Supplier created",
+      "supplier_update": "Supplier changed",
+      "supplier_activate": "Supplier activated",
+      "supplier_deactivate": "Supplier deactivated"
     },
     "fields": {
       "modelCode": "Model code",
@@ -728,7 +802,27 @@
       "note": "Note",
       "maxUnits": "Units limit",
       "maxValue": "SAR limit",
-      "entry": "Entry"
+      "entry": "Entry",
+      "sku": "SKU",
+      "barcode": "Barcode",
+      "sellingPrice": "Selling price",
+      "sizeRange": "Size range",
+      "colour": "Colour",
+      "maxLoadKg": "Max load",
+      "vesa": "VESA",
+      "leadTimeDays": "Lead time",
+      "wooSku": "WooCommerce SKU",
+      "defaultSupplierId": "Default supplier",
+      "reorder": "Reorder levels",
+      "reorderLevel": "Level",
+      "reorderQty": "Qty",
+      "warehouseId": "Warehouse",
+      "phone": "Phone",
+      "contactPerson": "Contact",
+      "vatNumber": "VAT no.",
+      "paymentTerms": "Payment terms",
+      "notes": "Notes",
+      "country": "Country"
     }
   },
   "account": {
@@ -750,5 +844,38 @@
     "title": "My jobs",
     "subtitle": "Installation jobs issued to you.",
     "empty": "No jobs yet. They appear here when a manager issues stock to you for an installation."
+  },
+  "suppliers": {
+    "title": "Suppliers",
+    "subtitle": "Who you buy from. Deliveries and returns pick from this list.",
+    "new": "New supplier",
+    "editTitle": "Edit supplier",
+    "empty": "No suppliers yet.",
+    "nameEn": "Name (English)",
+    "nameAr": "Name (Arabic)",
+    "contactPerson": "Contact person",
+    "phone": "Phone",
+    "email": "Email",
+    "city": "City",
+    "country": "Country",
+    "vatNumber": "VAT number",
+    "paymentTerms": "Payment terms",
+    "notes": "Notes",
+    "deliveries": "Entries",
+    "showInactive": "Show inactive",
+    "deactivateConfirm": "Deactivate {name}? Old entries keep it, but it can't be picked any more.",
+    "activateConfirm": "Activate {name} again?",
+    "pick": "Choose supplier",
+    "search": "Search suppliers…",
+    "none": "No supplier matches.",
+    "addNew": "Add new supplier",
+    "addTitle": "New supplier",
+    "added": "Supplier added",
+    "change": "Change",
+    "errors": {
+      "nameTaken": "A supplier with this name already exists.",
+      "inactive": "A supplier with this name exists but is deactivated. Ask a manager to activate it.",
+      "required": "Choose a supplier."
+    }
   }
 }

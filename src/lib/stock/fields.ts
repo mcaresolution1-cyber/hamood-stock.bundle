@@ -5,6 +5,7 @@
 import type { EntryReason } from "@/generated/prisma/enums";
 
 export type DetailField =
+  | "supplierId"
   | "supplierName"
   | "reference"
   | "customerName"
@@ -17,7 +18,7 @@ export type FieldSpec = { field: DetailField; required: boolean };
 
 const SPEC: Partial<Record<EntryReason, FieldSpec[]>> = {
   SUPPLIER_DELIVERY: [
-    { field: "supplierName", required: true },
+    { field: "supplierId", required: true },
     { field: "reference", required: true },
   ],
   CUSTOMER_RETURN: [
@@ -42,7 +43,7 @@ const SPEC: Partial<Record<EntryReason, FieldSpec[]>> = {
   ],
   TRANSFER: [{ field: "destinationWarehouseId", required: true }],
   SUPPLIER_RETURN: [
-    { field: "supplierName", required: true },
+    { field: "supplierId", required: true },
     { field: "reference", required: false },
   ],
 };
@@ -61,6 +62,7 @@ export function keepReasonFields<T extends Partial<Record<DetailField, unknown>>
   const allowed = new Set(fieldsFor(reason).map((f) => f.field));
   const out = { ...values };
   for (const key of [
+    "supplierId",
     "supplierName",
     "reference",
     "customerName",

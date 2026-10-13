@@ -156,9 +156,11 @@ src/
       entries/, entries/[id]/                 # entry list, detail (+ void dialog)
       products/[id]/                          # product page: stock per warehouse + stock card
       reports/<name>/page.tsx + export/route.ts   # 4 reports, each with an Excel export of the same rows
-      admin/                                  # products (+ import), warehouses, users, opening stock
+      admin/                                  # products (+ import, export), suppliers, warehouses, users, opening stock, audit, settings
+      approvals/, jobs/, account/password/    # approval requests, technician jobs, own password
     print/entries/[id]/  # printable bilingual A4 delivery note (outside the app layout)
     api/attachments/[id] # delivery-note photos (auth-checked)
+    api/product-images/[id] # product photos (?size=thumb), stored in MariaDB
     api/auth/[...nextauth]/route.ts
   components/
     ui/                  # shadcn/ui components (generated — keep edits minimal and commented)
@@ -204,6 +206,10 @@ helpers in `src/lib/stock/` so they can be unit tested.
 | Save a form that may need approval | `submitEntry` / `submitVoid` (`src/server/stock/approvals.ts`) → `{ status: "saved" \| "voided" \| "pending" }`. Corrections, damaged/lost and voids above the limits in Settings become an `ApprovalRequest`; `createEntryInTx`/`voidEntryInTx` throw `ApprovalRequiredError` otherwise. Approve/reject with `decideRequest` |
 | Audit a change | `audit(tx, actorId, { action, subjectType, … })` + `changedFields(before, after)` (`src/server/audit.ts`) in the SAME transaction as the change; never pass hashes or photos |
 | App settings | `src/lib/settings.ts` (schemas, defaults) + `src/server/settings.ts` (read/write the `Setting` table) |
+| Product status rules | `canReceive` / `canMove` / `isReordered` (`src/lib/products.ts`, decision PB1) — ACTIVE / DISCONTINUED / INACTIVE; never filter on a boolean `active` for products |
+| Low stock | `lowStockOf` (`src/lib/stock/low-stock.ts`): per-warehouse reorder levels first, else the product's default level; only ACTIVE products |
+| Product photos | `uploadProductImage` (browser-resized 800 px + 240 px thumb) → `Product.imageUrl = /api/product-images/<id>`; show with `ProductThumb` (uses the thumbnail) |
+| Supplier on an entry | `supplierId` from `SupplierPicker` (`src/components/stock/supplier-picker.tsx`); `saveEntry` checks it is active and stores its name in `supplierName` |
 | Who may use which reason / warehouse | `src/lib/stock/policy.ts` (`entryPermissionError`, `formReasons`, `entryTypeFor`) |
 | Server action shape | `guarded(async () => { await requirePermission(…); schema.parse(input); … })` → `ActionResult` (`src/server/actions/result.ts`); throw `UserFacingError(key)` for expected failures |
 | Page access | `requireUser()` or `requirePagePermission(action)` (redirects to `/?denied=1`) |
@@ -271,12 +277,12 @@ Inside a single `db.$transaction(async (tx) => …)`:
 - Source and destination must differ.
 
 ### Roles — enforced on the server, every time
-The table is `ROLE_ACTIONS` in `src/lib/permissions.ts` (decisions A1–A3 in docs/plans/v2.md).
+The table is `ROLE_ACTIONS` in `src/lib/permissions.ts` (decisions PA1–PA3 in docs/plans/v2.md).
 - **ADMIN:** everything (all warehouses, cost, void, corrections, opening stock, products, warehouses,
   users, settings, audit log). Never needs approval.
 - **MANAGER:** every stock reason except opening stock — including corrections, damaged/lost, return to
   supplier and voids — **only in assigned warehouses** (both warehouses for a transfer void); approves
-  requests for those warehouses. No cost, no products/warehouses/users/settings.
+  requests for those warehouses; manages suppliers. No cost, no products/warehouses/users/settings.
 - **STAFF:** create `IN` / `OUT` / `TRANSFER` entries **only in their assigned warehouses**, and *request*
   corrections and damaged/lost there (approval rules decide), with two exceptions (docs/plans/v1.md):
   - a **transfer** needs only the *source* warehouse assigned; the destination may be any active warehouse;
