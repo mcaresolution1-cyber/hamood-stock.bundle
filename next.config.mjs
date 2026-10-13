@@ -1,11 +1,15 @@
-import type { NextConfig } from "next";
+// @ts-check
+// Plain JavaScript on purpose (not next.config.ts): Hostinger's build server can't run Next's native
+// compiler, and its config patching (it forces `output: "standalone"`) breaks a TypeScript config there
+// ("Cannot find module '…/<hash>.next.config'"). An .mjs config needs no compiling. See docs/plans/hostinger.md H14.
 import createNextIntlPlugin from "next-intl/plugin";
 
 // Locale + messages are resolved per request in src/i18n/request.ts (cookie based, no URL prefix).
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 // Keep this a plain object (not a function): Hostinger's Next.js build patches it.
-const nextConfig: NextConfig = {
+/** @type {import("next").NextConfig} */
+const nextConfig = {
   // Hostinger runs Next.js as a standalone server (.next/standalone/server.js) and forces this setting
   // anyway; setting it here makes local builds identical to Hostinger's. `pnpm start` runs the same server.
   output: "standalone",
