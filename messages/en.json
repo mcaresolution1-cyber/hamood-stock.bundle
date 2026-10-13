@@ -517,7 +517,8 @@
       "reasonRequired": "Give a reason (at least 3 characters).",
       "alreadyVoided": "This entry has already been voided.",
       "cannotVoidVoid": "A void can't be voided.",
-      "warehouseInactive": "That warehouse is no longer active, so stock can't be put back into it."
+      "warehouseInactive": "That warehouse is no longer active, so stock can't be put back into it.",
+      "productRetired": "{modelCode} is inactive, so stock can't be put back. Set it to Active or Discontinued first."
     },
     "sentForApproval": "Sent for approval: {number}"
   },

@@ -6,6 +6,7 @@ import { requirePermission } from "@/server/auth/dal";
 import { audit } from "@/server/audit";
 import type { ProductImportResult } from "@/lib/import/products";
 import { validateImportFile } from "@/server/import/product-import";
+import { withRetry } from "@/server/stock/createEntry";
 import { guarded, UserFacingError, type ActionResult } from "./result";
 
 async function validate(formData: FormData): Promise<ProductImportResult> {
@@ -34,7 +35,8 @@ export async function applyProductImport(
     const file = formData.get("file");
     const fileName = file instanceof File ? file.name.slice(0, 200) : null;
 
-    await db.$transaction(
+    // Retried on a deadlock: entry saves share-lock products in id order, this updates them in file order.
+    await withRetry(() => db.$transaction(
       async (tx) => {
         const before = new Map(
           (await tx.product.findMany({ where: { modelCode: { in: result.rows.map((r) => r.modelCode) } }, select: { modelCode: true, cost: true } })).map(
@@ -75,7 +77,7 @@ export async function applyProductImport(
         });
       },
       { timeout: 60_000, maxWait: 10_000 },
-    );
+    ));
 
     revalidatePath("/admin/products");
     return { created: result.counts.create, updated: result.counts.update };

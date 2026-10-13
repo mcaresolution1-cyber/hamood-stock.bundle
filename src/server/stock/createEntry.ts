@@ -154,6 +154,12 @@ export async function createEntryInTx(
     if (need) throw new ApprovalRequiredError({ ...need, warehouseId: warehouse.id });
   }
 
+  // Checked here too (not only in the form action), so an approved request can't use a supplier that was
+  // deactivated while it waited.
+  if (input.supplierId && !(await tx.supplier.count({ where: { id: input.supplierId, active: true } }))) {
+    throw new EntryRuleError("products.errors.unknownSupplier");
+  }
+
   const prefix = counterKeyFor(type);
   const value = await nextCounterValue(tx, prefix);
   const fields = {

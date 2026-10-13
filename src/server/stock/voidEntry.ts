@@ -95,6 +95,18 @@ export async function voidEntryInTx(
     }
   }
 
+  // Share-lock the products (like entry saves, so retiring a product waits for this void), and never put
+  // stock back onto an INACTIVE product — it must stay empty (decision PB1). Voids that remove stock are fine.
+  const productIds = [...new Set(originals.flatMap((e) => e.lines.map((l) => l.productId)))].sort();
+  await tx.$queryRaw`SELECT id FROM \`Product\` WHERE id IN (${Prisma.join(productIds)}) LOCK IN SHARE MODE`;
+  const restocked = new Set(
+    originals.filter((e) => directionOf(e.type as Exclude<EntryType, "VOID">) === -1).flatMap((e) => e.lines.map((l) => l.productId)),
+  );
+  if (restocked.size) {
+    const retired = await tx.product.findFirst({ where: { id: { in: [...restocked] }, status: "INACTIVE" }, select: { modelCode: true } });
+    if (retired) throw new EntryRuleError("void.errors.productRetired", { modelCode: retired.modelCode });
+  }
+
   const changes: LevelChange[] = [];
   const voids: VoidResult["voids"] = [];
   const now = new Date();

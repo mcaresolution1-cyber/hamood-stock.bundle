@@ -51,7 +51,7 @@ export function ProductImageInput({ value, onChange }: { value: string; onChange
             type="button"
             size="icon"
             variant="secondary"
-            className="absolute end-1 top-1 size-7"
+            className="absolute end-1 top-1 size-11 md:size-7"
             aria-label={t("removeImage")}
             onClick={() => onChange("")}
           >

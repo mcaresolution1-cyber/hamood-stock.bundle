@@ -139,6 +139,28 @@ describe("products", () => {
     expect(await createProduct(productForm({ status: "INACTIVE" }))).toMatchObject({ ok: false, error: "products.errors.newInactive" });
   });
 
+  it("never puts stock back onto an inactive product through a void", async () => {
+    const p = await makeProduct("VOID-RET");
+    await stockIn(p.id, 1);
+    const sale = await stockOut(p.id, 1);
+    expect((await setProductStatus(p.id, "INACTIVE")).ok).toBe(true);
+    await expect(voidEntry(testDb, actor(admin), { entryId: sale.id, reason: "mistake" })).rejects.toMatchObject({
+      key: "void.errors.productRetired",
+    });
+    expect(await level(p.id, main)).toBe(0);
+    await setProductStatus(p.id, "DISCONTINUED");
+    await voidEntry(testDb, actor(admin), { entryId: sale.id, reason: "mistake" });
+    expect(await level(p.id, main)).toBe(1);
+  });
+
+  it("refuses an entry with an inactive supplier, even outside the form", async () => {
+    const p = await makeProduct("SUP-OFF");
+    const s = await testDb.supplier.create({ data: { nameEn: "Gone Co", active: false } });
+    await expect(
+      createEntry(testDb, actor(admin), { direction: "IN", reason: "SUPPLIER_DELIVERY", warehouseId: main, supplierId: s.id, reference: "X", lines: [{ productId: p.id, quantity: 1 }] }),
+    ).rejects.toMatchObject({ key: "products.errors.unknownSupplier" });
+  });
+
   it("never retires a product while stock arrives at the same moment", async () => {
     const p = await makeProduct("RACE-1");
     const [entry, retire] = await Promise.allSettled([stockIn(p.id, 1), setProductStatus(p.id, "INACTIVE")]);
