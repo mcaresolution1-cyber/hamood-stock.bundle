@@ -230,6 +230,9 @@ helpers in `src/lib/stock/` so they can be unit tested.
 Races: checks that must hold at write time (stock before deactivating a warehouse, last admin, opening-stock
 confirmation) run **inside** a transaction with a row lock (`FOR UPDATE`) — see warehouses/users/opening-stock
 actions for the pattern.
+Lock order in a save: sale `StockEntry` rows (customer returns, `FOR UPDATE`) → warehouse (S) → products (S,
+sorted) → `StockLevel`. A void locks its entry row first, then the same order. Customer returns lock the sale
+rows **before** reading `voidedAt` (`src/server/stock/returns.ts`). Unit costs live in `LineCost`, never on lines.
 
 ## Business rules — must always hold
 

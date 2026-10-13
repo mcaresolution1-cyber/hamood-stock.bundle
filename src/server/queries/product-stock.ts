@@ -7,6 +7,7 @@ import { can } from "@/lib/permissions";
 import type { CurrentUser } from "@/server/auth/dal";
 import { SIGNED_QTY } from "./reports";
 import { lowStockOf } from "@/lib/stock/low-stock";
+import { averageCosts } from "@/server/stock/costs";
 
 export const STOCK_CARD_LIMIT = 200;
 
@@ -91,6 +92,7 @@ export async function getProductStock(user: CurrentUser, productId: string, ware
     LIMIT ${STOCK_CARD_LIMIT}`;
 
   const { costs, sellingPrice, reorder, ...rest } = product;
+  const average = showCost ? (await averageCosts(db, [product.id])).get(product.id) ?? null : null;
   const low = lowStockOf({
     lowStockLevel: product.lowStockLevel,
     qty: Object.fromEntries(perWarehouse.map((w) => [w.id, w.quantity])),
@@ -105,6 +107,7 @@ export async function getProductStock(user: CurrentUser, productId: string, ware
       ...(showCost
         ? {
             cost: (product as { cost?: Prisma.Decimal | null }).cost?.toFixed(2) ?? null,
+            averageCost: average ? average.toFixed(2) : null,
             costHistory: ((costs ?? []) as unknown as { id: string; cost: Prisma.Decimal | null; source: string; at: Date; changedBy: { name: string } }[]).map((c) => ({
               ...c,
               cost: c.cost ? c.cost.toFixed(2) : null,

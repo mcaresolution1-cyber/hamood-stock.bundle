@@ -7,6 +7,7 @@ import type { EntryReason } from "@/generated/prisma/enums";
 import { requirePermission } from "@/server/auth/dal";
 import { entryFormSchema, voidSchema } from "@/lib/validation/entries";
 import { keepReasonFields } from "@/lib/stock/fields";
+import { MAX_PHOTOS, normalizeWebsiteOrder, photosAllowed } from "@/lib/stock/details";
 import { submitEntry, submitVoid, type EntrySubmitResult, type VoidSubmitResult } from "@/server/stock/approvals";
 import { guarded, UserFacingError, type ActionResult } from "./result";
 
@@ -28,7 +29,13 @@ export async function saveEntry(values: unknown): Promise<ActionResult<EntrySubm
       technicianName: v.technicianName,
       returnCondition: v.returnCondition || null,
       destinationWarehouseId: v.destinationWarehouseId || null,
+      reasonCode: v.reasonCode || null,
+      paymentMethod: v.paymentMethod || null,
+      // A direct sale's salesperson defaults to whoever records it.
+      salesperson: v.salesperson ?? (reason === "DIRECT_SALE" ? user.name : null),
+      expectedCredit: v.expectedCredit,
     });
+    if (reason === "WEBSITE_ORDER") details.reference = normalizeWebsiteOrder(details.reference);
 
     // The supplier must be an active one; its name is stored on the entry as it is today.
     if (details.supplierId) {
@@ -37,22 +44,33 @@ export async function saveEntry(values: unknown): Promise<ActionResult<EntrySubm
       details.supplierName = supplier.nameEn;
     }
 
-    // Photos only on stock in, and only ones that were actually uploaded.
-    let photoUrl: string | null = null;
-    if (v.direction === "IN" && v.photoUrl) {
-      const attachmentId = v.photoUrl.split("/").pop()!;
-      const exists = await db.attachment.count({ where: { id: attachmentId, createdById: user.id } });
-      if (!exists) throw new UserFacingError("validation.photo");
-      photoUrl = v.photoUrl;
+    // Photos only on stock in and damaged/lost, and only ones this user uploaded and nobody used yet.
+    const photoUrls = photosAllowed(v.direction, reason) ? [...new Set([...v.photoUrls, ...(v.photoUrl ? [v.photoUrl] : [])])] : [];
+    if (photoUrls.length > MAX_PHOTOS) throw new UserFacingError("entryForm.errors.tooManyPhotos");
+    if (photoUrls.length) {
+      const ids = photoUrls.map((u) => u.split("/").pop()!);
+      const owned = await db.attachment.count({ where: { id: { in: ids }, createdById: user.id, entries: { none: {} } } });
+      if (owned !== ids.length) throw new UserFacingError("validation.photo");
+    }
+
+    // Delivery unit costs (empty = cost pending). The entry service checks who may enter them.
+    const lineCosts: Record<string, string> = {};
+    if (reason === "SUPPLIER_DELIVERY") {
+      for (const l of v.lines) {
+        if (l.unitCost === null) continue;
+        if (lineCosts[l.productId] !== undefined && lineCosts[l.productId] !== l.unitCost) throw new UserFacingError("entryForm.errors.twoCosts");
+        lineCosts[l.productId] = l.unitCost;
+      }
     }
 
     const saved = await submitEntry(db, user, {
       direction: v.direction,
       reason,
       warehouseId: v.warehouseId,
-      lines: v.lines,
+      lines: v.lines.map(({ productId, quantity }) => ({ productId, quantity })),
       note: v.note,
-      photoUrl,
+      photoUrls,
+      lineCosts,
       idempotencyKey: v.idempotencyKey ?? null,
       ...details,
     });
@@ -89,6 +107,21 @@ export async function findDuplicateInvoice(values: unknown): Promise<ActionResul
       .parse(values);
     return db.stockEntry.findFirst({
       where: { supplierId, reference, reason: "SUPPLIER_DELIVERY", voidedAt: null },
+      orderBy: { entryDate: "desc" },
+      select: { id: true, number: true },
+    });
+  });
+}
+
+/** Website order warning (PC2): a non-voided website order with the same number. Only a warning. */
+export async function findRepeatedWebsiteOrder(values: unknown): Promise<ActionResult<{ id: string; number: string } | null>> {
+  return guarded(async () => {
+    await requirePermission("entry:create");
+    const { reference } = z.object({ reference: z.string().max(100) }).parse(values);
+    const order = normalizeWebsiteOrder(reference);
+    if (!order) return null;
+    return db.stockEntry.findFirst({
+      where: { reason: "WEBSITE_ORDER", reference: order, voidedAt: null },
       orderBy: { entryDate: "desc" },
       select: { id: true, number: true },
     });

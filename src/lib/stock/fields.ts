@@ -12,7 +12,11 @@ export type DetailField =
   | "customerPhone"
   | "technicianName"
   | "returnCondition"
-  | "destinationWarehouseId";
+  | "destinationWarehouseId"
+  | "reasonCode"
+  | "paymentMethod"
+  | "salesperson"
+  | "expectedCredit";
 
 export type FieldSpec = { field: DetailField; required: boolean };
 
@@ -23,7 +27,8 @@ const SPEC: Partial<Record<EntryReason, FieldSpec[]>> = {
   ],
   CUSTOMER_RETURN: [
     { field: "returnCondition", required: true },
-    { field: "reference", required: false },
+    { field: "reference", required: true },
+    { field: "reasonCode", required: true },
     { field: "customerName", required: false },
   ],
   WEBSITE_ORDER: [
@@ -33,7 +38,9 @@ const SPEC: Partial<Record<EntryReason, FieldSpec[]>> = {
   DIRECT_SALE: [
     { field: "customerName", required: true },
     { field: "customerPhone", required: true },
+    { field: "paymentMethod", required: true },
     { field: "reference", required: false },
+    { field: "salesperson", required: false },
   ],
   INSTALLATION: [
     { field: "technicianName", required: true },
@@ -45,16 +52,18 @@ const SPEC: Partial<Record<EntryReason, FieldSpec[]>> = {
   SUPPLIER_RETURN: [
     { field: "supplierId", required: true },
     { field: "reference", required: false },
+    { field: "expectedCredit", required: false },
   ],
+  DAMAGED_LOST: [{ field: "reasonCode", required: true }],
 };
 
 export function fieldsFor(reason: EntryReason | "" | undefined): FieldSpec[] {
   return reason ? (SPEC[reason] ?? []) : [];
 }
 
-/** Note is required for corrections and damaged/lost (it's the only explanation recorded). */
+/** Note is required for corrections, damaged/lost and returns to supplier (the reason sent back). */
 export function noteRequired(reason: EntryReason | "" | undefined): boolean {
-  return reason === "CORRECTION" || reason === "DAMAGED_LOST";
+  return reason === "CORRECTION" || reason === "DAMAGED_LOST" || reason === "SUPPLIER_RETURN";
 }
 
 /** Keep only the fields this reason uses; everything else becomes null. */
@@ -70,6 +79,10 @@ export function keepReasonFields<T extends Partial<Record<DetailField, unknown>>
     "technicianName",
     "returnCondition",
     "destinationWarehouseId",
+    "reasonCode",
+    "paymentMethod",
+    "salesperson",
+    "expectedCredit",
   ] as const) {
     if (!allowed.has(key) && key in out) (out as Record<string, unknown>)[key] = null;
   }

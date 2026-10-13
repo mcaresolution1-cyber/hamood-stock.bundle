@@ -7,6 +7,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { lowStockOf } from "@/lib/stock/low-stock";
+import { effectiveCosts } from "@/server/stock/costs";
 import type { EntryReason, EntryType } from "@/generated/prisma/enums";
 import { can } from "@/lib/permissions";
 import { signedQuantity } from "@/lib/stock/lines";
@@ -65,6 +66,8 @@ export async function stockOnHand(user: CurrentUser, filters: { category?: strin
   let totalValue = new Prisma.Decimal(0);
   let missingCost = 0;
 
+  // Weighted-average delivery cost where known, else the product's own cost (PC3).
+  const costs = showCost ? await effectiveCosts(db, products.map((p) => ({ id: p.id, cost: (p as { cost?: Prisma.Decimal | null }).cost ?? null }))) : new Map();
   const rows: StockOnHandRow[] = products.map((p) => {
     const qty = byProduct.get(p.id) ?? {};
     const total = warehouses.reduce((s, w) => s + (qty[w.id] ?? 0), 0);
@@ -81,7 +84,7 @@ export async function stockOnHand(user: CurrentUser, filters: { category?: strin
       total,
     };
     if (showCost) {
-      const cost = (p as { cost?: Prisma.Decimal | null }).cost ?? null;
+      const cost = costs.get(p.id) ?? null;
       row.cost = cost ? cost.toFixed(2) : null;
       // Q14: no cost → no value, left out of the total and counted separately.
       if (cost) {

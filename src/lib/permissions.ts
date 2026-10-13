@@ -18,6 +18,7 @@ export type Action =
   | "approval:decide" // approve / reject requests (MANAGER: only for assigned warehouses)
   | "audit:view"
   | "settings:manage"
+  | "cost:enter" // enter / correct supplier-delivery unit costs (ADMIN, MANAGER — Phase C1)
   | "supplier:manage" // edit / deactivate suppliers (adding one inline only needs entry:create, PB3)
   | "job:own"; // TECHNICIAN: his own installation jobs (Phase C)
 
@@ -35,6 +36,7 @@ export const ALL_ACTIONS: readonly Action[] = [
   "audit:view",
   "settings:manage",
   "supplier:manage",
+  "cost:enter",
 ];
 
 /** Roles in the order they are offered on the user form. */
@@ -43,7 +45,7 @@ export const ROLES: readonly Role[] = ["STAFF", "MANAGER", "TECHNICIAN", "ACCOUN
 /** Rights per role (docs/plans/v2.md, Phase A). */
 const ROLE_ACTIONS: Record<Role, readonly Action[]> = {
   ADMIN: ALL_ACTIONS,
-  MANAGER: ["entry:create", "entry:correct", "entry:void", "stock:view", "approval:decide", "supplier:manage"],
+  MANAGER: ["entry:create", "entry:correct", "entry:void", "stock:view", "approval:decide", "supplier:manage", "cost:enter"],
   STAFF: ["entry:create", "entry:correct", "stock:view"],
   TECHNICIAN: ["job:own"],
   ACCOUNTANT: ["stock:view", "cost:view", "audit:view"],

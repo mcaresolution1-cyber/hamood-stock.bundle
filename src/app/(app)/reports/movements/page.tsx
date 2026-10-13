@@ -14,7 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function MovementsPage({ searchParams }: PageProps<"/reports/movements">) {
   await requirePagePermission("stock:view");
-  const filters = parseEntryFilters(await searchParams);
+  const filters = { ...parseEntryFilters(await searchParams), costPending: undefined };
   const [t, tc, format, locale, r] = await Promise.all([
     getTranslations(),
     getTranslations("common"),
