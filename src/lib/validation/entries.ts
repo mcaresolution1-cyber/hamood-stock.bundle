@@ -59,6 +59,8 @@ export const entryFormSchema = z
     technicianName: optionalText(100),
     note: optionalText(500),
     photoUrl,
+    /** Set by the form when submitting; the same key twice returns the entry already saved. */
+    idempotencyKey: z.string().regex(/^[A-Za-z0-9-]{8,64}$/).optional(),
     lines: z
       .array(z.object({ productId: id, quantity }))
       .min(1, "stock.errors.noLines")

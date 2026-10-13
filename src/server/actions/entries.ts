@@ -42,6 +42,7 @@ export async function saveEntry(values: unknown): Promise<ActionResult<SavedEntr
       lines: v.lines,
       note: v.note,
       photoUrl,
+      idempotencyKey: v.idempotencyKey ?? null,
       ...details,
     });
     revalidatePath("/entries");

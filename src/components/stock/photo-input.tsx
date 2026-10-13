@@ -7,6 +7,7 @@ import { CameraIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMessage } from "@/components/use-message";
 import { uploadAttachment } from "@/server/actions/attachments";
+import { runAction } from "@/lib/run-action";
 
 const MAX_SIDE = 1600;
 
@@ -36,7 +37,7 @@ export function PhotoInput({ value, onChange }: { value: string; onChange: (url:
       const blob = await resize(file).catch(() => file);
       const fd = new FormData();
       fd.set("file", new File([blob], "delivery-note.jpg", { type: blob.type || "image/jpeg" }));
-      const result = await uploadAttachment(fd);
+      const result = await runAction(() => uploadAttachment(fd));
       if (result.ok) onChange(result.data.url);
       else toast.error(message(result.error, result.params));
     } finally {

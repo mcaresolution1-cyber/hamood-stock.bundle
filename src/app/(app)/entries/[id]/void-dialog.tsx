@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { useMessage } from "@/components/use-message";
 import { voidEntryAction } from "@/server/actions/entries";
+import { runAction } from "@/lib/run-action";
 
 /** ADMIN-only: confirm + required reason. The server re-checks the role. */
 export function VoidDialog({ entryId, number, isTransfer }: { entryId: string; number: string; isTransfer: boolean }) {
@@ -32,7 +33,7 @@ export function VoidDialog({ entryId, number, isTransfer }: { entryId: string; n
   function submit() {
     setError(null);
     startTransition(async () => {
-      const result = await voidEntryAction({ entryId, reason });
+      const result = await runAction(() => voidEntryAction({ entryId, reason }));
       if (result.ok) {
         toast.success(t("done", { numbers: result.data.voids.map((v) => v.number).join(", ") }));
         setOpen(false);

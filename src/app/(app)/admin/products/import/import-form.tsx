@@ -14,6 +14,7 @@ import { useMessage } from "@/components/use-message";
 import { Ltr } from "@/components/ltr";
 import type { ProductImportResult } from "@/lib/import/products";
 import { applyProductImport, previewProductImport } from "@/server/actions/product-import";
+import { runAction } from "@/lib/run-action";
 
 const BADGE = { create: "default", update: "secondary", error: "destructive" } as const;
 
@@ -36,7 +37,7 @@ export function ImportForm() {
   function check() {
     setAction("check");
     startTransition(async () => {
-      const result = await previewProductImport(formData());
+      const result = await runAction(() => previewProductImport(formData()), { retry: true });
       if (result.ok) setPreview(result.data);
       else {
         setPreview(null);
@@ -48,7 +49,7 @@ export function ImportForm() {
   function apply() {
     setAction("apply");
     startTransition(async () => {
-      const result = await applyProductImport(formData());
+      const result = await runAction(() => applyProductImport(formData())); // never retried: it writes products
       if (result.ok) {
         toast.success(t("done", result.data));
         router.push("/admin/products");

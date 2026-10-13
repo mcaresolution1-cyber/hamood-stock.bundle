@@ -32,8 +32,15 @@ import type { EntryReason } from "@/generated/prisma/enums";
 import type { EntryFormData } from "@/server/queries/entry-form";
 import type { SavedEntry } from "@/server/stock/createEntry";
 import { saveEntry } from "@/server/actions/entries";
+import { runAction } from "@/lib/run-action";
 
 type Step = "form" | "review" | "done";
+
+function newSubmitKey(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
 
 const DETAIL_LABEL: Record<Exclude<DetailField, "returnCondition" | "destinationWarehouseId">, string> = {
   supplierName: "supplierName",
@@ -59,6 +66,9 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
   const [saved, setSaved] = useState<SavedEntry | null>(null);
   const [lastValues, setLastValues] = useState<EntryFormValues | null>(null);
   const [pending, startTransition] = useTransition();
+  // One key per review screen: retries of the same submit reuse it (the server returns the entry already
+  // saved); going back to edit gets a new one, so a changed form is never mistaken for the earlier one.
+  const [submitKey, setSubmitKey] = useState(newSubmitKey);
 
   const form = useForm<EntryFormValues>({
     resolver: zodResolver(entryFormSchema) as never,
@@ -104,6 +114,7 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
       toast.error(t("entryForm.errors.overAvailable"));
       return;
     }
+    setSubmitKey(newSubmitKey());
     setStep("review");
     window.scrollTo({ top: 0 });
   }
@@ -111,7 +122,7 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
   function save() {
     startTransition(async () => {
       const current = form.getValues();
-      const result = await saveEntry(current);
+      const result = await runAction(() => saveEntry({ ...current, idempotencyKey: submitKey }), { retry: true }); // safe: idempotency key
       if (result.ok) {
         setSaved(result.data);
         setLastValues({ ...current, photoUrl: "" });
@@ -121,7 +132,11 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
       } else {
         const formError = applyActionErrors(form, result);
         toast.error(message(formError ?? "errors.invalidInput", result.params));
-        if (!formError) setStep("form");
+        if (result.error === "stock.errors.insufficient") {
+          // Someone else took stock meanwhile: reload the levels so every short line shows "Only N left".
+          router.refresh();
+          setStep("form");
+        } else if (!formError) setStep("form");
       }
     });
   }

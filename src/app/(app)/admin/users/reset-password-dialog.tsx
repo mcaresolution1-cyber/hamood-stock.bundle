@@ -12,6 +12,7 @@ import { TextField, applyActionErrors } from "@/components/form-fields";
 import { useMessage } from "@/components/use-message";
 import { resetPasswordSchema } from "@/lib/validation/users";
 import { resetUserPassword } from "@/server/actions/users";
+import { runAction } from "@/lib/run-action";
 
 export function ResetPasswordDialog({ id, name }: { id: string; name: string }) {
   const t = useTranslations("users");
@@ -26,7 +27,7 @@ export function ResetPasswordDialog({ id, name }: { id: string; name: string }) 
 
   function onSubmit(values: { password: string }) {
     startTransition(async () => {
-      const result = await resetUserPassword(id, values);
+      const result = await runAction(() => resetUserPassword(id, values), { retry: true });
       if (result.ok) {
         toast.success(t("resetDone", { name }));
         setOpen(false);

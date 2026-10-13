@@ -14,6 +14,8 @@ import { SelectField, TextField, applyActionErrors } from "@/components/form-fie
 import { useMessage } from "@/components/use-message";
 import { warehouseSchema, type WarehouseFormValues, type WarehouseInput } from "@/lib/validation/warehouses";
 import { createWarehouse, updateWarehouse } from "@/server/actions/warehouses";
+import { runAction } from "@/lib/run-action";
+import type { ActionResult } from "@/server/actions/result";
 
 type Existing = { id: string } & WarehouseFormValues;
 
@@ -31,7 +33,7 @@ export function WarehouseDialog({ warehouse }: { warehouse?: Existing }) {
 
   function onSubmit(values: WarehouseInput) {
     startTransition(async () => {
-      const result = warehouse ? await updateWarehouse(warehouse.id, values) : await createWarehouse(values);
+      const result = await runAction<ActionResult<unknown>>(() => (warehouse ? updateWarehouse(warehouse.id, values) : createWarehouse(values)), { retry: Boolean(warehouse) });
       if (result.ok) {
         toast.success(t("common.saved"));
         setOpen(false);

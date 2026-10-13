@@ -131,6 +131,8 @@ model StockEntry {
   supplierName   String?
   note           String?     @db.Text
   photoUrl       String?
+  /// One key per submitted form: a repeated submit (slow connection, retry) returns the entry already saved.
+  idempotencyKey String?     @unique @db.VarChar(64)
   /// Transfer pair partner, or (for a VOID entry) the entry being voided
   linkedEntryId  String?
   voidedAt       DateTime?   @db.DateTime(3)

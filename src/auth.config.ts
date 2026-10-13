@@ -16,6 +16,10 @@ export const authConfig = {
       // valid in the database — doing it here would loop for a deactivated user whose
       // cookie is still valid (proxy sends them to /, the DAL sends them back to /login).
       if (request.nextUrl.pathname === "/login") return true;
+      // Language switch (src/app/locale/route.ts): used on the login page too.
+      if (request.nextUrl.pathname === "/locale") return true;
+      // Error reports from the error screen (src/app/api/client-error/route.ts), signed in or not.
+      if (request.nextUrl.pathname === "/api/client-error") return true;
       return Boolean(auth?.user); // false → redirect to pages.signIn
     },
     jwt({ token, user }) {

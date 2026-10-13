@@ -17,12 +17,15 @@ import {
 } from "@/components/ui/form";
 import { loginSchema, type LoginInput } from "@/lib/validation/auth";
 import { loginAction } from "@/server/actions/auth";
+import { runAction } from "@/lib/run-action";
+import { useMessage } from "@/components/use-message";
 
 export function LoginForm() {
   const t = useTranslations("auth");
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [formError, setFormError] = useState<string | null>(null);
+  const message = useMessage();
 
   const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
@@ -32,12 +35,13 @@ export function LoginForm() {
   function onSubmit(values: LoginInput) {
     setFormError(null);
     startTransition(async () => {
-      const result = await loginAction(values);
+      const result = await runAction(() => loginAction(values), { retry: true });
       if (result.ok) {
         router.replace("/");
         router.refresh();
       } else {
-        setFormError(t(`errors.${result.error}`));
+        // Connection problems come back as global keys ("errors.network"); login's own errors are short keys.
+        setFormError(result.error.includes(".") ? message(result.error, "params" in result ? result.params : undefined) : t(`errors.${result.error as "generic"}`));
         form.resetField("password");
       }
     });

@@ -1,26 +1,21 @@
 "use client";
 
-import { useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { setLocaleAction } from "@/server/actions/locale";
-import { locales, type Locale } from "@/i18n/config";
+import { locales } from "@/i18n/config";
 import { cn } from "@/lib/utils";
 
-/** EN | AR switch (segmented from md up; a single "other language" button on phones). Stores the choice in a cookie and re-renders the page. */
+/**
+ * EN | AR switch (segmented from md up; a single "other language" link on phones).
+ * Plain links to /locale (src/app/locale/route.ts), which sets the cookie and redirects back — no server
+ * action, so it can't fail with "Failed to fetch" on a cold start or after a redeploy.
+ */
 export function LanguageSwitch({ className }: { className?: string }) {
   const t = useTranslations();
   const current = useLocale();
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
+  const pathname = usePathname();
 
-  function choose(locale: Locale) {
-    if (locale === current) return;
-    startTransition(async () => {
-      await setLocaleAction(locale);
-      router.refresh();
-    });
-  }
+  const hrefFor = (locale: string, next: string) => `/locale?l=${locale}&next=${encodeURIComponent(next)}`;
 
   return (
     <div
@@ -28,26 +23,35 @@ export function LanguageSwitch({ className }: { className?: string }) {
       aria-label={t("topBar.language")}
       className={cn("inline-flex rounded-md border text-xs font-medium md:p-0.5", className)}
     >
-      {locales.map((locale) => (
-        <button
-          key={locale}
-          type="button"
-          lang={locale}
-          disabled={pending}
-          aria-pressed={locale === current}
-          onClick={() => choose(locale)}
-          title={t(`language.${locale}`)}
-          className={cn(
-            "min-h-11 min-w-11 rounded-sm px-2.5 uppercase transition-colors disabled:opacity-60 md:min-h-0 md:min-w-0 md:py-1",
-            // Phones show only the other language (one 44px button); md+ shows both as a segmented switch.
-            locale === current
-              ? "bg-primary text-primary-foreground max-md:hidden"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {locale === "ar" ? "عربي" : "EN"}
-        </button>
-      ))}
+      {locales.map((locale) => {
+        const active = locale === current;
+        const classes = cn(
+          "inline-flex min-h-11 min-w-11 items-center justify-center rounded-sm px-2.5 uppercase transition-colors md:min-h-0 md:min-w-0 md:py-1",
+          // Phones show only the other language (one 44px target); md+ shows both as a segmented switch.
+          active ? "bg-primary text-primary-foreground max-md:hidden" : "text-muted-foreground hover:text-foreground",
+        );
+        const label = locale === "ar" ? "عربي" : "EN";
+        return active ? (
+          <span key={locale} lang={locale} aria-current="true" title={t(`language.${locale}`)} className={classes}>
+            {label}
+          </span>
+        ) : (
+          <a
+            key={locale}
+            lang={locale}
+            hrefLang={locale}
+            href={hrefFor(locale, pathname)}
+            // Keep the query string too (filters, page) — read at click time, not during render.
+            onClick={(e) => {
+              e.currentTarget.href = hrefFor(locale, `${window.location.pathname}${window.location.search}`);
+            }}
+            title={t(`language.${locale}`)}
+            className={classes}
+          >
+            {label}
+          </a>
+        );
+      })}
     </div>
   );
 }
