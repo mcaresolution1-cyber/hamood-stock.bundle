@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import type { ActionResult } from "@/server/actions/result";
+import { runAction } from "@/lib/run-action";
 import { useMessage } from "./use-message";
 
 /** A button that asks for confirmation, runs a server action, toasts the result and refreshes. */
@@ -42,7 +43,7 @@ export function ConfirmAction({
 
   function run() {
     startTransition(async () => {
-      const result = await action();
+      const result = await runAction(action, { retry: true }); // activate/deactivate: safe to repeat
       if (result.ok) {
         toast.success(t("saved"));
         setOpen(false);

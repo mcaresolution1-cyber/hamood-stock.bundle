@@ -13,6 +13,8 @@ import { useMessage } from "@/components/use-message";
 import { CATEGORIES } from "@/lib/products";
 import { productSchema, type ProductFormValues, type ProductInput } from "@/lib/validation/products";
 import { createProduct, updateProduct } from "@/server/actions/products";
+import { runAction } from "@/lib/run-action";
+import type { ActionResult } from "@/server/actions/result";
 
 const EMPTY: ProductFormValues = {
   modelCode: "",
@@ -40,7 +42,7 @@ export function ProductForm({ product }: { product?: { id: string } & ProductFor
   function onSubmit() {
     const values = form.getValues();
     startTransition(async () => {
-      const result = product ? await updateProduct(product.id, values) : await createProduct(values);
+      const result = await runAction<ActionResult<unknown>>(() => (product ? updateProduct(product.id, values) : createProduct(values)), { retry: Boolean(product) });
       if (result.ok) {
         toast.success(product ? t("products.updated") : t("products.created"));
         router.push("/admin/products");

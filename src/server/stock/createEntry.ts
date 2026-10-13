@@ -36,6 +36,8 @@ export type EntryInput = {
   supplierName?: string | null;
   note?: string | null;
   photoUrl?: string | null;
+  /** Repeat-submit protection: the same key (from the same user) returns the entry already saved. */
+  idempotencyKey?: string | null;
 };
 
 /** For a transfer this is the OUT half; `linked` is the IN half. */
@@ -45,7 +47,38 @@ export const MAX_QUANTITY = 100_000;
 const TX_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
 
 export async function createEntry(client: PrismaClient, actor: EntryActor, input: EntryInput): Promise<SavedEntry> {
-  return withRetry(() => client.$transaction((tx) => createEntryInTx(tx, actor, input), TX_OPTIONS));
+  const key = input.idempotencyKey || null;
+  if (key) {
+    const existing = await savedEntryForKey(client, key, actor);
+    if (existing) return existing;
+  }
+  try {
+    return await withRetry(() => client.$transaction((tx) => createEntryInTx(tx, actor, input), TX_OPTIONS));
+  } catch (e) {
+    // Two submits with the same key at the same moment: the unique index lets one in. Return that one.
+    if (key && (e as { code?: string })?.code === "P2002") {
+      const existing = await savedEntryForKey(client, key, actor);
+      if (existing) return existing;
+    }
+    throw e;
+  }
+}
+
+/** The entry already saved under this form key (a transfer returns both halves), only for its own creator. */
+async function savedEntryForKey(client: PrismaClient, key: string, actor: EntryActor): Promise<SavedEntry | null> {
+  const entry = await client.stockEntry.findUnique({
+    where: { idempotencyKey: key },
+    select: {
+      id: true,
+      number: true,
+      createdById: true,
+      linkedFrom: { where: { type: "TRANSFER_IN" }, select: { id: true, number: true } },
+    },
+  });
+  if (!entry) return null;
+  if (entry.createdById !== actor.id) throw new EntryRuleError("stock.errors.duplicateSubmit");
+  const linked = entry.linkedFrom[0];
+  return linked ? { id: entry.id, number: entry.number, linked } : { id: entry.id, number: entry.number };
 }
 
 /** Same as createEntry, inside a transaction the caller already opened. */
@@ -106,7 +139,14 @@ export async function createEntryInTx(tx: Tx, actor: EntryActor, input: EntryInp
   };
 
   const entry = await tx.stockEntry.create({
-    data: { ...fields, number: formatEntryNumber(prefix, value, type), type, warehouseId: warehouse.id, lines: { create: lines } },
+    data: {
+      ...fields,
+      idempotencyKey: input.idempotencyKey || null, // only on this entry (the OUT half of a transfer)
+      number: formatEntryNumber(prefix, value, type),
+      type,
+      warehouseId: warehouse.id,
+      lines: { create: lines },
+    },
     select: { id: true, number: true },
   });
   const changes: LevelChange[] = lines.map((l) => ({

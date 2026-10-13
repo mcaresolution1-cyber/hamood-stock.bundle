@@ -13,6 +13,7 @@ import { NativeSelect } from "@/components/native-select";
 import { useMessage } from "@/components/use-message";
 import { Ltr } from "@/components/ltr";
 import { applyOpeningStock, previewOpeningStock, type OpeningStockPreview } from "@/server/actions/opening-stock";
+import { runAction } from "@/lib/run-action";
 
 export function OpeningStockForm({ warehouses }: { warehouses: { id: string; name: string }[] }) {
   const t = useTranslations();
@@ -43,7 +44,7 @@ export function OpeningStockForm({ warehouses }: { warehouses: { id: string; nam
   function check() {
     setAction("check");
     startTransition(async () => {
-      const result = await previewOpeningStock(formData());
+      const result = await runAction(() => previewOpeningStock(formData()), { retry: true });
       if (result.ok) setPreview(result.data);
       else {
         setPreview(null);
@@ -55,7 +56,7 @@ export function OpeningStockForm({ warehouses }: { warehouses: { id: string; nam
   function apply() {
     setAction("apply");
     startTransition(async () => {
-      const result = await applyOpeningStock(formData());
+      const result = await runAction(() => applyOpeningStock(formData())); // never retried: it saves stock
       if (result.ok) {
         toast.success(t("openingStock.saved", { number: result.data.number }));
         setSaved(result.data.number);

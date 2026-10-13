@@ -94,7 +94,12 @@
     "invalidInput": "Please fix the highlighted fields.",
     "notFound": "This item no longer exists.",
     "generic": "Something went wrong. Please try again.",
-    "denied": "You don't have access to that page."
+    "denied": "You don't have access to that page.",
+    "network": "Connection problem — nothing was lost. Please try again.",
+    "appUpdated": "The app was just updated. Reload the page, then try again.",
+    "unexpected": "Something went wrong on the server. Please try again.",
+    "unexpectedRef": "Something went wrong on the server (reference {ref}). Please try again.",
+    "timeout": "This is taking longer than usual and may still be saved. Check before trying again."
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -277,7 +282,8 @@
       "invalidQuantity": "Quantities must be whole numbers from 1 to 100,000.",
       "returnWarehouseKind": "Damaged returns go to a damaged-stock warehouse, resellable ones to a sellable warehouse.",
       "noDestination": "Choose where to send the stock.",
-      "sameWarehouse": "Choose a different warehouse to send to."
+      "sameWarehouse": "Choose a different warehouse to send to.",
+      "duplicateSubmit": "This form was already submitted by someone else. Reload and try again."
     }
   },
   "reasons": {
@@ -534,6 +540,10 @@
     "retry": "Try again",
     "home": "Go to dashboard",
     "notFoundTitle": "Page not found",
-    "notFoundBody": "This page or item doesn't exist, or the link is wrong."
+    "notFoundBody": "This page or item doesn't exist, or the link is wrong.",
+    "errorTime": "Time:",
+    "copyDetails": "Copy details",
+    "copied": "Copied",
+    "reportHint": "If it keeps happening, send these details to your admin."
   }
 }

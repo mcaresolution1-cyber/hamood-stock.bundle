@@ -14,6 +14,8 @@ import { SelectField, TextField, applyActionErrors } from "@/components/form-fie
 import { useMessage } from "@/components/use-message";
 import { userFormSchema, type UserFormValues } from "@/lib/validation/users";
 import { createUser, updateUser } from "@/server/actions/users";
+import { runAction } from "@/lib/run-action";
+import type { ActionResult } from "@/server/actions/result";
 
 type Existing = { id: string; name: string; email: string; role: "ADMIN" | "STAFF" | "VIEWER"; warehouseIds: string[] };
 type WarehouseOption = { id: string; name: string };
@@ -36,7 +38,8 @@ export function UserDialog({ user, warehouses }: { user?: Existing; warehouses: 
 
   function onSubmit(values: UserFormValues) {
     startTransition(async () => {
-      const result = user ? await updateUser(user.id, values) : await createUser(values); // server re-validates
+      // server re-validates. Only an update is retried on a network error — a create must not run twice.
+      const result = await runAction<ActionResult<unknown>>(() => (user ? updateUser(user.id, values) : createUser(values)), { retry: Boolean(user) });
       if (result.ok) {
         toast.success(t("common.saved"));
         setOpen(false);

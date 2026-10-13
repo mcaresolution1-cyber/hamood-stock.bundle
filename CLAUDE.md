@@ -213,6 +213,9 @@ helpers in `src/lib/stock/` so they can be unit tested.
 | URL filters | `parseEntryFilters`, `isValidDay`, `parsePage` (`src/server/queries/entries.ts`) — ignore bad values, never throw |
 | Loading / errors | `loading.tsx` → `PageSkeleton`; `error.tsx` → `ErrorView` (Next 16.4 passes `retry`, not `reset`); `notFound()` → translated 404 |
 | Confirm + run an action | `ConfirmAction` (`src/components/confirm-action.tsx`) |
+| Call a server action from the browser | **always** `runAction(() => action(…), { retry })` (`src/lib/run-action.ts`): network failures, redeploys and server bugs become a toast instead of the error page, the form keeps its data. `retry: true` only for actions safe to repeat (updates, previews, login, stock entries with an idempotency key) — never for creates/imports |
+| Repeat-submit protection | `idempotencyKey` on `createEntry` input (unique on `StockEntry`): the same key returns the entry already saved. The wizard keeps one key per Review screen |
+| Language switch | plain link to `/locale?l=ar&next=…` (`src/app/locale/route.ts`, relative redirect via `safeNextPath`) — not a server action |
 | Test fixtures / ledger check | `tests/helpers/db.ts`, `tests/helpers/ledger.ts` (`expectLedgerMatchesLevels`), `tests/helpers/auth.ts` (`signInAs`) |
 
 Races: checks that must hold at write time (stock before deactivating a warehouse, last admin, opening-stock

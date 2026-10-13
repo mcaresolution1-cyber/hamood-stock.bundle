@@ -23,11 +23,13 @@ export async function TopBar({ user }: { user: CurrentUser }) {
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
+      <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4 lg:gap-3">
         <MobileNav items={nav} />
-        <Link href="/" className="flex min-h-11 min-w-0 items-center gap-2">
+        {/* The brand never truncates from lg up; on a narrow phone it may shorten with "…". */}
+        <Link href="/" className="flex min-h-11 min-w-0 items-center gap-2 md:shrink-0">
           <WarehouseIcon className="size-5 shrink-0" aria-hidden />
-          <span className="truncate font-semibold">{t("common.appName")}</span>
+          {/* Tablet (md–lg): icon only, so the full menu fits in English too; the name stays for screen readers. */}
+          <span className="truncate font-semibold md:max-lg:sr-only lg:overflow-visible lg:whitespace-nowrap">{t("common.appName")}</span>
         </Link>
         <DesktopNav items={nav} />
 
@@ -38,7 +40,7 @@ export async function TopBar({ user }: { user: CurrentUser }) {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-2" aria-label={t("topBar.openMenu")}>
                 <UserIcon className="size-4" aria-hidden />
-                <span className="hidden max-w-32 truncate sm:inline">{user.name}</span>
+                <span className="hidden max-w-32 truncate xl:inline">{user.name}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
