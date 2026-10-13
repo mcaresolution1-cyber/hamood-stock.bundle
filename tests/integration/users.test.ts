@@ -21,19 +21,19 @@ afterAll(() => testDb.$disconnect());
 describe("users", () => {
   it("creates a STAFF user with hashed password and assigned warehouses", async () => {
     const w = await makeWarehouse();
-    const result = await createUser({ name: "Ali", email: " ALI@Hamood.test ", role: "STAFF", warehouseIds: [w.id], password: "secret123" });
+    const result = await createUser({ name: "Ali", email: " ALI@Hamood.test ", role: "STAFF", warehouseIds: [w.id], password: "secret12345" });
     expect(result.ok).toBe(true);
     const u = await testDb.user.findUniqueOrThrow({ where: { email: "ali@hamood.test" }, include: { warehouses: true } });
     expect(u.warehouses.map((x) => x.id)).toEqual([w.id]);
-    expect(await bcrypt.compare("secret123", u.passwordHash)).toBe(true);
+    expect(await bcrypt.compare("secret12345", u.passwordHash)).toBe(true);
   });
 
   it("drops warehouse assignments for non-STAFF roles and rejects duplicate emails", async () => {
     const w = await makeWarehouse();
-    await createUser({ name: "V", email: "v@h.test", role: "VIEWER", warehouseIds: [w.id], password: "secret123" });
+    await createUser({ name: "V", email: "v@h.test", role: "VIEWER", warehouseIds: [w.id], password: "secret12345" });
     const v = await testDb.user.findUniqueOrThrow({ where: { email: "v@h.test" }, include: { warehouses: true } });
     expect(v.warehouses).toEqual([]);
-    expect(await createUser({ name: "V2", email: "v@h.test", role: "VIEWER", warehouseIds: [], password: "secret123" })).toMatchObject({
+    expect(await createUser({ name: "V2", email: "v@h.test", role: "VIEWER", warehouseIds: [], password: "secret12345" })).toMatchObject({
       ok: false,
       error: "users.errors.emailTaken",
     });

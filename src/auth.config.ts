@@ -5,9 +5,15 @@
 import type { NextAuthConfig } from "next-auth";
 import type { Role } from "@/generated/prisma/enums";
 
+export const SESSION_IDLE_SECONDS = 8 * 60 * 60;
+export const SESSION_ABSOLUTE_MS = 24 * 60 * 60 * 1000;
+
 export const authConfig = {
   pages: { signIn: "/login" },
-  session: { strategy: "jwt", maxAge: 12 * 60 * 60 }, // 12 hours — a working day
+  // Idle timeout: the proxy re-signs the cookie on every request, so a session ends after 8 hours
+  // without activity. The 24-hour absolute limit and "signed out by a password change" are checked
+  // in the DAL (src/server/auth/dal.ts) from `authAt`.
+  session: { strategy: "jwt", maxAge: SESSION_IDLE_SECONDS },
   providers: [], // added in src/auth.ts
   callbacks: {
     /** Optimistic redirect check used by the proxy. Real authorization happens in the DAL. */
@@ -26,6 +32,7 @@ export const authConfig = {
       if (user) {
         token.id = user.id;
         token.role = user.role;
+        token.authAt = Date.now(); // when this sign-in happened (never refreshed)
       }
       return token;
     },
@@ -33,6 +40,7 @@ export const authConfig = {
       // Only the id is trusted server-side; role etc. are re-read from the DB by the DAL.
       if (typeof token.id === "string") session.user.id = token.id;
       if (typeof token.role === "string") session.user.role = token.role as Role;
+      if (typeof token.authAt === "number") session.authAt = token.authAt;
       return session;
     },
   },

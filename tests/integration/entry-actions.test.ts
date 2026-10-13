@@ -47,7 +47,7 @@ describe("saveEntry", () => {
   it("saves a valid STAFF delivery and drops fields the reason doesn't use", async () => {
     signInAs(staff);
     const result = await saveEntry(delivery(main, { technicianName: "should be dropped", customerName: "dropped" }));
-    expect(result).toMatchObject({ ok: true, data: { number: "IN-000001" } });
+    expect(result).toMatchObject({ ok: true, data: { status: "saved", entry: { number: "IN-000001" } } });
     const e = await testDb.stockEntry.findFirstOrThrow();
     expect(e).toMatchObject({ supplierName: "Acme", reference: "INV-1", technicianName: null, customerName: null, createdById: staff.id });
     expect(await level(p1, main)).toBe(5);
@@ -122,10 +122,10 @@ describe("photos", () => {
 });
 
 describe("voidEntryAction", () => {
-  it("is ADMIN only and needs a reason", async () => {
+  it("is ADMIN / MANAGER only and needs a reason", async () => {
     signInAs(admin);
     const saved = await saveEntry(delivery(main));
-    const id = (saved as { data: { id: string } }).data.id;
+    const id = (saved as { data: { entry: { id: string } } }).data.entry.id;
     signInAs(staff);
     expect(await voidEntryAction({ entryId: id, reason: "mistake" })).toEqual({ ok: false, error: "errors.forbidden" });
     signInAs(admin);
@@ -133,7 +133,10 @@ describe("voidEntryAction", () => {
       ok: false,
       fieldErrors: { reason: "void.errors.reasonRequired" },
     });
-    expect(await voidEntryAction({ entryId: id, reason: "mistake" })).toMatchObject({ ok: true, data: { voids: [{ number: "VOID-000001" }] } });
+    expect(await voidEntryAction({ entryId: id, reason: "mistake" })).toMatchObject({
+      ok: true,
+      data: { status: "voided", result: { voids: [{ number: "VOID-000001" }] } },
+    });
     expect(await level(p1, main)).toBe(0);
   });
 });
@@ -141,7 +144,7 @@ describe("voidEntryAction", () => {
 describe("entry form data", () => {
   it("never includes cost and marks only assigned warehouses writable for STAFF", async () => {
     await testDb.product.update({ where: { id: p1 }, data: { cost: "4321.97" } });
-    const user = { id: staff.id, name: staff.name, email: staff.email, role: staff.role, warehouseIds: [main] };
+    const user = { id: staff.id, name: staff.name, email: staff.email, role: staff.role, warehouseIds: [main], mustChangePassword: false };
     const data = await loadEntryForm(user, "OUT");
     expect(JSON.stringify(data)).not.toContain("cost");
     expect(JSON.stringify(data)).not.toContain("4321");
@@ -149,6 +152,6 @@ describe("entry form data", () => {
       ["Jeddah", false],
       ["Riyadh Main", true],
     ]);
-    expect(data.reasons).toEqual(["WEBSITE_ORDER", "DIRECT_SALE", "INSTALLATION", "TRANSFER"]);
+    expect(data.reasons).toEqual(["WEBSITE_ORDER", "DIRECT_SALE", "INSTALLATION", "TRANSFER", "DAMAGED_LOST", "CORRECTION"]);
   });
 });

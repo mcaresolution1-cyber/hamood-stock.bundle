@@ -7,15 +7,17 @@ import { db } from "@/lib/db";
 import type { Tx } from "@/server/stock/createEntry";
 import type { Role } from "@/generated/prisma/enums";
 import { requirePermission, type CurrentUser } from "@/server/auth/dal";
+import { usesWarehouses } from "@/lib/permissions";
+import { audit, changedFields } from "@/server/audit";
 import { createUserSchema, resetPasswordSchema, updateUserSchema } from "@/lib/validation/users";
 import { id as idSchema } from "@/lib/validation/common";
 import { guarded, isUniqueViolation, UserFacingError, type ActionResult } from "./result";
 
 const HASH_ROUNDS = 12;
 
-/** Only STAFF use warehouse assignments; others get none (ADMIN = all, VIEWER = read-only). */
+/** Only STAFF and MANAGER use warehouse assignments; others get none (ADMIN = all, the rest don't record stock). */
 async function warehouseConnect(role: Role, ids: string[]) {
-  if (role !== "STAFF") return [];
+  if (!usesWarehouses(role)) return [];
   const unique = [...new Set(ids)];
   const found = await db.warehouse.count({ where: { id: { in: unique }, active: true } });
   if (found !== unique.length) throw new UserFacingError("users.errors.unknownWarehouse");
@@ -48,18 +50,31 @@ async function guardAdminChange(
 
 export async function createUser(values: unknown): Promise<ActionResult<{ id: string }>> {
   return guarded(async () => {
-    await requirePermission("user:manage");
+    const actor = await requirePermission("user:manage");
     const data = createUserSchema.parse(values);
+    const warehouses = await warehouseConnect(data.role, data.warehouseIds);
+    const passwordHash = await bcrypt.hash(data.password, HASH_ROUNDS);
     try {
-      const user = await db.user.create({
-        data: {
-          name: data.name,
-          email: data.email,
-          role: data.role,
-          passwordHash: await bcrypt.hash(data.password, HASH_ROUNDS),
-          warehouses: { connect: await warehouseConnect(data.role, data.warehouseIds) },
-        },
-        select: { id: true },
+      const user = await db.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: {
+            name: data.name,
+            email: data.email,
+            role: data.role,
+            passwordHash,
+            mustChangePassword: true, // the admin knows this password — the user picks his own
+            warehouses: { connect: warehouses },
+          },
+          select: { id: true },
+        });
+        await audit(tx, actor.id, {
+          action: "user.create",
+          subjectType: "user",
+          subjectId: created.id,
+          subjectLabel: data.email,
+          after: { name: data.name, email: data.email, role: data.role, warehouses: await warehouseNames(tx, warehouses) },
+        });
+        return created;
       });
       revalidatePath("/admin/users");
       return user;
@@ -79,10 +94,19 @@ export async function updateUser(id: string, values: unknown): Promise<ActionRes
     try {
       await db.$transaction(async (tx) => {
         await guardAdminChange(tx, actor, userId, { role: data.role });
+        const before = await tx.user.findUniqueOrThrow({
+          where: { id: userId },
+          select: { name: true, email: true, role: true, warehouses: { select: { id: true } } },
+        });
         await tx.user.update({
           where: { id: userId },
           data: { name: data.name, email: data.email, role: data.role, warehouses: { set: warehouses } },
         });
+        const diff = changedFields(
+          { ...before, warehouses: await warehouseNames(tx, before.warehouses) },
+          { name: data.name, email: data.email, role: data.role, warehouses: await warehouseNames(tx, warehouses) },
+        );
+        if (diff) await audit(tx, actor.id, { action: "user.update", subjectType: "user", subjectId: userId, subjectLabel: data.email, ...diff });
       });
     } catch (e) {
       if (isUniqueViolation(e)) throw new UserFacingError("users.errors.emailTaken");
@@ -99,7 +123,14 @@ export async function setUserActive(id: string, active: boolean): Promise<Action
     const input = z.object({ id: idSchema, active: z.boolean() }).parse({ id, active });
     await db.$transaction(async (tx) => {
       await guardAdminChange(tx, actor, input.id, { active: input.active });
-      await tx.user.update({ where: { id: input.id }, data: { active: input.active } });
+      const user = await tx.user.update({ where: { id: input.id }, data: { active: input.active }, select: { email: true } });
+      await audit(tx, actor.id, {
+        action: input.active ? "user.activate" : "user.deactivate",
+        subjectType: "user",
+        subjectId: input.id,
+        subjectLabel: user.email,
+        after: { active: input.active },
+      });
     });
     revalidatePath("/admin/users");
     return null;
@@ -108,12 +139,28 @@ export async function setUserActive(id: string, active: boolean): Promise<Action
 
 export async function resetUserPassword(id: string, values: unknown): Promise<ActionResult> {
   return guarded(async () => {
-    await requirePermission("user:manage");
+    const actor = await requirePermission("user:manage");
     const userId = idSchema.parse(id);
     const { password } = resetPasswordSchema.parse(values);
-    const exists = await db.user.count({ where: { id: userId } });
-    if (!exists) throw new UserFacingError("errors.notFound");
-    await db.user.update({ where: { id: userId }, data: { passwordHash: await bcrypt.hash(password, HASH_ROUNDS) } });
+    const passwordHash = await bcrypt.hash(password, HASH_ROUNDS);
+    await db.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({ where: { id: userId }, select: { email: true } });
+      if (!user) throw new UserFacingError("errors.notFound");
+      // Signs the user out everywhere (passwordChangedAt) and makes him choose his own password next time.
+      await tx.user.update({
+        where: { id: userId },
+        data: { passwordHash, passwordChangedAt: new Date(), mustChangePassword: actor.id !== userId },
+      });
+      await audit(tx, actor.id, { action: "user.resetPassword", subjectType: "user", subjectId: userId, subjectLabel: user.email });
+    });
+    revalidatePath("/admin/users");
     return null;
   });
+}
+
+/** Warehouse names for the audit log (ids mean nothing to a reader), sorted. */
+async function warehouseNames(tx: Tx, refs: { id: string }[]): Promise<string[]> {
+  if (!refs.length) return [];
+  const rows = await tx.warehouse.findMany({ where: { id: { in: refs.map((r) => r.id) } }, select: { name: true } });
+  return rows.map((r) => r.name).sort();
 }

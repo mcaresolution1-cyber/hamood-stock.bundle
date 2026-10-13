@@ -6,8 +6,9 @@
 import { vi } from "vitest";
 import { auth } from "@/auth";
 
-export function signInAs(user: { id: string } | null) {
+/** `authAt` = when that session signed in (ms); leave it out for a session from before v2. */
+export function signInAs(user: { id: string } | null, authAt?: number) {
   vi.mocked(auth as unknown as () => Promise<unknown>).mockResolvedValue(
-    user ? { user: { id: user.id }, expires: new Date(Date.now() + 3600_000).toISOString() } : null,
+    user ? { user: { id: user.id }, authAt, expires: new Date(Date.now() + 3600_000).toISOString() } : null,
   );
 }

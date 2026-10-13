@@ -1,29 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { can, canWriteToWarehouse } from "./permissions";
+import { ALL_ACTIONS, can, canWriteToWarehouse } from "./permissions";
 
 describe("can", () => {
   it("lets ADMIN do everything", () => {
-    for (const action of [
-      "entry:create",
-      "entry:correct",
-      "entry:void",
-      "stock:view",
-      "cost:view",
-      "product:manage",
-      "warehouse:manage",
-      "user:manage",
-    ] as const) {
-      expect(can("ADMIN", action)).toBe(true);
+    for (const action of ALL_ACTIONS) expect(can("ADMIN", action)).toBe(true);
+  });
+
+  it("lets STAFF create entries, request corrections and view stock, but not see cost or void", () => {
+    expect(can("STAFF", "entry:create")).toBe(true);
+    expect(can("STAFF", "stock:view")).toBe(true);
+    expect(can("STAFF", "entry:correct")).toBe(true);
+    expect(can("STAFF", "cost:view")).toBe(false);
+    expect(can("STAFF", "entry:void")).toBe(false);
+    expect(can("STAFF", "approval:decide")).toBe(false);
+    expect(can("STAFF", "product:manage")).toBe(false);
+  });
+
+  it("lets MANAGER void and approve, but not manage the catalogue, users or see cost", () => {
+    for (const a of ["entry:create", "entry:correct", "entry:void", "stock:view", "approval:decide"] as const) {
+      expect(can("MANAGER", a)).toBe(true);
+    }
+    for (const a of ["cost:view", "product:manage", "warehouse:manage", "user:manage", "openingStock:import", "settings:manage", "audit:view"] as const) {
+      expect(can("MANAGER", a)).toBe(false);
     }
   });
 
-  it("lets STAFF create entries and view stock, but not see cost, correct or void", () => {
-    expect(can("STAFF", "entry:create")).toBe(true);
-    expect(can("STAFF", "stock:view")).toBe(true);
-    expect(can("STAFF", "cost:view")).toBe(false);
-    expect(can("STAFF", "entry:void")).toBe(false);
-    expect(can("STAFF", "entry:correct")).toBe(false);
-    expect(can("STAFF", "product:manage")).toBe(false);
+  it("lets ACCOUNTANT read stock, cost and the audit log only", () => {
+    expect(ALL_ACTIONS.filter((a) => can("ACCOUNTANT", a))).toEqual(["stock:view", "cost:view", "audit:view"]);
+  });
+
+  it("gives TECHNICIAN only his own jobs", () => {
+    expect(ALL_ACTIONS.filter((a) => can("TECHNICIAN", a))).toEqual([]);
+    expect(can("TECHNICIAN", "job:own")).toBe(true);
   });
 
   it("keeps VIEWER read-only", () => {
@@ -45,7 +53,15 @@ describe("canWriteToWarehouse", () => {
     expect(canWriteToWarehouse(staff, "w2")).toBe(false);
   });
 
-  it("never allows VIEWER, even if warehouses are assigned", () => {
-    expect(canWriteToWarehouse({ role: "VIEWER", warehouseIds: ["w1"] }, "w1")).toBe(false);
+  it("allows MANAGER only in assigned warehouses", () => {
+    const manager = { role: "MANAGER" as const, warehouseIds: ["w1"] };
+    expect(canWriteToWarehouse(manager, "w1")).toBe(true);
+    expect(canWriteToWarehouse(manager, "w2")).toBe(false);
+  });
+
+  it("never allows VIEWER, ACCOUNTANT or TECHNICIAN, even if warehouses are assigned", () => {
+    for (const role of ["VIEWER", "ACCOUNTANT", "TECHNICIAN"] as const) {
+      expect(canWriteToWarehouse({ role, warehouseIds: ["w1"] }, "w1")).toBe(false);
+    }
   });
 });

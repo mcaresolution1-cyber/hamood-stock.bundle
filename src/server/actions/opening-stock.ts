@@ -41,7 +41,7 @@ async function prepare(formData: FormData): Promise<OpeningStockPreview> {
 export async function previewOpeningStock(formData: FormData): Promise<ActionResult<OpeningStockPreview>> {
   return guarded(async () => {
     await requirePermission("product:manage");
-    await requirePermission("entry:correct");
+    await requirePermission("openingStock:import");
     return prepare(formData);
   });
 }
@@ -50,7 +50,7 @@ export async function previewOpeningStock(formData: FormData): Promise<ActionRes
 export async function applyOpeningStock(formData: FormData): Promise<ActionResult<{ id: string; number: string }>> {
   return guarded(async () => {
     await requirePermission("product:manage");
-    const user = await requirePermission("entry:correct");
+    const user = await requirePermission("openingStock:import");
     const confirmAdd = z.enum(["yes"]).optional().parse(formData.get("confirmAdd") ?? undefined) === "yes";
     const preview = await prepare(formData);
     if (preview.fileErrors.length || preview.totals.errors > 0) throw new UserFacingError("import.errors.fixFirst");

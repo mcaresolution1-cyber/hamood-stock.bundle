@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requirePermission } from "@/server/auth/dal";
+import { audit } from "@/server/audit";
 import { validateProductImport, type ProductImportResult } from "@/lib/import/products";
 import { readSheet } from "@/server/import/readSheet";
 import { guarded, UserFacingError, type ActionResult } from "./result";
@@ -28,9 +29,11 @@ export async function applyProductImport(
   formData: FormData,
 ): Promise<ActionResult<{ created: number; updated: number }>> {
   return guarded(async () => {
-    await requirePermission("product:manage");
+    const actor = await requirePermission("product:manage");
     const result = await validate(formData);
     if (result.fileErrors.length || result.counts.error > 0) throw new UserFacingError("import.errors.fixFirst");
+    const file = formData.get("file");
+    const fileName = file instanceof File ? file.name.slice(0, 200) : null;
 
     await db.$transaction(
       async (tx) => {
@@ -54,6 +57,13 @@ export async function applyProductImport(
             await tx.product.update({ where: { modelCode }, data: fields });
           }
         }
+        // One summary row per import (a row per product would bury everything else in the log).
+        await audit(tx, actor.id, {
+          action: "product.import",
+          subjectType: "product",
+          subjectLabel: fileName,
+          after: { fileName, created: result.counts.create, updated: result.counts.update },
+        });
       },
       { timeout: 60_000, maxWait: 10_000 },
     );

@@ -12,7 +12,7 @@ import { useFieldArray, useForm, useWatch, type UseFormReturn } from "react-hook
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useLocale, useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { CheckCircle2Icon, PrinterIcon, Trash2Icon } from "lucide-react";
+import { CheckCircle2Icon, ClockIcon, PrinterIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form } from "@/components/ui/form";
@@ -30,17 +30,12 @@ import { destinationWarehouses, sourceWarehouses } from "@/lib/stock/warehouse-o
 import { emptyEntryForm, entryFormSchema, type EntryFormValues } from "@/lib/validation/entries";
 import type { EntryReason } from "@/generated/prisma/enums";
 import type { EntryFormData } from "@/server/queries/entry-form";
-import type { SavedEntry } from "@/server/stock/createEntry";
+import type { EntrySubmitResult } from "@/server/stock/approvals";
+import { newSubmitKey } from "@/lib/submit-key";
 import { saveEntry } from "@/server/actions/entries";
 import { runAction } from "@/lib/run-action";
 
 type Step = "form" | "review" | "done";
-
-function newSubmitKey(): string {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
-}
 
 const DETAIL_LABEL: Record<Exclude<DetailField, "returnCondition" | "destinationWarehouseId">, string> = {
   supplierName: "supplierName",
@@ -63,7 +58,7 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
   const message = useMessage();
   const router = useRouter();
   const [step, setStep] = useState<Step>("form");
-  const [saved, setSaved] = useState<SavedEntry | null>(null);
+  const [saved, setSaved] = useState<EntrySubmitResult | null>(null);
   const [lastValues, setLastValues] = useState<EntryFormValues | null>(null);
   const [pending, startTransition] = useTransition();
   // One key per review screen: retries of the same submit reuse it (the server returns the entry already
@@ -495,13 +490,39 @@ function DoneStep({
   onNew,
   onRepeat,
 }: {
-  saved: SavedEntry;
+  saved: EntrySubmitResult;
   direction: "IN" | "OUT";
   reason: EntryReason;
   onNew: () => void;
   onRepeat: () => void;
 }) {
   const t = useTranslations("entryForm");
+  if (saved.status === "pending") {
+    // Above the approval limit: nothing changed in stock yet (docs/plans/v2.md, Phase A).
+    return (
+      <Card className="mx-auto max-w-md text-center">
+        <CardContent className="space-y-5 pt-8 pb-8">
+          <ClockIcon className="mx-auto size-14 text-amber-600" aria-hidden />
+          <div>
+            <p className="text-muted-foreground">{t("sentForApproval")}</p>
+            <p className="mt-1 text-3xl font-bold tracking-tight" dir="ltr">
+              {saved.request.number}
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">{t("approvalHint")}</p>
+          </div>
+          <div className="grid gap-2">
+            <Button className="h-12 text-base" onClick={onNew}>
+              {t("newEntry")}
+            </Button>
+            <Button variant="ghost" className="h-11" asChild>
+              <Link href={`/approvals/${saved.request.id}`}>{t("viewRequest")}</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  const entry = saved.entry;
   const printable = direction === "OUT" && reason !== "CORRECTION";
   return (
     <Card className="mx-auto max-w-md text-center">
@@ -510,11 +531,11 @@ function DoneStep({
         <div>
           <p className="text-muted-foreground">{t("savedAs")}</p>
           <p className="mt-1 text-3xl font-bold tracking-tight" dir="ltr">
-            {saved.number}
+            {entry.number}
           </p>
-          {saved.linked && (
+          {entry.linked && (
             <p className="mt-1 text-lg font-semibold text-muted-foreground" dir="ltr">
-              {saved.linked.number}
+              {entry.linked.number}
             </p>
           )}
         </div>
@@ -527,11 +548,11 @@ function DoneStep({
           </Button>
           <div className="grid grid-cols-2 gap-2">
             <Button variant="ghost" className="h-11" asChild>
-              <Link href={`/entries/${saved.id}`}>{t("viewEntry")}</Link>
+              <Link href={`/entries/${entry.id}`}>{t("viewEntry")}</Link>
             </Button>
             {printable && (
               <Button variant="ghost" className="h-11" asChild>
-                <Link href={`/print/entries/${saved.id}`} target="_blank">
+                <Link href={`/print/entries/${entry.id}`} target="_blank">
                   <PrinterIcon className="size-4" aria-hidden />
                   {t("printNote")}
                 </Link>

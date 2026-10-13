@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EntryTypeBadge } from "@/components/entry-badges";
 import { ProductThumb } from "@/components/product-thumb";
 import { Ltr } from "@/components/ltr";
-import { can } from "@/lib/permissions";
+import { can, canWriteToWarehouse } from "@/lib/permissions";
 import { getCurrentUser, requirePagePermission } from "@/server/auth/dal";
 import { getEntry, relatedEntries } from "@/server/queries/entries";
 import { VoidDialog } from "./void-dialog";
@@ -28,7 +28,16 @@ export default async function EntryPage({ params }: PageProps<"/entries/[id]">) 
   const when = (d: Date) => format.dateTime(d, { dateStyle: "medium", timeStyle: "short" });
   const units = entry.lines.reduce((s, l) => s + l.quantity, 0);
   const printable = (entry.type === "OUT" || entry.type === "TRANSFER_OUT") && !entry.voidedAt;
-  const canVoid = can(user.role, "entry:void") && entry.type !== "VOID" && !entry.voidedAt;
+  // A manager voids only in his warehouses — both of them for a transfer (the server checks again).
+  const partner = rel.transferIn ?? rel.transferOut;
+  const pendingVoid = entry.voidRequests[0] ?? null;
+  const canVoid =
+    can(user.role, "entry:void") &&
+    entry.type !== "VOID" &&
+    !entry.voidedAt &&
+    !pendingVoid &&
+    canWriteToWarehouse(user, entry.warehouse.id) &&
+    (!partner || canWriteToWarehouse(user, partner.warehouse.id));
 
   const details: [string, React.ReactNode][] = [
     [t("entries.reason"), t(`reasons.${entry.reason}`)],
@@ -92,6 +101,21 @@ export default async function EntryPage({ params }: PageProps<"/entries/[id]">) 
       <Card>
         <CardContent className="space-y-1 pt-6 text-sm">
           <p>{t("entries.created", { name: entry.createdBy.name, date: when(entry.createdAt) })}</p>
+          {entry.approvedVia && (
+            <p>
+              <Link href={`/approvals/${entry.approvedVia.id}`} className="underline underline-offset-4">
+                {t("approvals.approvedVia", { name: entry.approvedVia.decidedBy?.name ?? "—", number: entry.approvedVia.number })}
+              </Link>
+            </p>
+          )}
+          {pendingVoid && (
+            <p className="text-amber-700 dark:text-amber-400">
+              {t("entries.voidRequested")}:{" "}
+              <Link href={`/approvals/${pendingVoid.id}`} className="font-medium underline underline-offset-4">
+                <Ltr>{pendingVoid.number}</Ltr>
+              </Link>
+            </p>
+          )}
           {entry.voidedAt && (
             <p className="text-destructive">
               {t("entries.voidedBy", { name: entry.voidedBy?.name ?? "—", date: when(entry.voidedAt) })}

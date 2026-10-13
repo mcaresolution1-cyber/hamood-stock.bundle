@@ -1,3 +1,4 @@
+import type { Role } from "@/generated/prisma/enums";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createEntry } from "@/server/stock/createEntry";
 import { voidEntry } from "@/server/stock/voidEntry";
@@ -8,13 +9,14 @@ import { isValidDay, listEntries, parseEntryFilters, parsePage } from "@/server/
 import { makeProduct, makeUser, makeWarehouse, resetDatabase, testDb } from "../helpers/db";
 import { level } from "../helpers/ledger";
 
-type Actor = { id: string; name: string; email: string; role: "ADMIN" | "STAFF" | "VIEWER"; warehouseIds: string[] };
+type Actor = { id: string; name: string; email: string; role: Role; warehouseIds: string[]; mustChangePassword: boolean };
 const actorOf = (u: Awaited<ReturnType<typeof makeUser>>): Actor => ({
   id: u.id,
   name: u.name,
   email: u.email,
   role: u.role,
   warehouseIds: u.warehouses.map((w) => w.id),
+  mustChangePassword: false,
 });
 
 let admin: Actor;

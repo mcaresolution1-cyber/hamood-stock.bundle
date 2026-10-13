@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { getFormatter, getTranslations } from "next-intl/server";
-import { ArrowDownToLineIcon, ArrowUpFromLineIcon, ChevronRightIcon } from "lucide-react";
+import { redirect } from "next/navigation";
+import { ArrowDownToLineIcon, ArrowUpFromLineIcon, ChevronRightIcon, ClockIcon } from "lucide-react";
 import { CardAction, Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeniedToast } from "@/components/denied-toast";
 import { ProductSearch } from "@/components/product-search";
@@ -11,6 +12,7 @@ import { Ltr } from "@/components/ltr";
 import { can } from "@/lib/permissions";
 import { requireUser } from "@/server/auth/dal";
 import { dashboardStats, productSearchList } from "@/server/queries/dashboard";
+import { canUseApprovals, requestCounts } from "@/server/queries/approvals";
 import { cn } from "@/lib/utils";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -20,12 +22,19 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function DashboardPage() {
   // Pages re-check the user themselves: layouts are not re-rendered on every navigation.
   const user = await requireUser();
-  const [t, format, stats, products] = await Promise.all([
+  // A technician has no stock pages: his start page is his jobs (keeps the "not allowed" notice).
+  if (!can(user.role, "stock:view")) redirect(can(user.role, "job:own") ? "/jobs" : "/login");
+  const [t, format, stats, products, requests] = await Promise.all([
     getTranslations(),
     getFormatter(),
     dashboardStats(),
     productSearchList(),
+    canUseApprovals(user) ? requestCounts(user) : Promise.resolve({ toDecide: 0, minePending: 0 }),
   ]);
+  const requestLinks = [
+    { count: requests.toDecide, label: t("dashboard.pendingApprovals"), href: "/approvals?view=toDecide" },
+    { count: requests.minePending, label: t("dashboard.myRequests"), href: "/approvals?view=mine" },
+  ].filter((r) => r.count > 0);
   const canWrite = can(user.role, "entry:create");
 
   const cards = [
@@ -66,6 +75,23 @@ export default async function DashboardPage() {
               <span className="block text-sm text-zinc-950/75">{t("dashboard.stockOutHint")}</span>
             </span>
           </Link>
+        </div>
+      )}
+
+      {requestLinks.length > 0 && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {requestLinks.map((r) => (
+            <Link
+              key={r.href}
+              href={r.href}
+              className="flex min-h-14 items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 text-amber-950 transition-colors hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-50 dark:hover:bg-amber-900"
+            >
+              <ClockIcon className="size-5 shrink-0" aria-hidden />
+              <span className="flex-1 text-sm font-medium">{r.label}</span>
+              <span className="text-xl font-bold tabular-nums">{r.count}</span>
+              <ChevronRightIcon className="size-4 rtl:rotate-180" aria-hidden />
+            </Link>
+          ))}
         </div>
       )}
 

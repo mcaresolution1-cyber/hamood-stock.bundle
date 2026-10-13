@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
-import { LogOutIcon, UserIcon, WarehouseIcon } from "lucide-react";
+import { KeyRoundIcon, LogOutIcon, UserIcon, WarehouseIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -53,6 +53,12 @@ export async function TopBar({ user }: { user: CurrentUser }) {
                 <Badge variant="secondary">{t(`roles.${user.role}`)}</Badge>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href="/account/password">
+                  <KeyRoundIcon className="size-4" aria-hidden />
+                  {t("topBar.account")}
+                </Link>
+              </DropdownMenuItem>
               <form action={logoutAction}>
                 <DropdownMenuItem asChild>
                   <button type="submit" className="w-full">

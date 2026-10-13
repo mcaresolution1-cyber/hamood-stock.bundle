@@ -25,3 +25,26 @@ export class EntryRuleError extends Error {
     this.name = "EntryRuleError";
   }
 }
+
+/**
+ * This correction / damaged-lost entry or void is above the approval limit for this user. Thrown by the
+ * entry and void services BEFORE anything is written; submitEntry / submitVoid turn it into an
+ * ApprovalRequest in the same transaction (docs/plans/v2.md, decision V1).
+ */
+export class ApprovalRequiredError extends Error {
+  constructor(
+    readonly need: {
+      rule: "correction" | "damaged" | "void";
+      units: number;
+      /** Σ quantity × cost (SAR, 2 decimals) or null when no line has a cost */
+      value: string | null;
+      warehouseId: string;
+      otherWarehouseId?: string | null;
+      /** voids: the entry to void (the OUT half of a transfer) */
+      targetEntryId?: string | null;
+    },
+  ) {
+    super(`approval required (${need.rule})`);
+    this.name = "ApprovalRequiredError";
+  }
+}

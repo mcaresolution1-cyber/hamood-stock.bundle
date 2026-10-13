@@ -1,10 +1,10 @@
 "use server";
 
-import { AuthError } from "next-auth";
+import { AuthError, CredentialsSignin } from "next-auth";
 import { signIn, signOut } from "@/auth";
 import { loginSchema, type LoginInput } from "@/lib/validation/auth";
 
-export type LoginResult = { ok: true } | { ok: false; error: "invalidCredentials" | "generic" };
+export type LoginResult = { ok: true } | { ok: false; error: "invalidCredentials" | "rateLimited" | "generic" };
 
 // rules-allow: action-auth — signing in is how a user gets authenticated
 export async function loginAction(input: LoginInput): Promise<LoginResult> {
@@ -16,6 +16,7 @@ export async function loginAction(input: LoginInput): Promise<LoginResult> {
     return { ok: true };
   } catch (error) {
     if (error instanceof AuthError) {
+      if (error instanceof CredentialsSignin && error.code === "rate_limited") return { ok: false, error: "rateLimited" };
       return {
         ok: false,
         error: error.type === "CredentialsSignin" ? "invalidCredentials" : "generic",
