@@ -117,7 +117,9 @@ Turbopack can't run there. `pnpm build` therefore runs `next build --webpack` wi
 Next looks before trying a download (which fails on Hostinger). **When upgrading `next`, bump
 `@next/swc-wasm-nodejs` to the same version** (the script fails the build if they differ). Tailwind runs
 through `postcss.config.mjs` (`@tailwindcss/postcss`) in both dev (Turbopack) and build (webpack). Every
-other native binary in the build needs glibc ≤ 2.17.
+other native binary in the build needs glibc ≤ 2.17. The Next config is **`next.config.mjs` (plain JS) — never
+`next.config.ts`**: Hostinger renames the config and imports it from a wrapper to force standalone output,
+and with the WASM compiler a TypeScript config then fails (`Cannot find module '…/<hash>.next.config'`).
 
 `pnpm install` / `pnpm db:generate` run `scripts/prisma-generate.mjs` (prisma generate with a fallback when the
 engine download is blocked) and then bundle the migrations.
