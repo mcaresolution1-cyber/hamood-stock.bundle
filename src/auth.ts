@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { authConfig } from "@/auth.config";
 import { db } from "@/lib/db";
 import { loginSchema } from "@/lib/validation/auth";
-import { clientIp, isLoginBlocked, recordLogin } from "@/server/auth/login-limits";
+import { clientIp, finishLogin, startLogin } from "@/server/auth/login-limits";
 
 /** Too many failed attempts (src/server/auth/login-limits.ts). The code reaches loginAction. */
 export class RateLimitedSignin extends CredentialsSignin {
@@ -36,22 +36,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const { email, password } = parsed.data;
         const ip = clientIp(request?.headers);
 
-        if (await isLoginBlocked(db, email, ip)) {
-          await recordLogin(db, { email, ip, success: false, reason: "rateLimited" });
-          throw new RateLimitedSignin();
-        }
+        const attempt = await startLogin(db, email, ip);
+        if (attempt.blocked) throw new RateLimitedSignin();
 
         const user = await db.user.findUnique({ where: { email } });
         const ok = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
         if (!user || !ok) {
-          await recordLogin(db, { email, ip, userId: user?.id, success: false, reason: "password" });
+          await finishLogin(db, attempt.id, { userId: user?.id, success: false, reason: "password" });
           return null;
         }
         if (!user.active) {
-          await recordLogin(db, { email, ip, userId: user.id, success: false, reason: "inactive" });
+          await finishLogin(db, attempt.id, { userId: user.id, success: false, reason: "inactive" });
           return null;
         }
-        await recordLogin(db, { email, ip, userId: user.id, success: true });
+        await finishLogin(db, attempt.id, { userId: user.id, success: true });
         return { id: user.id, name: user.name, email: user.email, role: user.role };
       },
     }),

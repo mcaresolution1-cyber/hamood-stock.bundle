@@ -4,6 +4,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/auth", () => ({ auth: vi.fn(), signIn: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/headers", () => ({ headers: async () => new Headers({ "x-forwarded-for": "8.8.8.8" }) }));
 
 import { signIn } from "@/auth";
 import { SESSION_ABSOLUTE_MS } from "@/auth.config";
@@ -12,7 +13,15 @@ import { createUser, resetUserPassword, updateUser } from "@/server/actions/user
 import { updateProduct } from "@/server/actions/products";
 import { saveApprovalRulesAction } from "@/server/actions/settings";
 import { getCurrentUser, requirePermission, sessionStillValid } from "@/server/auth/dal";
-import { clientIp, isLoginBlocked, MAX_FAILURES_PER_EMAIL, MAX_FAILURES_PER_IP, recordLogin } from "@/server/auth/login-limits";
+import {
+  clientIp,
+  finishLogin,
+  isLoginBlocked,
+  MAX_FAILURES_PER_EMAIL,
+  MAX_FAILURES_PER_IP,
+  recordLogin,
+  startLogin,
+} from "@/server/auth/login-limits";
 import { makeProduct, makeUser, makeWarehouse, resetDatabase, testDb } from "../helpers/db";
 import { signInAs } from "../helpers/auth";
 
@@ -54,8 +63,19 @@ describe("sign-in limits", () => {
     expect(await isLoginBlocked(testDb, "new@h.test", "7.7.7.7")).toBe(false);
   });
 
-  it("reads the client address from the proxy headers", () => {
-    expect(clientIp(new Headers({ "x-forwarded-for": "5.6.7.8, 10.0.0.1" }))).toBe("5.6.7.8");
+  it("lets only 5 of many attempts sent at the same moment check a password", async () => {
+    const attempts = await Promise.all(Array.from({ length: 12 }, () => startLogin(testDb, "burst@h.test", null)));
+    const allowed = attempts.filter((a) => !a.blocked);
+    expect(allowed.length).toBeLessThanOrEqual(MAX_FAILURES_PER_EMAIL);
+    expect(attempts.length - allowed.length).toBeGreaterThanOrEqual(12 - MAX_FAILURES_PER_EMAIL);
+    // Afterwards only real failures count: fill up to the limit and the next try is blocked.
+    for (const a of allowed) await finishLogin(testDb, a.id, { success: false, reason: "password" });
+    for (let i = allowed.length; i < MAX_FAILURES_PER_EMAIL; i++) await fail("burst@h.test");
+    expect((await startLogin(testDb, "burst@h.test", null)).blocked).toBe(true);
+  });
+
+  it("reads the client address the proxy appended, not one the client sent", () => {
+    expect(clientIp(new Headers({ "x-forwarded-for": "6.6.6.6, 5.6.7.8" }))).toBe("5.6.7.8");
     expect(clientIp(new Headers({ "x-real-ip": "5.6.7.9" }))).toBe("5.6.7.9");
     expect(clientIp(new Headers())).toBeNull();
   });
@@ -68,8 +88,7 @@ describe("sessions", () => {
     expect(sessionStillValid(now - SESSION_ABSOLUTE_MS - 1, null, now)).toBe(false);
     expect(sessionStillValid(now - 1000, new Date(now - 500), now)).toBe(false);
     expect(sessionStillValid(now - 1000, new Date(now - 5000), now)).toBe(true);
-    expect(sessionStillValid(undefined, new Date(now - 5000), now)).toBe(false); // pre-v2 session, password changed since
-    expect(sessionStillValid(undefined, null, now)).toBe(true);
+    expect(sessionStillValid(undefined, null, now)).toBe(false); // pre-v2 session: signed out once
   });
 
   it("signs a user out everywhere when an admin resets his password", async () => {
@@ -104,6 +123,7 @@ describe("forced password change", () => {
       ok: false,
       error: "account.errors.wrongCurrent",
     });
+    expect(await testDb.loginEvent.count({ where: { userId: ali.id, success: false, reason: "password" } })).toBe(1);
     expect(await changeOwnPassword({ current: "first-pass-1", password: "second-pass-2", confirm: "second-pass-3" })).toMatchObject({
       ok: false,
       fieldErrors: { confirm: "account.errors.mismatch" },

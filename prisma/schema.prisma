@@ -246,7 +246,7 @@ model LoginEvent {
   email   String   @db.VarChar(200)
   ip      String?  @db.VarChar(64)
   success Boolean
-  /// Why it failed: "password", "inactive", "rateLimited"
+  /// Why it failed: "password", "inactive", "rateLimited" ("pending" while the password is being checked)
   reason  String?  @db.VarChar(32)
   at      DateTime @default(now()) @db.DateTime(3)
 
@@ -309,7 +309,8 @@ model ApprovalRequest {
 
   warehouse      Warehouse   @relation("RequestWarehouse", fields: [warehouseId], references: [id], onDelete: Restrict)
   otherWarehouse Warehouse?  @relation("RequestOtherWarehouse", fields: [otherWarehouseId], references: [id], onDelete: Restrict)
-  targetEntry    StockEntry? @relation("RequestTarget", fields: [targetEntryId], references: [id], onDelete: Restrict)
+  /// onUpdate Restrict: MariaDB needs it for the generated pendingVoidOf column (as for linkedEntry).
+  targetEntry    StockEntry? @relation("RequestTarget", fields: [targetEntryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   resultEntry    StockEntry? @relation("RequestResult", fields: [resultEntryId], references: [id], onDelete: Restrict)
   requestedBy    User        @relation("RequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
   decidedBy      User?       @relation("DecidedBy", fields: [decidedById], references: [id], onDelete: Restrict)

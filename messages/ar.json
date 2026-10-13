@@ -207,7 +207,8 @@
     "loginReasons": {
       "password": "كلمة مرور خاطئة",
       "inactive": "الحساب موقوف",
-      "rateLimited": "محظور — محاولات كثيرة"
+      "rateLimited": "محظور — محاولات كثيرة",
+      "pending": "لم تكتمل"
     },
     "details": "التفاصيل",
     "backToUsers": "كل المستخدمين"
@@ -650,7 +651,8 @@
       "notYourWarehouse": "هذا الطلب لمستودع لا تديره.",
       "notPending": "تم البت في هذا الطلب مسبقًا.",
       "noteRequired": "اذكر السبب (3 أحرف على الأقل).",
-      "voidAlreadyRequested": "يوجد طلب إلغاء لهذا القيد بانتظار الموافقة."
+      "voidAlreadyRequested": "يوجد طلب إلغاء لهذا القيد بانتظار الموافقة.",
+      "requesterInactive": "حساب مقدّم الطلب موقوف — ارفض الطلب."
     }
   },
   "settings": {

@@ -71,8 +71,8 @@ describe("users", () => {
     const { auth } = await import("@/auth");
     // Each call reads the session once (getCurrentUser is cached per request in production).
     vi.mocked(auth as unknown as () => Promise<unknown>)
-      .mockResolvedValueOnce({ user: { id: admin.id } })
-      .mockResolvedValueOnce({ user: { id: other.id } });
+      .mockResolvedValueOnce({ user: { id: admin.id }, authAt: Date.now() })
+      .mockResolvedValueOnce({ user: { id: other.id }, authAt: Date.now() });
     const results = await Promise.all([setUserActive(other.id, false), setUserActive(admin.id, false)]);
     expect(await testDb.user.count({ where: { role: "ADMIN", active: true } })).toBe(1);
     expect(results.filter((r) => r.ok)).toHaveLength(1);

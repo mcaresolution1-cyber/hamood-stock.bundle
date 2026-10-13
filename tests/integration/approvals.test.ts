@@ -174,6 +174,17 @@ describe("decideRequest", () => {
     expect(await level(p1, main)).toBe(10);
   });
 
+  it("refuses to carry out a request from a deactivated user", async () => {
+    const id = await pending();
+    await testDb.user.update({ where: { id: staff.id }, data: { active: false } });
+    await expect(decideRequest(testDb, manager, { requestId: id, approve: true })).rejects.toMatchObject({
+      key: "approvals.errors.requesterInactive",
+    });
+    await expect(decideRequest(testDb, manager, { requestId: id, approve: false, note: "left the company" })).resolves.toMatchObject({
+      status: "REJECTED",
+    });
+  });
+
   it("lets only the requester withdraw a pending request", async () => {
     const id = await pending();
     await expect(cancelRequest(testDb, manager, id)).rejects.toMatchObject({ key: "errors.forbidden" });

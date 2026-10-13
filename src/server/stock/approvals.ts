@@ -184,7 +184,7 @@ export async function decideRequest(client: PrismaClient, approver: EntryActor, 
       await tx.$queryRaw`SELECT id FROM \`ApprovalRequest\` WHERE id = ${input.requestId} FOR UPDATE`;
       const request = await tx.approvalRequest.findUnique({
         where: { id: input.requestId },
-        include: { requestedBy: { select: { id: true, role: true, warehouses: { select: { id: true } } } } },
+        include: { requestedBy: { select: { id: true, role: true, active: true, warehouses: { select: { id: true } } } } },
       });
       if (!request) throw new EntryRuleError("errors.notFound");
       if (request.status !== "PENDING") throw new EntryRuleError("approvals.errors.notPending");
@@ -208,6 +208,7 @@ export async function decideRequest(client: PrismaClient, approver: EntryActor, 
       }
 
       // Carried out with the requester as the creator; his rights are checked as they are now.
+      if (!request.requestedBy.active) throw new EntryRuleError("approvals.errors.requesterInactive");
       const requester: EntryActor = {
         id: request.requestedBy.id,
         role: request.requestedBy.role,

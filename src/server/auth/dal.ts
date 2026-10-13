@@ -27,10 +27,13 @@ export type CurrentUser = {
   mustChangePassword: boolean;
 };
 
-/** Is this session still valid? Signed in within 24 h, and not before the last password change. */
+/**
+ * Is this session still valid? Signed in within 24 h, and not before the last password change.
+ * Sessions from before v2 have no sign-in time: they end once, so the 24-hour limit applies to everyone.
+ */
 export function sessionStillValid(authAt: number | undefined, passwordChangedAt: Date | null, now = Date.now()): boolean {
-  if (authAt !== undefined && now - authAt > SESSION_ABSOLUTE_MS) return false;
-  if (passwordChangedAt && (authAt === undefined || authAt < passwordChangedAt.getTime())) return false;
+  if (authAt === undefined || now - authAt > SESSION_ABSOLUTE_MS) return false;
+  if (passwordChangedAt && authAt < passwordChangedAt.getTime()) return false;
   return true;
 }
 
