@@ -13,7 +13,9 @@ import { ProductThumb } from "@/components/product-thumb";
 import { ProductStatusBadge } from "@/components/product-status-badge";
 import { Ltr } from "@/components/ltr";
 import { MobileCard, ResponsiveList } from "@/components/mobile-list";
-import { attributeLine, CATEGORIES, isCategory, PRODUCT_STATUSES } from "@/lib/products";
+import { attributeLine, PRODUCT_STATUSES } from "@/lib/products";
+import { categoryName, categoryNames } from "@/lib/categories";
+import { categoryOptions } from "@/server/queries/categories";
 import { requirePagePermission } from "@/server/auth/dal";
 import { listProducts, parseProductFilters } from "@/server/queries/products";
 import { ProductStatusMenu } from "./product-status-menu";
@@ -24,20 +26,20 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function ProductsPage({ searchParams }: PageProps<"/admin/products">) {
   const user = await requirePagePermission("product:manage");
-  const filters = parseProductFilters(await searchParams, isCategory);
-  const [t, tc, tcat, locale, result] = await Promise.all([
+  const filters = parseProductFilters(await searchParams);
+  const [t, tc, locale, result, categories] = await Promise.all([
     getTranslations("products"),
     getTranslations("common"),
-    getTranslations("categories"),
     getLocale(),
     listProducts(user, filters),
+    categoryOptions(filters.category ? [filters.category] : []),
   ]);
   const filtered = Boolean(filters.q || filters.category || filters.status !== "current");
   const query = new URLSearchParams(
     Object.entries({ q: filters.q, category: filters.category, status: filters.status }).filter((e): e is [string, string] => Boolean(e[1])),
   ).toString();
   const details = (p: (typeof result.rows)[number]) =>
-    [isCategory(p.category) ? tcat(p.category) : p.category, attributeLine(p, t("kg"))].filter(Boolean).join(" · ");
+    [categoryNames(p.categories, locale), attributeLine(p, t("kg"))].filter(Boolean).join(" · ");
   const sar = (v: string | null | undefined) => (v ? v : "—");
 
   return (
@@ -73,9 +75,9 @@ export default async function ProductsPage({ searchParams }: PageProps<"/admin/p
         <Input name="q" defaultValue={filters.q} placeholder={t("searchPlaceholder")} aria-label={tc("search")} className="h-11 md:h-10" type="search" />
         <NativeSelect name="category" defaultValue={filters.category ?? ""} aria-label={t("category")}>
           <option value="">{t("allCategories")}</option>
-          {CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {tcat(c)}
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {categoryName(c, locale)}
             </option>
           ))}
         </NativeSelect>

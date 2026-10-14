@@ -14,7 +14,7 @@ export async function GET() {
         "6281234567890",
         "Full-motion TV wall mount 37–75″",
         "حامل تلفزيون جداري متحرك 37–75 بوصة",
-        "wall-mount",
+        "TV wall mounts, Floor stands",
         "37–75″",
         "Black",
         45,

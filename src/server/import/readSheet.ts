@@ -16,8 +16,8 @@ export async function readSheet(file: unknown): Promise<ParsedSheet> {
   const bytes = Buffer.from(await file.arrayBuffer());
   let sheet: ParsedSheet;
 
-  if (name.endsWith(".csv")) {
-    sheet = sheetFromMatrix(parseCsv(bytes.toString("utf8")));
+  if (name.endsWith(".csv") || name.endsWith(".txt")) {
+    sheet = sheetFromMatrix(parseCsv(decodeText(bytes)));
   } else if (name.endsWith(".xlsx")) {
     sheet = await readXlsx(bytes);
   } else {
@@ -30,6 +30,18 @@ export async function readSheet(file: unknown): Promise<ParsedSheet> {
   return sheet;
 }
 
+/**
+ * CSV bytes → text. UTF-8 (with or without BOM) when valid; otherwise Windows-1256, which Excel on
+ * Arabic Windows uses for "CSV (Comma delimited)".
+ */
+export function decodeText(bytes: Buffer): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return new TextDecoder("windows-1256").decode(bytes);
+  }
+}
+
 /** Exported for tests. */
 export async function readXlsx(bytes: Buffer): Promise<ParsedSheet> {
   const workbook = new ExcelJS.Workbook();
@@ -39,7 +51,7 @@ export async function readXlsx(bytes: Buffer): Promise<ParsedSheet> {
     throw new UserFacingError("import.errors.unreadable");
   }
   const ws = workbook.worksheets[0];
-  if (!ws) return { headers: [], rows: [] };
+  if (!ws) return { headers: [], labels: [], rows: [] };
 
   const matrix: string[][] = [];
   const width = ws.columnCount;

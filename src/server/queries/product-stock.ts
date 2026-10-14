@@ -1,5 +1,6 @@
 /** Product page: stock per warehouse + the product's stock card (every movement, running balance). */
 import "server-only";
+import { productCategoriesSelect } from "@/server/queries/categories";
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import type { EntryReason, EntryType, WarehouseKind } from "@/generated/prisma/enums";
@@ -30,7 +31,7 @@ export async function getProductStock(user: CurrentUser, productId: string, ware
       modelCode: true,
       nameEn: true,
       nameAr: true,
-      category: true,
+      ...productCategoriesSelect,
       sku: true,
       barcode: true,
       variant: true,

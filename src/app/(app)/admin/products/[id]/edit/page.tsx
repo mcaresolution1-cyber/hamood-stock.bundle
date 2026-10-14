@@ -4,7 +4,6 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
 import { requirePagePermission } from "@/server/auth/dal";
 import { getProductForEdit, productFormOptions } from "@/server/queries/products";
-import { isCategory } from "@/lib/products";
 import { ProductForm } from "../../product-form";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -16,13 +15,12 @@ export default async function EditProductPage({ params }: PageProps<"/admin/prod
   const { id } = await params;
   const product = await getProductForEdit(id);
   if (!product) notFound();
-  const [t, options, locale] = await Promise.all([getTranslations("products"), productFormOptions(product.values.defaultSupplierId), getLocale()]);
-  const values = { ...product.values, category: isCategory(product.values.category) ? product.values.category : "wall-mount" };
+  const [t, options, locale] = await Promise.all([getTranslations("products"), productFormOptions(product.values.defaultSupplierId, product.values.categoryIds), getLocale()]);
 
   return (
     <>
       <PageHeader title={t("editTitle", { modelCode: product.values.modelCode })} />
-      <ProductForm product={{ id: product.id, values, reorder: product.reorder }} options={options} locale={locale} />
+      <ProductForm product={{ id: product.id, values: product.values, reorder: product.reorder }} options={options} locale={locale} />
     </>
   );
 }

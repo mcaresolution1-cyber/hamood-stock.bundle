@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { navItemsFor } from "./nav";
+import { activeNavKey, navItemsFor } from "./nav";
 
 const keys = (role: Parameters<typeof navItemsFor>[0]) => navItemsFor(role).map((i) => i.key);
 
 describe("navItemsFor", () => {
-  it("gives ADMIN every page", () => {
+  it("gives ADMIN every page, products with add / import / categories in their own section", () => {
     expect(keys("ADMIN")).toEqual([
       "dashboard",
       "stockIn",
@@ -13,12 +13,22 @@ describe("navItemsFor", () => {
       "reports",
       "approvals",
       "products",
+      "productsNew",
+      "productsImport",
+      "categories",
       "suppliers",
       "openingStock",
       "warehouses",
       "users",
       "audit",
       "settings",
+    ]);
+    expect(navItemsFor("ADMIN").filter((i) => i.section === "catalog").map((i) => i.key)).toEqual([
+      "products",
+      "productsNew",
+      "productsImport",
+      "categories",
+      "suppliers",
     ]);
   });
 
@@ -31,5 +41,14 @@ describe("navItemsFor", () => {
     expect(keys("ACCOUNTANT")).toEqual(["dashboard", "entries", "reports", "audit"]);
     expect(keys("VIEWER")).toEqual(["dashboard", "entries", "reports"]);
     expect(keys("TECHNICIAN")).toEqual(["jobs"]);
+  });
+
+  it("highlights the most specific page", () => {
+    const items = navItemsFor("ADMIN");
+    expect(activeNavKey(items, "/admin/products/new")).toBe("productsNew");
+    expect(activeNavKey(items, "/admin/products/abc/edit")).toBe("products");
+    expect(activeNavKey(items, "/")).toBe("dashboard");
+    expect(activeNavKey(items, "/entries/x")).toBe("entries");
+    expect(activeNavKey(items, "/account/password")).toBeNull();
   });
 });

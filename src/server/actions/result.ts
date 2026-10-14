@@ -58,3 +58,8 @@ export async function guarded<T>(run: () => Promise<T>): Promise<ActionResult<T>
 export function isUniqueViolation(e: unknown): boolean {
   return (e as { code?: string })?.code === "P2002";
 }
+
+/** A row the write points at is gone (e.g. a category deleted at the same moment). */
+export function isForeignKeyViolation(e: unknown): boolean {
+  return (e as { code?: string })?.code === "P2003";
+}

@@ -2,7 +2,7 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useForm, useWatch } from "react-hook-form";
+import { useForm, useFormContext, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
@@ -10,7 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { SelectField, TextField, applyActionErrors } from "@/components/form-fields";
 import { useMessage } from "@/components/use-message";
-import { CATEGORIES, PRODUCT_STATUSES } from "@/lib/products";
+import { PRODUCT_STATUSES } from "@/lib/products";
+import { CategoryPicker, type CategoryOption } from "@/components/category-picker";
+import { FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { productSchema, type ProductFormValues, type ProductInput } from "@/lib/validation/products";
 import { createProduct, updateProduct } from "@/server/actions/products";
 import { runAction } from "@/lib/run-action";
@@ -21,6 +23,7 @@ type Option = { id: string; name: string };
 export type ProductFormOptions = {
   suppliers: { id: string; nameEn: string; nameAr: string | null }[];
   warehouses: Option[];
+  categories: CategoryOption[];
 };
 type Reorder = { warehouseId: string; reorderLevel: number; reorderQty: number };
 
@@ -30,7 +33,7 @@ const EMPTY: Omit<ProductFormValues, "reorder"> = {
   barcode: "",
   nameEn: "",
   nameAr: "",
-  category: "wall-mount",
+  categoryIds: [],
   status: "ACTIVE",
   variant: "",
   sizeRange: "",
@@ -46,6 +49,37 @@ const EMPTY: Omit<ProductFormValues, "reorder"> = {
   wooSku: "",
   defaultSupplierId: "",
 };
+
+/** Several categories (PU2), through the form context like the other fields. */
+function CategoriesField({ options }: { options: CategoryOption[] }) {
+  const t = useTranslations("products");
+  const message = useMessage();
+  const { control } = useFormContext<ProductFormValues>();
+  return (
+    <FormField
+      control={control}
+      name="categoryIds"
+      render={({ field, fieldState }) => (
+        <FormItem className="sm:col-span-2">
+          <p id="categories-label" className="text-sm font-medium">
+            {t("categories")}
+          </p>
+          <p id="categories-hint" className="text-sm text-muted-foreground">
+            {t("categoriesHint")}
+          </p>
+          <CategoryPicker
+            options={options}
+            value={field.value ?? []}
+            onChange={(ids) => field.onChange(ids)}
+            invalid={Boolean(fieldState.error)}
+            describedBy="categories-label categories-hint"
+          />
+          <FormMessage>{message(fieldState.error?.message)}</FormMessage>
+        </FormItem>
+      )}
+    />
+  );
+}
 
 function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -111,7 +145,7 @@ export function ProductForm({
           <TextField name="sku" label={t("products.sku")} hint={t("products.skuHint")} dir="ltr" autoCapitalize="characters" optional />
           <TextField name="nameEn" label={t("products.nameEn")} dir="ltr" />
           <TextField name="nameAr" label={t("products.nameAr")} dir="rtl" lang="ar" />
-          <SelectField name="category" label={t("products.category")} options={CATEGORIES.map((c) => ({ value: c, label: t(`categories.${c}`) }))} />
+          <CategoriesField options={options.categories} />
           <SelectField
             name="status"
             label={t("products.status")}

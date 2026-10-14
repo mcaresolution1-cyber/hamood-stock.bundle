@@ -1,10 +1,11 @@
 /**
  * Product import validation. Pure: takes parsed rows + what the database holds, returns a per-row verdict.
  * Decisions (docs/plans/v1.md): Q8 — an empty cell keeps the existing value and import never changes
- * the product status; Q9 — fixed categories, accepted as key or English/Arabic label.
+ * the product status. Categories (plan ui-menu-import-categories, PU4): one or more per cell, matched by English
+ * or Arabic name; unknown names are listed and created on import.
  * Phase B: SKU / barcode must be unique (file + database), supplier given by its English or Arabic name.
  */
-import { CATEGORIES, categoryFromText } from "@/lib/products";
+import { categoryKey, MAX_PRODUCT_CATEGORIES, splitCategoryCell } from "@/lib/categories";
 import { normalizeModelCode, parseMoney, parseWholeNumber, toWesternDigits } from "./normalize";
 import type { ParsedSheet } from "./sheet";
 
@@ -59,7 +60,11 @@ export type ProductImportData = {
   barcode?: string;
   nameEn?: string;
   nameAr?: string;
-  category?: string;
+  /**
+   * Categories in the order written: an existing category's id, or `new:<categoryKey>` for a name that
+   * doesn't exist yet (created on import, see ProductImportResult.newCategories).
+   */
+  categoryIds?: string[];
   sizeRange?: string;
   colour?: string;
   maxLoadKg?: number;
@@ -74,6 +79,9 @@ export type ProductImportData = {
   wooSku?: string;
   defaultSupplierId?: string;
 };
+
+/** Prefix of a category that the import will create (`new:<categoryKey>`). */
+export const NEW_CATEGORY = "new:";
 
 export type RowError = { field: string; key: string };
 
@@ -90,14 +98,20 @@ export type ProductImportResult = {
   fileErrors: string[];
   rows: ProductImportRow[];
   counts: { create: number; update: number; error: number };
+  /** Category names that don't exist yet and will be created, as first written in the file. */
+  newCategories: string[];
 };
 
 /** What the database already holds, for the duplicate and lookup checks. */
 export type ProductImportContext = {
-  /** model code → its current SKU and barcode */
-  products: ReadonlyMap<string, { sku: string; barcode: string | null }>;
+  /** model code → its current SKU, barcode and categories */
+  products: ReadonlyMap<string, { sku: string; barcode: string | null; categoryIds?: readonly string[] }>;
   /** lower-cased English or Arabic supplier name → supplier id (active suppliers only) */
   suppliers: ReadonlyMap<string, string>;
+  /** `categoryKey(name)` of every category's English and Arabic name → category id */
+  categories: ReadonlyMap<string, string>;
+  /** ids of hidden categories: not for new links (PU2), but a product may keep one it has */
+  inactiveCategoryIds?: ReadonlySet<string>;
 };
 
 const MAX_TEXT = 200;
@@ -107,7 +121,8 @@ export function validateProductImport(sheet: ParsedSheet, ctx: ProductImportCont
   const fileErrors: string[] = [];
   if (!sheet.headers.includes("modelcode")) fileErrors.push("import.errors.missingModelCode");
   if (sheet.rows.length === 0) fileErrors.push("import.errors.empty");
-  if (fileErrors.length) return { fileErrors, rows: [], counts: { create: 0, update: 0, error: 0 } };
+  if (fileErrors.length) return { fileErrors, rows: [], counts: { create: 0, update: 0, error: 0 }, newCategories: [] };
+  const newCategories = new Map<string, string>(); // key → name as first written
 
   // Who owns each SKU / barcode in the database (another product's code may not be reused).
   const skuOwner = new Map<string, string>();
@@ -173,11 +188,20 @@ export function validateProductImport(sheet: ParsedSheet, ctx: ProductImportCont
     text("nameEn", "nameen", MAX_TEXT, true);
     text("nameAr", "namear", MAX_TEXT, true);
 
-    const categoryText = get("category");
-    if (categoryText) {
-      const category = categoryFromText(categoryText);
-      if (category) data.category = category;
-      else errors.push({ field: "category", key: "import.errors.unknownCategory" });
+    const names = splitCategoryCell(get("category"));
+    if (names.length > MAX_PRODUCT_CATEGORIES) errors.push({ field: "category", key: "products.errors.tooManyCategories" });
+    else if (names.some((n) => n.length > 100)) errors.push({ field: "category", key: "validation.tooLong" });
+    else if (names.length) {
+      const ids: string[] = [];
+      for (const n of names) {
+        const id = ctx.categories.get(categoryKey(n)) ?? `${NEW_CATEGORY}${categoryKey(n)}`;
+        if (!ids.includes(id)) ids.push(id);
+        if (id.startsWith(NEW_CATEGORY) && !newCategories.has(categoryKey(n))) newCategories.set(categoryKey(n), n);
+      }
+      const own = ctx.products.get(modelCode)?.categoryIds ?? [];
+      if (ids.some((id) => ctx.inactiveCategoryIds?.has(id) && !own.includes(id))) {
+        errors.push({ field: "category", key: "import.errors.hiddenCategory" });
+      } else data.categoryIds = ids;
     } else if (!isUpdate) errors.push({ field: "category", key: "validation.required" });
 
     text("sizeRange", "sizerange", 50);
@@ -211,7 +235,15 @@ export function validateProductImport(sheet: ParsedSheet, ctx: ProductImportCont
 
   const counts = { create: 0, update: 0, error: 0 };
   for (const r of rows) counts[r.action]++;
-  return { fileErrors, rows, counts };
+  // Only categories of rows that will be saved are created.
+  const used = new Set(
+    rows
+      .filter((r) => r.action !== "error")
+      .flatMap((r) => r.data.categoryIds ?? [])
+      .filter((id) => id.startsWith(NEW_CATEGORY))
+      .map((id) => id.slice(NEW_CATEGORY.length)),
+  );
+  return { fileErrors, rows, counts, newCategories: [...newCategories].filter(([k]) => used.has(k)).map(([, name]) => name) };
 }
 
 export function isHttpUrl(value: string): boolean {
@@ -223,4 +255,3 @@ export function isHttpUrl(value: string): boolean {
   }
 }
 
-export { CATEGORIES };

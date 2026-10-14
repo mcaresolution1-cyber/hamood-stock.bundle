@@ -36,8 +36,16 @@ describe("sheetFromMatrix", () => {
     ]);
     expect(sheet.headers).toEqual(["modelcode", "lowstocklevel"]);
     expect(sheet.rows).toEqual([
-      { row: 2, values: { modelcode: "HMD-1", lowstocklevel: "3" } },
-      { row: 4, values: { modelcode: "HMD-2", lowstocklevel: "" } },
+      { row: 2, values: { modelcode: "HMD-1", lowstocklevel: "3" }, cells: ["HMD-1", "3"] },
+      { row: 4, values: { modelcode: "HMD-2", lowstocklevel: "" }, cells: ["HMD-2", ""] },
+    ]);
+    expect(sheet.labels).toEqual(["Model Code", "Low_Stock_Level"]);
+  });
+
+  it("detects a tab separator (rows copied out of Excel)", () => {
+    expect(parseCsv("Code\tName\nHMD-1\tMount, black\n")).toEqual([
+      ["Code", "Name"],
+      ["HMD-1", "Mount, black"],
     ]);
   });
 });

@@ -1,11 +1,13 @@
 /**
  * Minimal RFC 4180 CSV parser: quoted fields, escaped quotes (""), CRLF/LF, UTF-8 BOM, and
- * auto-detected separator (comma or semicolon — Excel in Arabic/European locales saves ";"). Pure.
+ * auto-detected separator (comma, semicolon — Excel in Arabic/European locales saves ";" — or tab). Pure.
  */
 export function parseCsv(text: string): string[][] {
   const src = text.replace(/^﻿/, "");
   const firstLine = src.slice(0, src.search(/\r?\n|$/));
-  const sep = (firstLine.match(/;/g)?.length ?? 0) > (firstLine.match(/,/g)?.length ?? 0) ? ";" : ",";
+  const count = (c: string) => firstLine.split(c).length - 1;
+  // comma, semicolon (Excel in Arabic/European locales) or tab (text copied out of Excel)
+  const sep = [",", ";", "\t"].reduce((best, c) => (count(c) > count(best) ? c : best), ",");
 
   const rows: string[][] = [];
   let row: string[] = [];

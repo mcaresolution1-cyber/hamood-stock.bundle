@@ -6,6 +6,12 @@ const HEAD = ["modelCode", "nameEn", "nameAr", "category", "variant", "imageUrl"
 const ctx = (existing: string[] = []) => ({
   products: new Map(existing.map((m) => [m, { sku: m, barcode: null }])),
   suppliers: new Map([["acme trading", "sup1"], ["أكمي", "sup1"]]),
+  categories: new Map([
+    ["wall-mount", "cat-wall-mount"],
+    ["tv wall mounts", "cat-wall-mount"],
+    ["tv tables", "cat-tv-table"],
+    ["طاولات تلفزيون", "cat-tv-table"],
+  ]),
 });
 const run = (rows: string[][], existing: string[] = []) => validateProductImport(sheetFromMatrix([HEAD, ...rows]), ctx(existing));
 
@@ -24,7 +30,7 @@ describe("validateProductImport", () => {
       sku: "HMD-900",
       nameEn: "Mount",
       nameAr: "حامل",
-      category: "wall-mount",
+      categoryIds: ["cat-wall-mount"],
       cost: "85",
       lowStockLevel: 4,
     });
@@ -38,15 +44,20 @@ describe("validateProductImport", () => {
     expect(r.rows[0].errors.map((e) => e.field).sort()).toEqual(["category", "nameAr", "nameEn"]);
   });
 
-  it("accepts a category label in English or Arabic and rejects unknown ones", () => {
+  it("accepts several categories by English or Arabic name; unknown names become new categories (PU4)", () => {
     const r = run([
-      ["A-1", "x", "س", "TV tables", "", "", "", ""],
-      ["A-2", "x", "س", "طاولات تلفزيون", "", "", "", ""],
-      ["A-3", "x", "س", "chairs", "", "", "", ""],
+      ["A-1", "x", "س", "tv TABLES, TV wall mounts", "", "", "", ""],
+      ["A-2", "x", "س", "طاولات تلفزيون، Chairs", "", "", "", ""],
+      ["A-3", "x", "س", "chairs; Shelves", "", "", "", ""],
+      ["A-4", "", "", "Desks", "", "", "", ""], // error row: its new category isn't created
     ]);
-    expect(r.rows[0].data.category).toBe("tv-table");
-    expect(r.rows[1].data.category).toBe("tv-table");
-    expect(r.rows[2].errors).toEqual([{ field: "category", key: "import.errors.unknownCategory" }]);
+    expect(r.rows[0].data.categoryIds).toEqual(["cat-tv-table", "cat-wall-mount"]);
+    expect(r.rows[1].data.categoryIds).toEqual(["cat-tv-table", "new:chairs"]);
+    expect(r.rows[2].data.categoryIds).toEqual(["new:chairs", "new:shelves"]);
+    expect(r.newCategories).toEqual(["Chairs", "Shelves"]);
+    expect(run([["A-5", "x", "س", "a,b,c,d,e,f,g,h,i,j,k", "", "", "", ""]]).rows[0].errors).toEqual([
+      { field: "category", key: "products.errors.tooManyCategories" },
+    ]);
   });
 
   it("reports bad cost, bad low-stock level and bad URL per field", () => {
@@ -76,7 +87,7 @@ describe("validateProductImport", () => {
 
   it("checks SKU and barcode against the file and the database, and finds suppliers by name", () => {
     const head = ["modelCode", "nameEn", "nameAr", "category", "sku", "barcode", "supplier", "sellingPrice", "maxLoadKg"];
-    const c = { products: new Map([["OLD-1", { sku: "SKU-OLD", barcode: "6281234" }]]), suppliers: ctx().suppliers };
+    const c = { products: new Map([["OLD-1", { sku: "SKU-OLD", barcode: "6281234" }]]), suppliers: ctx().suppliers, categories: ctx().categories };
     const r = validateProductImport(
       sheetFromMatrix([
         head,

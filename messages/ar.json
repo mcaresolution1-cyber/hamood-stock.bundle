@@ -33,7 +33,8 @@
     "results": "{count, plural, =0 {لا توجد نتائج} =1 {نتيجة واحدة} =2 {نتيجتان} few {# نتائج} many {# نتيجة} other {# نتيجة}}",
     "menu": "القائمة",
     "download": "تنزيل",
-    "upload": "رفع"
+    "upload": "رفع",
+    "delete": "حذف"
   },
   "auth": {
     "title": "تسجيل الدخول",
@@ -91,10 +92,30 @@
     "myRequests": "طلباتي المعلّقة"
   },
   "categories": {
-    "wall-mount": "حوامل تلفزيون جدارية",
-    "floor-stand": "ستاندات أرضية",
-    "monitor-mount": "حوامل شاشات",
-    "tv-table": "طاولات تلفزيون"
+    "title": "الفئات",
+    "subtitle": "تجميع المنتجات في القوائم والفلاتر والتقارير. يمكن أن يكون المنتج في أكثر من فئة.",
+    "new": "فئة جديدة",
+    "newHint": "اكتب اسم الفئة بالإنجليزية والعربية.",
+    "editTitle": "تعديل الفئة",
+    "nameEn": "الاسم (إنجليزي)",
+    "nameAr": "الاسم (عربي)",
+    "position": "الترتيب",
+    "positionHint": "الأرقام الأصغر تظهر أولاً في القوائم.",
+    "add": "إضافة الفئة",
+    "created": "تمت إضافة الفئة.",
+    "main": "رئيسية",
+    "inactive": "مخفية",
+    "empty": "لا توجد فئات بعد.",
+    "products": "المنتجات",
+    "productCount": "{count, plural, =0 {لا توجد منتجات} =1 {منتج واحد} =2 {منتجان} few {# منتجات} many {# منتجًا} other {# منتج}}",
+    "deleteConfirm": "حذف الفئة {name}؟",
+    "deactivateConfirm": "إخفاء الفئة {name}؟",
+    "activateConfirm": "إظهار الفئة {name} من جديد؟",
+    "deactivateHelp": "تبقى للمنتجات التي تحملها، لكن لا يمكن اختيارها لمنتجات أخرى حتى تظهرها من جديد.",
+    "errors": {
+      "nameTaken": "توجد فئة بهذا الاسم.",
+      "inUse": "{count, plural, =1 {يستخدم منتج واحد} =2 {يستخدم منتجان} few {تستخدم # منتجات} many {يستخدم # منتجًا} other {يستخدم # منتج}} هذه الفئة. أخفها بدلاً من حذفها."
+    }
   },
   "errors": {
     "forbidden": "ليس لديك صلاحية للقيام بذلك.",
@@ -123,7 +144,14 @@
     "audit": "سجل التدقيق",
     "settings": "الإعدادات",
     "jobs": "مهامي",
-    "suppliers": "الموردون"
+    "suppliers": "الموردون",
+    "productsNew": "إضافة منتج",
+    "productsImport": "استيراد منتجات",
+    "categories": "الفئات",
+    "sections": {
+      "catalog": "المنتجات",
+      "admin": "الإدارة"
+    }
   },
   "validation": {
     "required": "هذا الحقل مطلوب.",
@@ -247,7 +275,10 @@
       "barcodeTaken": "يستخدم منتج آخر هذا الباركود.",
       "unknownSupplier": "اختر موردًا نشطًا.",
       "retireHasStock": "ما زال لهذا المنتج مخزون. انقله أو اشطبه أولًا، أو اجعله متوقفًا.",
-      "newInactive": "لا يمكن أن يبدأ منتج جديد بحالة غير نشط."
+      "newInactive": "لا يمكن أن يبدأ منتج جديد بحالة غير نشط.",
+      "categoryRequired": "اختر فئة واحدة على الأقل.",
+      "tooManyCategories": "اختر 10 فئات كحد أقصى.",
+      "unknownCategory": "اختر الفئات من القائمة."
     },
     "sections": {
       "identity": "المنتج",
@@ -306,27 +337,28 @@
       "IMPORT": "استيراد",
       "DELIVERY": "توريد"
     },
-    "noCostHistory": "لا توجد تكلفة مسجلة بعد."
+    "noCostHistory": "لا توجد تكلفة مسجلة بعد.",
+    "categories": "الفئات",
+    "categoriesHint": "اختر فئة أو أكثر. الفئة الأولى التي تختارها هي الفئة الرئيسية.",
+    "newSubtitle": "أضف منتجًا واحدًا هنا، أو استورد عدة منتجات من ملف Excel أو CSV.",
+    "importMany": "استيراد من Excel / CSV"
   },
   "import": {
     "title": "استيراد المنتجات",
-    "subtitle": "ارفع ملف Excel (.xlsx) أو CSV. يتم تحديث أرقام الموديلات الموجودة، والخلايا الفارغة تُبقي القيمة الحالية.",
-    "columns": "الأعمدة",
-    "columnsHelp": "رقم الموديل (modelCode) مطلوب، والمنتجات الجديدة تحتاج أيضًا nameEn وnameAr وcategory. اختياري: sku وbarcode وsizeRange وcolour وmaxLoadKg وvesa وvariant وimageUrl وcost وsellingPrice وlowStockLevel وleadTimeDays وwooProductId وwooSku وsupplier (الاسم).",
+    "subtitle": "ارفع ملف Excel (.xlsx) أو CSV. تتم مطابقة الأعمدة مع حقول المنتج تلقائيًا؛ راجعها واطلع على الصفوف ثم استورد. يتم تحديث أرقام الموديل الموجودة؛ والخلايا الفارغة تُبقي القيمة الحالية.",
     "file": "الملف",
     "chooseFile": "اختر ملفًا",
-    "preview": "فحص الملف",
+    "preview": "{count, plural, =1 {تحقق من الصف} =2 {تحقق من الصفين} few {تحقق من الصفوف الـ#} many {تحقق من كل الـ# صفًا} other {تحقق من كل الـ# صف}}",
     "apply": "استيراد {count, plural, =1 {منتج واحد} =2 {منتجين} few {# منتجات} many {# منتجًا} other {# منتج}}",
     "checking": "جارٍ الفحص…",
     "importing": "جارٍ الاستيراد…",
     "summary": "{create} جديد · {update} تحديث · {error} به أخطاء",
     "row": "الصف",
-    "action": "النتيجة",
     "problems": "المشكلات",
     "actionCreate": "جديد",
     "actionUpdate": "تحديث",
     "actionError": "خطأ",
-    "done": "تم الاستيراد: {created} جديد، {updated} تحديث.",
+    "done": "تم الاستيراد: {created} جديد، {updated} محدَّث، {categories} فئات جديدة.",
     "fixAndRetry": "صحّح الصفوف التي بها أخطاء في ملفك ثم افحصه مرة أخرى.",
     "template": "تنزيل نموذج",
     "errors": {
@@ -339,14 +371,55 @@
       "missingModelCode": "يجب أن يحتوي الملف على عمود modelCode.",
       "missingQuantity": "يجب أن يحتوي الملف على عمود quantity.",
       "duplicateInFile": "تتكرر هذه القيمة أكثر من مرة في الملف.",
-      "unknownCategory": "فئة غير معروفة. استخدم wall-mount أو floor-stand أو monitor-mount أو tv-table.",
       "unknownProduct": "لا يوجد منتج برقم الموديل هذا.",
       "inactiveProduct": "هذا المنتج متوقف أو غير نشط.",
       "fixFirst": "الملف يحتوي على أخطاء. لم يتم حفظ أي شيء.",
-      "unknownSupplier": "لا يوجد مورد نشط بهذا الاسم."
+      "unknownSupplier": "لا يوجد مورد نشط بهذا الاسم.",
+      "columnsChanged": "تغيّر الملف. اختره من جديد.",
+      "duplicateField": "يمكن مطابقة كل حقل مع عمود واحد فقط.",
+      "changedMeanwhile": "تغيّرت الفئات أثناء الاستيراد. تحقق من الملف مرة أخرى.",
+      "hiddenCategory": "هذه الفئة مخفية. أظهرها من صفحة الفئات أو استخدم فئة أخرى."
     },
     "errorsColumn": "الأخطاء",
-    "downloadErrors": "تنزيل الصفوف التي بها أخطاء"
+    "downloadErrors": "تنزيل الصفوف التي بها أخطاء",
+    "step1": "1. اختر الملف",
+    "step1Help": "أي ملف Excel أو CSV فيه منتج في كل صف وصف عناوين — أعمدتك الخاصة مقبولة.",
+    "step2": "2. طابق الأعمدة",
+    "step2Help": "{count, plural, =1 {تم العثور على صف واحد} =2 {تم العثور على صفين} few {تم العثور على # صفوف} many {تم العثور على # صفًا} other {تم العثور على # صف}}. تمت مطابقة كل عمود في ملفك مع حقل للمنتج — غيّر ما هو خاطئ، أو تجاهل الأعمدة التي لا تحتاجها.",
+    "step3": "3. التحقق والاستيراد",
+    "reading": "جارٍ قراءة الملف…",
+    "noHeader": "العمود {n} (بدون عنوان)",
+    "emptyColumn": "فارغ في الصفوف الأولى",
+    "fieldFor": "حقل المنتج للعمود {column}",
+    "skipColumn": "لا تستورد",
+    "requiredNote": "* رقم الموديل مطلوب دائمًا؛ الأسماء والفئات مطلوبة للمنتجات الجديدة.",
+    "needModelCode": "اختر العمود الذي يحتوي على رقم الموديل.",
+    "missingForNew": "غير مطابق: {fields}. ستحتاجها صفوف المنتجات الجديدة.",
+    "firstRows": "الصفوف الأولى كما ستُقرأ",
+    "result": "النتيجة",
+    "backToColumns": "تغيير الأعمدة",
+    "newCategories": "{count, plural, =1 {هذه الفئة جديدة وسيتم إنشاؤها:} =2 {هاتان الفئتان جديدتان وسيتم إنشاؤهما:} other {هذه الفئات (#) جديدة وسيتم إنشاؤها:}}",
+    "fields": {
+      "modelcode": "رقم الموديل",
+      "sku": "رمز التخزين (SKU)",
+      "barcode": "الباركود",
+      "nameen": "الاسم (إنجليزي)",
+      "namear": "الاسم (عربي)",
+      "category": "الفئات",
+      "sizerange": "نطاق المقاس",
+      "colour": "اللون",
+      "maxloadkg": "أقصى حمولة (كجم)",
+      "vesa": "فتحات التثبيت (VESA)",
+      "variant": "تفاصيل أخرى",
+      "imageurl": "رابط الصورة",
+      "cost": "التكلفة",
+      "sellingprice": "سعر البيع",
+      "lowstocklevel": "حد انخفاض المخزون",
+      "leadtimedays": "مدة التوريد (أيام)",
+      "wooproductid": "رقم المنتج في ووكومرس",
+      "woosku": "SKU في ووكومرس",
+      "supplier": "المورد"
+    }
   },
   "openingStock": {
     "title": "المخزون الافتتاحي",
@@ -819,7 +892,8 @@
       "setting": "الإعدادات",
       "approval": "الموافقات",
       "supplier": "الموردون",
-      "entry": "القيود"
+      "entry": "القيود",
+      "category": "الفئات"
     },
     "actions": {
       "product_create": "إنشاء منتج",
@@ -842,7 +916,12 @@
       "supplier_activate": "تفعيل مورد",
       "supplier_deactivate": "إيقاف مورد",
       "entry_costs": "إدخال تكاليف توريد",
-      "entry_supplierCredit": "تحديث رصيد المورد"
+      "entry_supplierCredit": "تحديث رصيد المورد",
+      "category_create": "إضافة فئة",
+      "category_update": "تعديل فئة",
+      "category_activate": "إظهار فئة",
+      "category_deactivate": "إخفاء فئة",
+      "category_delete": "حذف فئة"
     },
     "fields": {
       "modelCode": "رقم الموديل",
@@ -892,7 +971,10 @@
       "paymentTerms": "شروط الدفع",
       "notes": "ملاحظات",
       "country": "الدولة",
-      "creditAmount": "الرصيد"
+      "creditAmount": "الرصيد",
+      "categories": "الفئات",
+      "position": "الترتيب",
+      "newCategories": "فئات جديدة"
     }
   },
   "account": {

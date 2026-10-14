@@ -5,7 +5,7 @@
  */
 import "server-only";
 import { getLocale, getTranslations } from "next-intl/server";
-import { isCategory } from "@/lib/products";
+import { categoryNames, type CategoryName } from "@/lib/categories";
 import type { CurrentUser } from "@/server/auth/dal";
 import type { EntryFilters } from "@/server/queries/entries";
 import { lowStock, movements, outByReason, stockOnHand } from "@/server/queries/reports";
@@ -14,7 +14,7 @@ import { stamp, xlsxFile, type XlsxColumn } from "./xlsx";
 async function i18n() {
   const [locale, t] = await Promise.all([getLocale(), getTranslations()]);
   const name = (p: { nameEn: string; nameAr: string }) => (locale === "ar" ? p.nameAr : p.nameEn);
-  const category = (c: string) => (isCategory(c) ? t(`categories.${c}`) : c);
+  const category = (list: readonly CategoryName[]) => categoryNames(list, locale);
   return { locale, t, name, category, rtl: locale === "ar" };
 }
 
@@ -37,7 +37,7 @@ export async function stockOnHandXlsx(user: CurrentUser, filters: { category?: s
   const rows = r.rows.map((x) => ({
     modelCode: x.modelCode,
     name: name(x),
-    category: category(x.category),
+    category: category(x.categories),
     ...Object.fromEntries(r.warehouses.map((w) => [`w_${w.id}`, x.qty[w.id] ?? 0])),
     total: x.total,
     ...(r.showCost ? { cost: x.cost ?? null, value: x.value ?? null } : {}),
@@ -116,7 +116,7 @@ export async function lowStockXlsx(filters: { category?: string }) {
     rows: r.rows.map((x) => ({
       modelCode: x.modelCode,
       name: name(x),
-      category: category(x.category),
+      category: category(x.categories),
       ...Object.fromEntries(r.warehouses.map((w) => [`w_${w.id}`, x.qty[w.id] ?? 0])),
       total: x.total,
       level: x.lowStockLevel,

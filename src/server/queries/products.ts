@@ -9,6 +9,7 @@ import { can } from "@/lib/permissions";
 import { PRODUCT_STATUSES, type ProductStatusName } from "@/lib/products";
 import type { CurrentUser } from "@/server/auth/dal";
 import { effectiveCosts } from "@/server/stock/costs";
+import { categoryOptions, productCategoriesSelect } from "@/server/queries/categories";
 
 export const PRODUCT_PAGE_SIZE = 25;
 export const PRODUCT_EXPORT_LIMIT = 5000;
@@ -23,12 +24,12 @@ export type ProductFilters = {
   page?: number;
 };
 
-export function parseProductFilters(sp: Record<string, string | string[] | undefined>, isCategory: (c: string) => boolean): ProductFilters {
+export function parseProductFilters(sp: Record<string, string | string[] | undefined>): ProductFilters {
   const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
   const status = one(sp.status);
   return {
     q: one(sp.q).slice(0, 100),
-    category: isCategory(one(sp.category)) ? one(sp.category) : undefined,
+    category: /^[\w-]{1,64}$/.test(one(sp.category)) ? one(sp.category) : undefined,
     status: (["current", "all", ...PRODUCT_STATUSES] as string[]).includes(status) ? (status as ProductStatusFilter) : "current",
     page: Math.min(10_000, Math.max(1, Math.trunc(Number(one(sp.page))) || 1)),
   };
@@ -39,7 +40,7 @@ function productWhere(filters: ProductFilters): Prisma.ProductWhereInput {
   const status = filters.status ?? "current";
   return {
     ...(status === "all" ? {} : status === "current" ? { status: { not: "INACTIVE" } } : { status }),
-    ...(filters.category ? { category: filters.category } : {}),
+    ...(filters.category ? { categories: { some: { categoryId: filters.category } } } : {}),
     ...(q
       ? {
           OR: [
@@ -81,7 +82,7 @@ export async function listProducts(user: CurrentUser, filters: ProductFilters, o
         barcode: true,
         nameEn: true,
         nameAr: true,
-        category: true,
+        ...productCategoriesSelect,
         variant: true,
         sizeRange: true,
         colour: true,
@@ -135,7 +136,10 @@ export type ProductListRow = Awaited<ReturnType<typeof listProducts>>["rows"][nu
 export async function getProductForEdit(id: string) {
   const p = await db.product.findUnique({
     where: { id },
-    include: { reorder: { select: { warehouseId: true, reorderLevel: true, reorderQty: true } } },
+    include: {
+      reorder: { select: { warehouseId: true, reorderLevel: true, reorderQty: true } },
+      categories: { orderBy: [{ position: "asc" }, { categoryId: "asc" }], select: { categoryId: true } },
+    },
   });
   if (!p) return null;
   const text = (v: string | number | null) => (v === null ? "" : String(v));
@@ -147,7 +151,7 @@ export async function getProductForEdit(id: string) {
       barcode: text(p.barcode),
       nameEn: p.nameEn,
       nameAr: p.nameAr,
-      category: p.category,
+      categoryIds: p.categories.map((c) => c.categoryId),
       status: p.status,
       variant: text(p.variant),
       sizeRange: text(p.sizeRange),
@@ -168,14 +172,15 @@ export async function getProductForEdit(id: string) {
 }
 
 /** Options for the product form: suppliers (active, plus the product's current one) and warehouses. */
-export async function productFormOptions(currentSupplierId?: string | null) {
-  const [suppliers, warehouses] = await Promise.all([
+export async function productFormOptions(currentSupplierId?: string | null, currentCategoryIds: readonly string[] = []) {
+  const [suppliers, warehouses, categories] = await Promise.all([
     db.supplier.findMany({
       where: { OR: [{ active: true }, ...(currentSupplierId ? [{ id: currentSupplierId }] : [])] },
       select: { id: true, nameEn: true, nameAr: true },
       orderBy: { nameEn: "asc" },
     }),
     db.warehouse.findMany({ where: { active: true, kind: "SELLABLE" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    categoryOptions(currentCategoryIds),
   ]);
-  return { suppliers, warehouses };
+  return { suppliers, warehouses, categories };
 }

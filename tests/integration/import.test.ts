@@ -33,14 +33,25 @@ describe("readSheet", () => {
     const sheet = await readSheet(await xlsxFile([["Model Code", "Quantity"], [772, 5], ["HMD-1", 1.5]]));
     expect(sheet.headers).toEqual(["modelcode", "quantity"]);
     expect(sheet.rows).toEqual([
-      { row: 2, values: { modelcode: "772", quantity: "5" } },
-      { row: 3, values: { modelcode: "HMD-1", quantity: "1.5" } },
+      { row: 2, values: { modelcode: "772", quantity: "5" }, cells: ["772", "5"] },
+      { row: 3, values: { modelcode: "HMD-1", quantity: "1.5" }, cells: ["HMD-1", "1.5"] },
     ]);
+    expect(sheet.labels).toEqual(["Model Code", "Quantity"]);
   });
 
   it("reads csv with a BOM and Arabic text", async () => {
     const file = new File(["﻿modelCode,nameAr\nHMD-1,حامل\n"], "p.csv", { type: "text/csv" });
-    expect((await readSheet(file)).rows).toEqual([{ row: 2, values: { modelcode: "HMD-1", namear: "حامل" } }]);
+    expect((await readSheet(file)).rows).toEqual([{ row: 2, values: { modelcode: "HMD-1", namear: "حامل" }, cells: ["HMD-1", "حامل"] }]);
+  });
+
+  it("reads a CSV saved by Excel on Arabic Windows (Windows-1256) and tab-separated text", async () => {
+    // "حامل" in Windows-1256
+    const cp1256 = new Uint8Array([...Buffer.from("modelCode,nameAr\nHMD-1,"), 0xcd, 0xc7, 0xe3, 0xe1, 0x0a]);
+    const rows = (await readSheet(new File([cp1256], "p.csv"))).rows;
+    expect(rows[0].values.modelcode).toBe("HMD-1");
+    expect(rows[0].values.namear).toBe("حامل");
+    const tsv = new File(["Code\tName\nHMD-2\tMount, black\n"], "p.txt");
+    expect((await readSheet(tsv)).rows[0].cells).toEqual(["HMD-2", "Mount, black"]);
   });
 
   it("rejects other file types, empty and oversized files", async () => {
@@ -67,10 +78,10 @@ describe("product import", () => {
     expect(preview).toMatchObject({ ok: true, data: { counts: { create: 1, update: 1, error: 0 } } });
 
     const applied = await applyProductImport(form(file));
-    expect(applied).toEqual({ ok: true, data: { created: 1, updated: 1 } });
+    expect(applied).toEqual({ ok: true, data: { created: 1, updated: 1, categories: 0 } });
 
-    const created = await testDb.product.findUniqueOrThrow({ where: { modelCode: "HMD-900" } });
-    expect(created).toMatchObject({ category: "floor-stand", lowStockLevel: 3, status: "ACTIVE" });
+    const created = await testDb.product.findUniqueOrThrow({ where: { modelCode: "HMD-900" }, include: { categories: true } });
+    expect(created).toMatchObject({ lowStockLevel: 3, status: "ACTIVE", categories: [{ categoryId: "cat-floor-stand", position: 0 }] });
     expect(created.cost?.toString()).toBe("1250.5");
     const updated = await testDb.product.findUniqueOrThrow({ where: { id: existing.id } });
     expect(updated).toMatchObject({ nameEn: "Renamed mount", nameAr: existing.nameAr, variant: "Black", status: "DISCONTINUED" });
@@ -79,8 +90,9 @@ describe("product import", () => {
   });
 
   it("saves nothing when any row has an error", async () => {
-    const file = await xlsxFile([HEAD, ["OK-1", "a", "ب", "wall-mount"], ["BAD-1", "a", "ب", "chairs"]]);
+    const file = await xlsxFile([HEAD, ["OK-1", "a", "ب", "wall-mount, Chairs"], ["BAD-1", "", "ب", "chairs"]]);
     expect(await applyProductImport(form(file))).toMatchObject({ ok: false, error: "import.errors.fixFirst" });
     expect(await testDb.product.count()).toBe(0);
+    expect(await testDb.category.count()).toBe(4); // no category created either
   });
 });

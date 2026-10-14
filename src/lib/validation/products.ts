@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { CATEGORIES, PRODUCT_STATUSES } from "@/lib/products";
+import { PRODUCT_STATUSES } from "@/lib/products";
+import { MAX_PRODUCT_CATEGORIES } from "@/lib/categories";
 import { toWesternDigits } from "@/lib/import/normalize";
 import {
   modelCode,
@@ -33,7 +34,12 @@ export const productSchema = z.object({
   barcode: code(64),
   nameEn: requiredText(200),
   nameAr: requiredText(200),
-  category: z.enum(CATEGORIES, { message: "validation.required" }),
+  /** One or more categories, the main one first (PU2). */
+  categoryIds: z
+    .array(z.string().min(1).max(64))
+    .min(1, "products.errors.categoryRequired")
+    .max(MAX_PRODUCT_CATEGORIES, "products.errors.tooManyCategories")
+    .refine((ids) => new Set(ids).size === ids.length, "errors.invalidInput"),
   status: z.enum(PRODUCT_STATUSES, { message: "validation.required" }),
   variant: optionalText(200),
   sizeRange: optionalText(50),
@@ -63,8 +69,9 @@ export type ProductInput = z.output<typeof productSchema>;
 
 /** The Product table columns of a parsed form (reorder rows are saved separately). */
 export function productColumns(p: ProductInput) {
-  const { reorder: _reorder, ...columns } = p;
+  const { reorder: _reorder, categoryIds: _categoryIds, ...columns } = p;
   void _reorder;
+  void _categoryIds;
   return { ...columns, sku: p.sku ?? p.modelCode, imageId: imageIdFrom(p.imageUrl) };
 }
 
