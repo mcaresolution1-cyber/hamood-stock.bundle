@@ -52,4 +52,6 @@ export const modelCode = z
 
 export const email = z.string().trim().toLowerCase().pipe(z.email("validation.email").max(200));
 
-export const password = z.string().min(8, "validation.passwordMin").max(200, "validation.tooLong");
+/** New passwords (v2 Phase A: 10+ characters). Signing in still accepts older, shorter ones. */
+export const MIN_PASSWORD_LENGTH = 10;
+export const password = z.string().min(MIN_PASSWORD_LENGTH, "validation.passwordMin").max(200, "validation.tooLong");

@@ -4,6 +4,7 @@ import { entryPermissionError, entryTypeFor, formReasons, isReasonAllowed, reaso
 const admin = { id: "a", role: "ADMIN" as const, warehouseIds: [] };
 const staff = { id: "s", role: "STAFF" as const, warehouseIds: ["w1"] };
 const viewer = { id: "v", role: "VIEWER" as const, warehouseIds: ["w1"] };
+const manager = { id: "m", role: "MANAGER" as const, warehouseIds: ["w1"] };
 const sellable = (id: string) => ({ id, kind: "SELLABLE" as const });
 const damaged = (id: string) => ({ id, kind: "DAMAGED" as const });
 
@@ -19,16 +20,29 @@ describe("entryTypeFor", () => {
 });
 
 describe("isReasonAllowed / formReasons", () => {
-  it("keeps admin-only reasons from STAFF", () => {
+  it("keeps opening stock admin-only and return-to-supplier from STAFF", () => {
+    expect(isReasonAllowed("ADMIN", "IN", "OPENING_STOCK")).toBe(true);
+    expect(isReasonAllowed("MANAGER", "IN", "OPENING_STOCK")).toBe(false);
+    expect(isReasonAllowed("STAFF", "IN", "OPENING_STOCK")).toBe(false);
+    expect(isReasonAllowed("MANAGER", "OUT", "SUPPLIER_RETURN")).toBe(true);
+    expect(isReasonAllowed("STAFF", "OUT", "SUPPLIER_RETURN")).toBe(false);
+  });
+
+  it("lets STAFF and MANAGER record corrections and damaged/lost (approval decides, A2)", () => {
     for (const [dir, reason] of [
-      ["IN", "OPENING_STOCK"],
       ["IN", "CORRECTION"],
       ["OUT", "CORRECTION"],
-      ["OUT", "SUPPLIER_RETURN"],
       ["OUT", "DAMAGED_LOST"],
     ] as const) {
-      expect(isReasonAllowed("STAFF", dir, reason)).toBe(false);
-      expect(isReasonAllowed("ADMIN", dir, reason)).toBe(true);
+      expect(isReasonAllowed("STAFF", dir, reason)).toBe(true);
+      expect(isReasonAllowed("MANAGER", dir, reason)).toBe(true);
+    }
+  });
+
+  it("lets TECHNICIAN, ACCOUNTANT and VIEWER record nothing", () => {
+    for (const role of ["TECHNICIAN", "ACCOUNTANT", "VIEWER"] as const) {
+      expect(formReasons(role, "IN")).toEqual([]);
+      expect(formReasons(role, "OUT")).toEqual([]);
     }
   });
 
@@ -39,9 +53,25 @@ describe("isReasonAllowed / formReasons", () => {
   });
 
   it("lists form reasons per role", () => {
-    expect(formReasons("STAFF", "IN")).toEqual(["SUPPLIER_DELIVERY", "CUSTOMER_RETURN"]);
+    expect(formReasons("STAFF", "IN")).toEqual(["SUPPLIER_DELIVERY", "CUSTOMER_RETURN", "CORRECTION"]);
     expect(formReasons("ADMIN", "IN")).toEqual(["SUPPLIER_DELIVERY", "CUSTOMER_RETURN", "CORRECTION"]);
-    expect(formReasons("STAFF", "OUT")).toEqual(["WEBSITE_ORDER", "DIRECT_SALE", "INSTALLATION", "TRANSFER"]);
+    expect(formReasons("STAFF", "OUT")).toEqual([
+      "WEBSITE_ORDER",
+      "DIRECT_SALE",
+      "INSTALLATION",
+      "TRANSFER",
+      "DAMAGED_LOST",
+      "CORRECTION",
+    ]);
+    expect(formReasons("MANAGER", "OUT")).toEqual([
+      "WEBSITE_ORDER",
+      "DIRECT_SALE",
+      "INSTALLATION",
+      "TRANSFER",
+      "SUPPLIER_RETURN",
+      "DAMAGED_LOST",
+      "CORRECTION",
+    ]);
     expect(formReasons("VIEWER", "OUT")).toEqual([]);
   });
 });
@@ -72,8 +102,15 @@ describe("entryPermissionError", () => {
     );
   });
 
-  it("rejects admin-only reasons for STAFF and everything for VIEWER", () => {
-    expect(entryPermissionError(staff, { direction: "OUT", reason: "DAMAGED_LOST", warehouse: sellable("w1") })).toBe(
+  it("lets MANAGER work only in assigned warehouses", () => {
+    expect(entryPermissionError(manager, { direction: "OUT", reason: "SUPPLIER_RETURN", warehouse: sellable("w1") })).toBeNull();
+    expect(entryPermissionError(manager, { direction: "OUT", reason: "SUPPLIER_RETURN", warehouse: sellable("w2") })).toBe(
+      "stock.errors.warehouseNotAssigned",
+    );
+  });
+
+  it("rejects manager reasons for STAFF and everything for VIEWER", () => {
+    expect(entryPermissionError(staff, { direction: "OUT", reason: "SUPPLIER_RETURN", warehouse: sellable("w1") })).toBe(
       "errors.forbidden",
     );
     expect(entryPermissionError(viewer, { direction: "IN", reason: "SUPPLIER_DELIVERY", warehouse: sellable("w1") })).toBe(

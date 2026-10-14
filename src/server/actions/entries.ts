@@ -6,12 +6,14 @@ import type { EntryReason } from "@/generated/prisma/enums";
 import { requirePermission } from "@/server/auth/dal";
 import { entryFormSchema, voidSchema } from "@/lib/validation/entries";
 import { keepReasonFields } from "@/lib/stock/fields";
-import { createEntry, type SavedEntry } from "@/server/stock/createEntry";
-import { voidEntry, type VoidResult } from "@/server/stock/voidEntry";
+import { submitEntry, submitVoid, type EntrySubmitResult, type VoidSubmitResult } from "@/server/stock/approvals";
 import { guarded, UserFacingError, type ActionResult } from "./result";
 
-/** Save a Stock In / Stock Out form. Roles, warehouses and stock are enforced by the entry service. */
-export async function saveEntry(values: unknown): Promise<ActionResult<SavedEntry>> {
+/**
+ * Save a Stock In / Stock Out form. Roles, warehouses and stock are enforced by the entry service.
+ * A correction / damaged-lost above the user's approval limit is saved as a request instead.
+ */
+export async function saveEntry(values: unknown): Promise<ActionResult<EntrySubmitResult>> {
   return guarded(async () => {
     const user = await requirePermission("entry:create");
     const v = entryFormSchema.parse(values);
@@ -35,7 +37,7 @@ export async function saveEntry(values: unknown): Promise<ActionResult<SavedEntr
       photoUrl = v.photoUrl;
     }
 
-    const saved = await createEntry(db, user, {
+    const saved = await submitEntry(db, user, {
       direction: v.direction,
       reason,
       warehouseId: v.warehouseId,
@@ -46,17 +48,20 @@ export async function saveEntry(values: unknown): Promise<ActionResult<SavedEntr
       ...details,
     });
     revalidatePath("/entries");
+    revalidatePath("/approvals");
     revalidatePath("/");
     return saved;
   });
 }
 
-export async function voidEntryAction(values: unknown): Promise<ActionResult<VoidResult>> {
+/** Void an entry — or, above the manager's approval limit, ask for approval. */
+export async function voidEntryAction(values: unknown): Promise<ActionResult<VoidSubmitResult>> {
   return guarded(async () => {
     const user = await requirePermission("entry:void");
-    const { entryId, reason } = voidSchema.parse(values);
-    const result = await voidEntry(db, user, { entryId, reason });
+    const { entryId, reason, idempotencyKey } = voidSchema.parse(values);
+    const result = await submitVoid(db, user, { entryId, reason, idempotencyKey });
     revalidatePath("/entries");
+    revalidatePath("/approvals");
     revalidatePath(`/entries/${entryId}`);
     revalidatePath("/");
     return result;

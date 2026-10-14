@@ -17,8 +17,26 @@ datasource db {
 
 enum Role {
   ADMIN
+  /// Warehouse manager: full stock rights in assigned warehouses, approves requests there (v2 A1)
+  MANAGER
   STAFF
+  /// Installation technician: only his own jobs (Phase C)
+  TECHNICIAN
+  /// Read-only, sees cost and the audit log
+  ACCOUNTANT
   VIEWER
+}
+
+enum ApprovalKind {
+  ENTRY
+  VOID
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
 }
 
 enum WarehouseKind {
@@ -60,13 +78,22 @@ model User {
   role         Role     @default(VIEWER)
   active       Boolean  @default(true)
   createdAt    DateTime @default(now()) @db.DateTime(3)
+  /// Set for new users and after an admin reset: every page sends them to /account/password first.
+  mustChangePassword Boolean   @default(false)
+  /// Sessions signed in before this moment are no longer valid (password changed or reset).
+  passwordChangedAt  DateTime? @db.DateTime(3)
+  lastLoginAt        DateTime? @db.DateTime(3)
 
-  /// Warehouses a STAFF user may create entries in. Ignored for ADMIN (all) and VIEWER (read-only).
+  /// Warehouses a STAFF or MANAGER user works in. Ignored for other roles.
   warehouses Warehouse[] @relation("UserWarehouses")
 
   createdEntries StockEntry[] @relation("EntryCreatedBy")
   voidedEntries  StockEntry[] @relation("EntryVoidedBy")
   attachments    Attachment[]
+  loginEvents    LoginEvent[]
+  auditActions   AuditLog[]
+  requests       ApprovalRequest[] @relation("RequestedBy")
+  decisions      ApprovalRequest[] @relation("DecidedBy")
 }
 
 model Warehouse {
@@ -79,6 +106,9 @@ model Warehouse {
   users   User[]       @relation("UserWarehouses")
   entries StockEntry[]
   levels  StockLevel[]
+
+  requests      ApprovalRequest[] @relation("RequestWarehouse")
+  otherRequests ApprovalRequest[] @relation("RequestOtherWarehouse")
 }
 
 // ─── Catalogue ────────────────────────────────────────────────────────────
@@ -148,6 +178,9 @@ model StockEntry {
   linkedFrom  StockEntry[]     @relation("LinkedEntry")
   lines       StockEntryLine[]
 
+  voidRequests  ApprovalRequest[] @relation("RequestTarget")
+  approvedVia   ApprovalRequest?  @relation("RequestResult")
+
   @@index([entryDate])
   @@index([warehouseId, entryDate])
   @@index([type, entryDate])
@@ -185,7 +218,7 @@ model StockLevel {
   @@index([warehouseId])
 }
 
-/// Sequential counters for entry numbers. key = number prefix ("IN", "OUT", "TRF", "COR", "VOID").
+/// Sequential counters for entry numbers. key = number prefix ("IN", "OUT", "TRF", "COR", "VOID", "REQ" for approval requests).
 model Counter {
   key   String @id
   value Int    @default(0)
@@ -202,4 +235,95 @@ model Attachment {
   createdAt   DateTime @default(now()) @db.DateTime(3)
 
   createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+}
+
+// ─── Controls (v2 Phase A) ────────────────────────────────────────────────
+
+/// Every sign-in attempt. Used for the sign-in limits (failed tries per email / IP) and login history.
+model LoginEvent {
+  id      String   @id @default(cuid())
+  userId  String?
+  email   String   @db.VarChar(200)
+  ip      String?  @db.VarChar(64)
+  success Boolean
+  /// Why it failed: "password", "inactive", "rateLimited" ("pending" while the password is being checked)
+  reason  String?  @db.VarChar(32)
+  at      DateTime @default(now()) @db.DateTime(3)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([email, at])
+  @@index([ip, at])
+  @@index([userId, at])
+}
+
+/// Who changed what (products, users, warehouses, settings, approvals). Append-only, only changed fields.
+model AuditLog {
+  id           String   @id @default(cuid())
+  at           DateTime @default(now()) @db.DateTime(3)
+  actorId      String
+  /// e.g. "product.update", "user.create", "approval.approve"
+  action       String   @db.VarChar(64)
+  /// product | user | warehouse | setting | approval
+  subjectType  String   @db.VarChar(32)
+  subjectId    String?
+  subjectLabel String?  @db.VarChar(200)
+  before       Json?
+  after        Json?
+
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([at])
+  @@index([subjectType, at])
+  @@index([actorId, at])
+}
+
+/// A correction / damaged-lost entry or a void waiting for a manager or admin (decision V1).
+/// Nothing reaches the ledger until it is approved, then the entry is created through createEntry/voidEntry.
+model ApprovalRequest {
+  id                     String         @id @default(cuid())
+  /// REQ-000001
+  number                 String         @unique
+  kind                   ApprovalKind
+  status                 ApprovalStatus @default(PENDING)
+  /// Which approval rule applies: correction | damaged | void
+  rule                   String         @db.VarChar(32)
+  /// Where the stock would change (a transfer void also changes the destination)
+  warehouseId            String
+  otherWarehouseId       String?
+  /// ENTRY: the entry input. VOID: { entryId, reason }
+  payload                Json
+  units                  Int
+  /// Σ quantity × product cost when the request was made; null when no line had a cost
+  value                  Decimal?       @db.Decimal(12, 2)
+  /// VOID: the entry to void
+  targetEntryId          String?
+  /// The entry created on approval (for a void: the first VOID entry)
+  resultEntryId          String?        @unique
+  idempotencyKey         String?        @unique @db.VarChar(64)
+  requestedById          String
+  requestedAt            DateTime       @default(now()) @db.DateTime(3)
+  decidedById            String?
+  decidedAt              DateTime?      @db.DateTime(3)
+  decisionNote           String?        @db.Text
+
+  warehouse      Warehouse   @relation("RequestWarehouse", fields: [warehouseId], references: [id], onDelete: Restrict)
+  otherWarehouse Warehouse?  @relation("RequestOtherWarehouse", fields: [otherWarehouseId], references: [id], onDelete: Restrict)
+  /// onUpdate Restrict: MariaDB needs it for the generated pendingVoidOf column (as for linkedEntry).
+  targetEntry    StockEntry? @relation("RequestTarget", fields: [targetEntryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  resultEntry    StockEntry? @relation("RequestResult", fields: [resultEntryId], references: [id], onDelete: Restrict)
+  requestedBy    User        @relation("RequestedBy", fields: [requestedById], references: [id], onDelete: Restrict)
+  decidedBy      User?       @relation("DecidedBy", fields: [decidedById], references: [id], onDelete: Restrict)
+
+  @@index([status, requestedAt])
+  @@index([requestedById, requestedAt])
+  @@index([warehouseId, status])
+}
+
+/// App settings edited on /admin/settings, one JSON value per key (validated in src/lib/settings.ts).
+model Setting {
+  key         String   @id @db.VarChar(64)
+  value       Json
+  updatedAt   DateTime @updatedAt @db.DateTime(3)
+  updatedById String?
 }

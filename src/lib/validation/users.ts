@@ -4,7 +4,7 @@ import { email, id, password, requiredText } from "./common";
 const base = {
   name: requiredText(100),
   email,
-  role: z.enum(["ADMIN", "STAFF", "VIEWER"], { message: "validation.required" }),
+  role: z.enum(["ADMIN", "MANAGER", "STAFF", "TECHNICIAN", "ACCOUNTANT", "VIEWER"], { message: "validation.required" }),
   warehouseIds: z.array(id).max(100),
 };
 
@@ -22,3 +22,10 @@ export function userFormSchema(isNew: boolean) {
   return z.object({ ...base, password: isNew ? password : z.string() });
 }
 export type UserFormValues = z.input<ReturnType<typeof userFormSchema>>;
+
+/** A user changing his own password (/account/password). */
+export const changePasswordSchema = z
+  .object({ current: z.string().min(1, "validation.required").max(200), password, confirm: z.string() })
+  .refine((v) => v.password === v.confirm, { path: ["confirm"], message: "account.errors.mismatch" })
+  .refine((v) => v.password !== v.current, { path: ["password"], message: "account.errors.sameAsOld" });
+export type ChangePasswordValues = z.input<typeof changePasswordSchema>;

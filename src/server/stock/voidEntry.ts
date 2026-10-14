@@ -1,5 +1,6 @@
 /**
- * Void (cancel) a saved entry — ADMIN only. Saved entries are never edited or deleted: voiding creates
+ * Void (cancel) a saved entry — ADMIN, or a MANAGER for entries in his warehouses (above the approval
+ * limit a manager's void becomes a request, see src/server/stock/approvals.ts). Saved entries are never edited or deleted: voiding creates
  * a reverse entry (type VOID, linked to the original) that undoes the stock change, and stamps the
  * original with voidedAt / voidedById. All in ONE transaction:
  *   1. lock the original (and its transfer partner) FOR UPDATE, re-check they aren't voided
@@ -9,7 +10,7 @@
  */
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import type { EntryType } from "@/generated/prisma/enums";
-import { can } from "@/lib/permissions";
+import { can, canWriteToWarehouse } from "@/lib/permissions";
 import { directionOf } from "@/lib/stock/lines";
 import { formatEntryNumber } from "@/lib/stock/numbering";
 import type { EntryActor } from "@/lib/stock/policy";
@@ -21,9 +22,12 @@ import {
   type LevelChange,
   type Tx,
 } from "./createEntry";
-import { EntryRuleError } from "./errors";
+import { ApprovalRequiredError, EntryRuleError } from "./errors";
+import { approvalNeeded } from "./approval-rules";
 
 export type VoidInput = { entryId: string; reason: string };
+/** approvedBy: an approved request is being carried out. requestId: that request (not cancelled below). */
+export type VoidOptions = { approvedBy?: { id: string }; requestId?: string };
 export type VoidResult = { voids: { id: string; number: string; voidedEntryId: string }[] };
 
 export const MIN_VOID_REASON = 3;
@@ -33,7 +37,12 @@ export async function voidEntry(client: PrismaClient, actor: EntryActor, input: 
   return withRetry(() => client.$transaction((tx) => voidEntryInTx(tx, actor, input), TX_OPTIONS));
 }
 
-export async function voidEntryInTx(tx: Tx, actor: EntryActor, input: VoidInput): Promise<VoidResult> {
+export async function voidEntryInTx(
+  tx: Tx,
+  actor: EntryActor,
+  input: VoidInput,
+  options: VoidOptions = {},
+): Promise<VoidResult> {
   if (!can(actor.role, "entry:void")) throw new EntryRuleError("errors.forbidden");
   const reason = input.reason.trim();
   if (reason.length < MIN_VOID_REASON) throw new EntryRuleError("void.errors.reasonRequired");
@@ -66,6 +75,25 @@ export async function voidEntryInTx(tx: Tx, actor: EntryActor, input: VoidInput)
     orderBy: { id: "asc" },
   });
   if (originals.some((e) => e.voidedAt)) throw new EntryRuleError("void.errors.alreadyVoided");
+  // A manager voids only in his own warehouses (both warehouses of a transfer).
+  if (originals.some((e) => !canWriteToWarehouse(actor, e.warehouseId))) {
+    throw new EntryRuleError("stock.errors.warehouseNotAssigned");
+  }
+
+  if (!options.approvedBy) {
+    // Units of the movement once (a transfer's two halves carry the same lines).
+    const primary = originals.find((e) => e.type === "TRANSFER_OUT") ?? originals[0];
+    const need = await approvalNeeded(tx, actor, "void", primary.lines);
+    if (need) {
+      const other = originals.find((e) => e.id !== primary.id);
+      throw new ApprovalRequiredError({
+        ...need,
+        warehouseId: primary.warehouseId,
+        otherWarehouseId: other && other.warehouseId !== primary.warehouseId ? other.warehouseId : null,
+        targetEntryId: primary.id,
+      });
+    }
+  }
 
   const changes: LevelChange[] = [];
   const voids: VoidResult["voids"] = [];
@@ -104,5 +132,16 @@ export async function voidEntryInTx(tx: Tx, actor: EntryActor, input: VoidInput)
   }
 
   await applyLevelChanges(tx, changes);
+
+  // Other void requests for these entries have nothing left to do.
+  await tx.approvalRequest.updateMany({
+    where: {
+      kind: "VOID",
+      status: "PENDING",
+      targetEntryId: { in: sorted },
+      ...(options.requestId ? { id: { not: options.requestId } } : {}),
+    },
+    data: { status: "CANCELLED", decidedAt: now, decidedById: actor.id, decisionNote: "voided" },
+  });
   return { voids };
 }

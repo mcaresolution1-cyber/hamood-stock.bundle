@@ -11,6 +11,7 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { SESSION_ABSOLUTE_MS } from "@/auth.config";
 import { db } from "@/lib/db";
 import { can, canWriteToWarehouse, type Action } from "@/lib/permissions";
 import type { Role } from "@/generated/prisma/enums";
@@ -20,9 +21,21 @@ export type CurrentUser = {
   name: string;
   email: string;
   role: Role;
-  /** Assigned warehouses (relevant for STAFF). */
+  /** Assigned warehouses (relevant for STAFF and MANAGER). */
   warehouseIds: string[];
+  /** New user or password reset by an admin: must choose a password before anything else. */
+  mustChangePassword: boolean;
 };
+
+/**
+ * Is this session still valid? Signed in within 24 h, and not before the last password change.
+ * Sessions from before v2 have no sign-in time: they end once, so the 24-hour limit applies to everyone.
+ */
+export function sessionStillValid(authAt: number | undefined, passwordChangedAt: Date | null, now = Date.now()): boolean {
+  if (authAt === undefined || now - authAt > SESSION_ABSOLUTE_MS) return false;
+  if (passwordChangedAt && authAt < passwordChangedAt.getTime()) return false;
+  return true;
+}
 
 export class AuthorizationError extends Error {
   constructor(message = "forbidden") {
@@ -44,10 +57,13 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       email: true,
       role: true,
       active: true,
+      mustChangePassword: true,
+      passwordChangedAt: true,
       warehouses: { select: { id: true } },
     },
   });
   if (!user || !user.active) return null;
+  if (!sessionStillValid(session.authAt, user.passwordChangedAt)) return null;
 
   return {
     id: user.id,
@@ -55,13 +71,20 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     email: user.email,
     role: user.role,
     warehouseIds: user.warehouses.map((w) => w.id),
+    mustChangePassword: user.mustChangePassword,
   };
 });
 
-/** For pages and layouts: redirects to /login when there is no valid user. */
-export async function requireUser(): Promise<CurrentUser> {
+export const CHANGE_PASSWORD_PATH = "/account/password";
+
+/**
+ * For pages, layouts and actions: redirects to /login when there is no valid user, and to the
+ * change-password page while the user must choose a new password (except where that is allowed).
+ */
+export async function requireUser(options: { allowPasswordChange?: boolean } = {}): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  if (user.mustChangePassword && !options.allowPasswordChange) redirect(CHANGE_PASSWORD_PATH);
   return user;
 }
 

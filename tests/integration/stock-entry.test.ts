@@ -1,10 +1,11 @@
+import type { Role } from "@/generated/prisma/enums";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { createEntry, type EntryInput } from "@/server/stock/createEntry";
 import { EntryRuleError, InsufficientStockError } from "@/server/stock/errors";
 import { makeProduct, makeUser, makeWarehouse, resetDatabase, testDb } from "../helpers/db";
 import { expectLedgerMatchesLevels, level } from "../helpers/ledger";
 
-type Actor = { id: string; role: "ADMIN" | "STAFF" | "VIEWER"; warehouseIds: string[] };
+type Actor = { id: string; role: Role; warehouseIds: string[] };
 const actorOf = (u: Awaited<ReturnType<typeof makeUser>>): Actor => ({
   id: u.id,
   role: u.role,

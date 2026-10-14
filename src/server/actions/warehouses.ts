@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import type { Tx } from "@/server/stock/createEntry";
 import { id as idSchema } from "@/lib/validation/common";
 import { requirePermission } from "@/server/auth/dal";
+import { audit, changedFields } from "@/server/audit";
 import { warehouseSchema } from "@/lib/validation/warehouses";
 import { guarded, isUniqueViolation, UserFacingError, type ActionResult } from "./result";
 
@@ -21,10 +22,14 @@ async function lockAndCountUnits(tx: Tx, warehouseId: string) {
 
 export async function createWarehouse(values: unknown): Promise<ActionResult<{ id: string }>> {
   return guarded(async () => {
-    await requirePermission("warehouse:manage");
+    const actor = await requirePermission("warehouse:manage");
     const data = warehouseSchema.parse(values);
     try {
-      const w = await db.warehouse.create({ data, select: { id: true } });
+      const w = await db.$transaction(async (tx) => {
+        const created = await tx.warehouse.create({ data, select: { id: true } });
+        await audit(tx, actor.id, { action: "warehouse.create", subjectType: "warehouse", subjectId: created.id, subjectLabel: data.name, after: data });
+        return created;
+      });
       revalidatePath("/admin/warehouses");
       return w;
     } catch (e) {
@@ -36,7 +41,7 @@ export async function createWarehouse(values: unknown): Promise<ActionResult<{ i
 
 export async function updateWarehouse(id: string, values: unknown): Promise<ActionResult> {
   return guarded(async () => {
-    await requirePermission("warehouse:manage");
+    const actor = await requirePermission("warehouse:manage");
     const warehouseId = idSchema.parse(id);
     const data = warehouseSchema.parse(values);
     try {
@@ -48,6 +53,10 @@ export async function updateWarehouse(id: string, values: unknown): Promise<Acti
           throw new UserFacingError("warehouses.errors.kindHasStock");
         }
         await tx.warehouse.update({ where: { id: warehouseId }, data });
+        const diff = changedFields(current, data);
+        if (diff) {
+          await audit(tx, actor.id, { action: "warehouse.update", subjectType: "warehouse", subjectId: warehouseId, subjectLabel: data.name, ...diff });
+        }
       });
     } catch (e) {
       if (isUniqueViolation(e)) throw new UserFacingError("warehouses.errors.nameTaken");
@@ -60,13 +69,20 @@ export async function updateWarehouse(id: string, values: unknown): Promise<Acti
 
 export async function setWarehouseActive(id: string, active: boolean): Promise<ActionResult> {
   return guarded(async () => {
-    await requirePermission("warehouse:manage");
+    const actor = await requirePermission("warehouse:manage");
     const input = z.object({ id: idSchema, active: z.boolean() }).parse({ id, active });
     await db.$transaction(async (tx) => {
       if (!input.active && (await lockAndCountUnits(tx, input.id)) > 0) {
         throw new UserFacingError("warehouses.errors.hasStock");
       }
-      await tx.warehouse.update({ where: { id: input.id }, data: { active: input.active } });
+      const w = await tx.warehouse.update({ where: { id: input.id }, data: { active: input.active }, select: { name: true } });
+      await audit(tx, actor.id, {
+        action: input.active ? "warehouse.activate" : "warehouse.deactivate",
+        subjectType: "warehouse",
+        subjectId: input.id,
+        subjectLabel: w.name,
+        after: { active: input.active },
+      });
     });
     revalidatePath("/admin/warehouses");
     return null;

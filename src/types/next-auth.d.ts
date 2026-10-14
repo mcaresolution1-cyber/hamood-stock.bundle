@@ -7,6 +7,8 @@ declare module "next-auth" {
   }
 
   interface Session {
+    /** When the user signed in (ms since epoch). Missing on sessions from before v2. */
+    authAt?: number;
     user: {
       id: string;
       role: Role;
@@ -14,4 +16,4 @@ declare module "next-auth" {
   }
 }
 
-// JWT fields (id, role) are read with runtime type guards in src/auth.config.ts.
+// JWT fields (id, role, authAt) are read with runtime type guards in src/auth.config.ts.

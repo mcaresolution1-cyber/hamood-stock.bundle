@@ -201,6 +201,9 @@ helpers in `src/lib/stock/` so they can be unit tested.
 | Need | Use |
 | --- | --- |
 | Save any stock movement | `createEntry(db, user, input)` / `createEntryInTx(tx, …)` in `src/server/stock/createEntry.ts` |
+| Save a form that may need approval | `submitEntry` / `submitVoid` (`src/server/stock/approvals.ts`) → `{ status: "saved" \| "voided" \| "pending" }`. Corrections, damaged/lost and voids above the limits in Settings become an `ApprovalRequest`; `createEntryInTx`/`voidEntryInTx` throw `ApprovalRequiredError` otherwise. Approve/reject with `decideRequest` |
+| Audit a change | `audit(tx, actorId, { action, subjectType, … })` + `changedFields(before, after)` (`src/server/audit.ts`) in the SAME transaction as the change; never pass hashes or photos |
+| App settings | `src/lib/settings.ts` (schemas, defaults) + `src/server/settings.ts` (read/write the `Setting` table) |
 | Who may use which reason / warehouse | `src/lib/stock/policy.ts` (`entryPermissionError`, `formReasons`, `entryTypeFor`) |
 | Server action shape | `guarded(async () => { await requirePermission(…); schema.parse(input); … })` → `ActionResult` (`src/server/actions/result.ts`); throw `UserFacingError(key)` for expected failures |
 | Page access | `requireUser()` or `requirePagePermission(action)` (redirects to `/?denied=1`) |
@@ -238,7 +241,7 @@ Inside a single `db.$transaction(async (tx) => …)`:
 1. Get the next number from `Counter` atomically:
    ``UPDATE `Counter` SET value = LAST_INSERT_ID(value + 1) WHERE `key` = ?`` then `SELECT LAST_INSERT_ID()`
    on the same (transaction) connection
-   (prefixes: `IN`, `OUT`, `TRF` for transfers, `COR` for corrections, `VOID`), then
+   (prefixes: `IN`, `OUT`, `TRF` for transfers, `COR` for corrections, `VOID`; `REQ` numbers approval requests), then
    `formatEntryNumber()` from `src/lib/stock/numbering.ts` → `IN-000123`. Never compute numbers with
    `MAX()+1` or outside the transaction.
 2. Insert the `StockEntry` and its `StockEntryLine`s (merge duplicate products into one line first).
@@ -254,7 +257,7 @@ Inside a single `db.$transaction(async (tx) => …)`:
 ### Entries are immutable
 - Saved entries are **never edited or deleted** (no `update`/`delete` on `StockEntry`/`StockEntryLine`,
   except setting `voidedAt`/`voidedById` when voiding). Mistakes are fixed by voiding and re-entering.
-- **Void (ADMIN only):** in one transaction, create a reverse entry (`type: VOID`, `reason: VOID`,
+- **Void (ADMIN, or MANAGER in his warehouses — above the approval limit through a request):** in one transaction, create a reverse entry (`type: VOID`, `reason: VOID`,
   `linkedEntryId` = original, same warehouse and lines) that applies the opposite stock change (with the
   same no-negative check), and set `voidedAt`/`voidedById` on the original. An entry can be voided only once,
   and VOID entries themselves cannot be voided. Voiding one half of a transfer voids both halves.
@@ -268,14 +271,26 @@ Inside a single `db.$transaction(async (tx) => …)`:
 - Source and destination must differ.
 
 ### Roles — enforced on the server, every time
-- **ADMIN:** everything (all warehouses, cost, void, corrections, products, warehouses, users).
-- **STAFF:** create `IN` / `OUT` / `TRANSFER` entries **only in their assigned warehouses**, with two
-  exceptions (decided in docs/plans/v1.md):
+The table is `ROLE_ACTIONS` in `src/lib/permissions.ts` (decisions A1–A3 in docs/plans/v2.md).
+- **ADMIN:** everything (all warehouses, cost, void, corrections, opening stock, products, warehouses,
+  users, settings, audit log). Never needs approval.
+- **MANAGER:** every stock reason except opening stock — including corrections, damaged/lost, return to
+  supplier and voids — **only in assigned warehouses** (both warehouses for a transfer void); approves
+  requests for those warehouses. No cost, no products/warehouses/users/settings.
+- **STAFF:** create `IN` / `OUT` / `TRANSFER` entries **only in their assigned warehouses**, and *request*
+  corrections and damaged/lost there (approval rules decide), with two exceptions (docs/plans/v1.md):
   - a **transfer** needs only the *source* warehouse assigned; the destination may be any active warehouse;
   - a **damaged customer return** (`CUSTOMER_RETURN` marked damaged) may go into any active `DAMAGED`
     warehouse without assignment — this reason only.
-  Cannot see `cost`, cannot void, cannot create corrections, return-to-supplier or damaged/lost entries.
+  Cannot see `cost`, cannot void, cannot use return-to-supplier.
+- **TECHNICIAN:** only his own installation jobs (`/jobs`).
+- **ACCOUNTANT:** read-only, plus cost and the audit log.
 - **VIEWER:** read-only.
+- **Approvals:** nothing reaches the ledger until approved; nobody decides his own request; a MANAGER
+  decides only requests whose warehouses are all assigned to him.
+- **Sign-in:** new users and admin resets must change their password first (`requireUser` redirects to
+  `/account/password`); sessions end after 8 h idle / 24 h, and on a password change; sign-in attempts are
+  limited per email and IP (`src/server/auth/login-limits.ts`).
 - Enforce this **in every server action and route handler**, not just by hiding UI:
   start with `requireUser()` / `requirePermission(action)` from `src/server/auth/dal.ts`, then
   the warehouse checks from `src/lib/stock/policy.ts` for each warehouse touched (source of a transfer;
@@ -283,7 +298,7 @@ Inside a single `db.$transaction(async (tx) => …)`:
   Pages call `requireUser()` too (layouts don't re-run on every navigation).
 - The DAL re-reads role, active flag and warehouses from the DB on each request; never trust the role in
   the JWT/session for authorization.
-- Never send `cost` to the client for non-ADMIN users — strip it in the server query
+- Never send `cost` to the client for roles without `cost:view` (only ADMIN and ACCOUNTANT) — strip it in the server query
   (`select`), don't just hide the column.
 - `src/proxy.ts` is only an optimistic redirect; it is not a security check.
 

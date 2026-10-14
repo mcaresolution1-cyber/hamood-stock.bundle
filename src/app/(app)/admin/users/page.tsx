@@ -1,12 +1,16 @@
 import type { Metadata } from "next";
-import { getLocale, getTranslations } from "next-intl/server";
+import Link from "next/link";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { MobileCard, ResponsiveList } from "@/components/mobile-list";
 import { Ltr } from "@/components/ltr";
 import { requirePagePermission } from "@/server/auth/dal";
+import { usesWarehouses } from "@/lib/permissions";
+import type { UserRow } from "@/server/queries/users";
 import { listUsers } from "@/server/queries/users";
 import { activeWarehouseOptions } from "@/server/queries/warehouses";
 import { UserDialog } from "./user-dialog";
@@ -20,8 +24,18 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function UsersPage() {
   const me = await requirePagePermission("user:manage");
   const [t, tc, tr] = await Promise.all([getTranslations("users"), getTranslations("common"), getTranslations("roles")]);
-  const [users, warehouses, locale] = await Promise.all([listUsers(), activeWarehouseOptions(), getLocale()]);
+  const [users, warehouses, locale, format] = await Promise.all([listUsers(), activeWarehouseOptions(), getLocale(), getFormatter()]);
   const list = new Intl.ListFormat(locale, { style: "short", type: "conjunction" });
+  const warehouseText = (u: UserRow) =>
+    usesWarehouses(u.role)
+      ? u.warehouses.length
+        ? list.format(u.warehouses.map((w) => w.name))
+        : t("noWarehouses")
+      : u.role === "ADMIN"
+        ? t("allWarehouses")
+        : "—";
+  const lastLogin = (u: UserRow) =>
+    u.lastLoginAt ? format.dateTime(u.lastLoginAt, { dateStyle: "medium", timeStyle: "short" }) : t("never");
   const warehouseOptions = warehouses.map((w) => ({ id: w.id, name: w.name }));
 
   return (
@@ -48,13 +62,13 @@ export default async function UsersPage() {
                 <Badge variant={u.role === "ADMIN" ? "default" : "secondary"}>{tr(u.role)}</Badge>
               </div>
               <p className="mt-1 text-sm">
-                {u.role === "STAFF"
-                  ? u.warehouses.length
-                    ? list.format(u.warehouses.map((w) => w.name))
-                    : t("noWarehouses")
-                  : t("allWarehouses")}
+                {warehouseText(u)}
                 {" · "}
                 {u.active ? tc("active") : tc("inactive")}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {t("lastLogin")}: {lastLogin(u)}
+                {u.mustChangePassword && <> · {t("mustChange")}</>}
               </p>
               <div className="mt-2 flex flex-wrap justify-end gap-1 border-t pt-2">
                 <UserDialog
@@ -63,6 +77,9 @@ export default async function UsersPage() {
                 />
                 <ResetPasswordDialog id={u.id} name={u.name} />
                 {u.id !== me.id && <UserActiveToggle id={u.id} name={u.name} active={u.active} />}
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href={`/admin/users/${u.id}`}>{t("loginHistory")}</Link>
+                </Button>
               </div>
             </MobileCard>
           ))}
@@ -74,6 +91,7 @@ export default async function UsersPage() {
                     <TableHead>{t("role")}</TableHead>
                     <TableHead>{t("warehouses")}</TableHead>
                     <TableHead>{tc("status")}</TableHead>
+                    <TableHead>{t("lastLogin")}</TableHead>
                     <TableHead className="text-end">{tc("actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -90,14 +108,16 @@ export default async function UsersPage() {
                       <TableCell>
                         <Badge variant={u.role === "ADMIN" ? "default" : "secondary"}>{tr(u.role)}</Badge>
                       </TableCell>
-                      <TableCell className="max-w-56 whitespace-normal text-sm">
-                        {u.role === "STAFF"
-                          ? u.warehouses.length
-                            ? list.format(u.warehouses.map((w) => w.name))
-                            : t("noWarehouses")
-                          : t("allWarehouses")}
+                      <TableCell className="max-w-56 whitespace-normal text-sm">{warehouseText(u)}</TableCell>
+                      <TableCell>
+                        {u.active ? tc("active") : tc("inactive")}
+                        {u.mustChangePassword && <div className="text-xs text-muted-foreground">{t("mustChange")}</div>}
                       </TableCell>
-                      <TableCell>{u.active ? tc("active") : tc("inactive")}</TableCell>
+                      <TableCell className="whitespace-nowrap text-sm">
+                        <Link href={`/admin/users/${u.id}`} className="underline-offset-4 hover:underline">
+                          {lastLogin(u)}
+                        </Link>
+                      </TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-1">
                           <UserDialog

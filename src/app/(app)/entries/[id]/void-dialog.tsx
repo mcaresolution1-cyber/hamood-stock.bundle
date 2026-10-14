@@ -18,8 +18,9 @@ import {
 import { useMessage } from "@/components/use-message";
 import { voidEntryAction } from "@/server/actions/entries";
 import { runAction } from "@/lib/run-action";
+import { newSubmitKey } from "@/lib/submit-key";
 
-/** ADMIN-only: confirm + required reason. The server re-checks the role. */
+/** ADMIN / MANAGER: confirm + required reason. Above the approval limit it becomes a request. The server re-checks everything. */
 export function VoidDialog({ entryId, number, isTransfer }: { entryId: string; number: string; isTransfer: boolean }) {
   const t = useTranslations("void");
   const tc = useTranslations("common");
@@ -29,13 +30,24 @@ export function VoidDialog({ entryId, number, isTransfer }: { entryId: string; n
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // One key per opened dialog: a retried submit returns the request already saved.
+  const [submitKey, setSubmitKey] = useState(newSubmitKey);
+
+  function onOpenChange(next: boolean) {
+    if (next) setSubmitKey(newSubmitKey());
+    setOpen(next);
+  }
 
   function submit() {
     setError(null);
     startTransition(async () => {
-      const result = await runAction(() => voidEntryAction({ entryId, reason }));
+      const result = await runAction(() => voidEntryAction({ entryId, reason, idempotencyKey: submitKey }));
       if (result.ok) {
-        toast.success(t("done", { numbers: result.data.voids.map((v) => v.number).join(", ") }));
+        if (result.data.status === "pending") {
+          toast.success(t("sentForApproval", { number: result.data.request.number }));
+        } else {
+          toast.success(t("done", { numbers: result.data.result.voids.map((v) => v.number).join(", ") }));
+        }
         setOpen(false);
         router.refresh();
       } else {
@@ -45,7 +57,7 @@ export function VoidDialog({ entryId, number, isTransfer }: { entryId: string; n
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button variant="destructive">{t("button")}</Button>
       </DialogTrigger>

@@ -10,7 +10,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function OpeningStockPage() {
-  await requirePagePermission("entry:correct");
+  await requirePagePermission("openingStock:import");
   const t = await getTranslations("openingStock");
   const warehouses = await activeWarehouseOptions();
   return (

@@ -9,7 +9,7 @@
  */
 import bcrypt from "bcryptjs";
 import type { PrismaClient } from "@/generated/prisma/client";
-import { ENTRY_NUMBER_PREFIXES } from "@/lib/stock/numbering";
+import { COUNTER_KEYS } from "@/lib/stock/numbering";
 
 export const DEFAULT_WAREHOUSES = [
   { name: "Riyadh Main", city: "Riyadh", kind: "SELLABLE" as const },
@@ -24,7 +24,7 @@ export function firstAdminFromEnv(env: NodeJS.ProcessEnv = process.env): FirstAd
 
 export async function ensureBaseData(db: PrismaClient, admin: FirstAdmin, log: (m: string) => void = () => {}) {
   await db.counter.createMany({
-    data: Object.values(ENTRY_NUMBER_PREFIXES).map((key) => ({ key, value: 0 })),
+    data: COUNTER_KEYS.map((key) => ({ key, value: 0 })),
     skipDuplicates: true,
   });
 
@@ -42,7 +42,8 @@ export async function ensureBaseData(db: PrismaClient, admin: FirstAdmin, log: (
   }
   try {
     await db.user.create({
-      data: { name: "Admin", email, passwordHash: await bcrypt.hash(password, 12), role: "ADMIN" },
+      // The password sits in the hosting settings, so the admin must choose his own at first sign-in.
+      data: { name: "Admin", email, passwordHash: await bcrypt.hash(password, 12), role: "ADMIN", mustChangePassword: true },
     });
   } catch (e) {
     // Two processes starting on an empty database: the other one created this admin first.

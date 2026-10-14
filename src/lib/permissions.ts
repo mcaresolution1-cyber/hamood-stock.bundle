@@ -7,26 +7,44 @@ import type { Role } from "@/generated/prisma/enums";
 
 export type Action =
   | "entry:create" // IN / OUT / TRANSFER
-  | "entry:correct" // CORRECTION_IN / CORRECTION_OUT
+  | "entry:correct" // CORRECTION_IN / CORRECTION_OUT (STAFF: through approval, decision A2)
   | "entry:void"
   | "stock:view"
   | "cost:view"
   | "product:manage"
   | "warehouse:manage"
-  | "user:manage";
+  | "user:manage"
+  | "openingStock:import"
+  | "approval:decide" // approve / reject requests (MANAGER: only for assigned warehouses)
+  | "audit:view"
+  | "settings:manage"
+  | "job:own"; // TECHNICIAN: his own installation jobs (Phase C)
 
+export const ALL_ACTIONS: readonly Action[] = [
+  "entry:create",
+  "entry:correct",
+  "entry:void",
+  "stock:view",
+  "cost:view",
+  "product:manage",
+  "warehouse:manage",
+  "user:manage",
+  "openingStock:import",
+  "approval:decide",
+  "audit:view",
+  "settings:manage",
+];
+
+/** Roles in the order they are offered on the user form. */
+export const ROLES: readonly Role[] = ["STAFF", "MANAGER", "TECHNICIAN", "ACCOUNTANT", "VIEWER", "ADMIN"];
+
+/** Rights per role (docs/plans/v2.md, Phase A). */
 const ROLE_ACTIONS: Record<Role, readonly Action[]> = {
-  ADMIN: [
-    "entry:create",
-    "entry:correct",
-    "entry:void",
-    "stock:view",
-    "cost:view",
-    "product:manage",
-    "warehouse:manage",
-    "user:manage",
-  ],
-  STAFF: ["entry:create", "stock:view"],
+  ADMIN: ALL_ACTIONS,
+  MANAGER: ["entry:create", "entry:correct", "entry:void", "stock:view", "approval:decide"],
+  STAFF: ["entry:create", "entry:correct", "stock:view"],
+  TECHNICIAN: ["job:own"],
+  ACCOUNTANT: ["stock:view", "cost:view", "audit:view"],
   VIEWER: ["stock:view"],
 };
 
@@ -34,19 +52,23 @@ export function can(role: Role, action: Action): boolean {
   return ROLE_ACTIONS[role].includes(action);
 }
 
+/** Roles that work in assigned warehouses (the user form shows the warehouse list for them). */
+export function usesWarehouses(role: Role): boolean {
+  return role === "STAFF" || role === "MANAGER";
+}
+
 export type WarehouseScopedUser = {
   role: Role;
-  /** IDs of warehouses assigned to the user (only meaningful for STAFF). */
+  /** IDs of warehouses assigned to the user (only meaningful for STAFF and MANAGER). */
   warehouseIds: readonly string[];
 };
 
 /**
  * May this user create entries in this warehouse?
- * ADMIN: any warehouse. STAFF: only assigned ones. VIEWER: none.
- * A transfer must pass this check for BOTH the source and destination warehouse.
+ * ADMIN: any warehouse. STAFF / MANAGER: only assigned ones. Everyone else: none.
  */
 export function canWriteToWarehouse(user: WarehouseScopedUser, warehouseId: string): boolean {
   if (user.role === "ADMIN") return true;
-  if (user.role === "STAFF") return user.warehouseIds.includes(warehouseId);
+  if (usesWarehouses(user.role)) return user.warehouseIds.includes(warehouseId);
   return false;
 }

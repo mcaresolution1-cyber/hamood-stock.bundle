@@ -14,7 +14,8 @@ import type { EntryReason } from "@/generated/prisma/enums";
 import { counterKeyFor, formatEntryNumber, type CounterKey } from "@/lib/stock/numbering";
 import { directionOf, mergeLines, type LineInput } from "@/lib/stock/lines";
 import { entryPermissionError, entryTypeFor, type Direction, type EntryActor } from "@/lib/stock/policy";
-import { EntryRuleError, InsufficientStockError } from "./errors";
+import { ApprovalRequiredError, EntryRuleError, InsufficientStockError } from "./errors";
+import { approvalNeeded, approvalRuleFor } from "./approval-rules";
 
 /** The interactive-transaction client Prisma passes to $transaction callbacks. */
 export type Tx = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
@@ -39,6 +40,9 @@ export type EntryInput = {
   /** Repeat-submit protection: the same key (from the same user) returns the entry already saved. */
   idempotencyKey?: string | null;
 };
+
+/** Set when an approved request is being carried out: the approval rule is then already satisfied. */
+export type EntryOptions = { approvedBy?: { id: string } };
 
 /** For a transfer this is the OUT half; `linked` is the IN half. */
 export type SavedEntry = { id: string; number: string; linked?: { id: string; number: string } };
@@ -81,8 +85,17 @@ async function savedEntryForKey(client: PrismaClient, key: string, actor: EntryA
   return linked ? { id: entry.id, number: entry.number, linked } : { id: entry.id, number: entry.number };
 }
 
-/** Same as createEntry, inside a transaction the caller already opened. */
-export async function createEntryInTx(tx: Tx, actor: EntryActor, input: EntryInput): Promise<SavedEntry> {
+/**
+ * Same as createEntry, inside a transaction the caller already opened. Throws ApprovalRequiredError
+ * (before writing anything) when a correction / damaged-lost is above this user's approval limit —
+ * use submitEntry (src/server/stock/approvals.ts) to turn that into a request.
+ */
+export async function createEntryInTx(
+  tx: Tx,
+  actor: EntryActor,
+  input: EntryInput,
+  options: EntryOptions = {},
+): Promise<SavedEntry> {
   const type = entryTypeFor(input.direction, input.reason);
   if (input.lines.length === 0) throw new EntryRuleError("stock.errors.noLines");
   for (const line of input.lines) {
@@ -122,6 +135,12 @@ export async function createEntryInTx(tx: Tx, actor: EntryActor, input: EntryInp
     if (!product.active && input.direction === "IN") {
       throw new EntryRuleError("stock.errors.productInactive", { modelCode: product.modelCode });
     }
+  }
+
+  if (!options.approvedBy) {
+    const rule = approvalRuleFor(type, input.reason);
+    const need = rule ? await approvalNeeded(tx, actor, rule, lines) : null;
+    if (need) throw new ApprovalRequiredError({ ...need, warehouseId: warehouse.id });
   }
 
   const prefix = counterKeyFor(type);

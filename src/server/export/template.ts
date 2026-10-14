@@ -24,6 +24,6 @@ export async function xlsxResponse(filename: string, headers: string[], examples
 export async function routeGuard(action: Action): Promise<Response | null> {
   const user = await getCurrentUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
-  if (!can(user.role, action)) return new Response("Forbidden", { status: 403 });
+  if (user.mustChangePassword || !can(user.role, action)) return new Response("Forbidden", { status: 403 });
   return null;
 }

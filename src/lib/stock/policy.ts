@@ -19,13 +19,11 @@ export const OUT_REASONS = [
   "CORRECTION",
 ] as const;
 
-/** Reasons only an ADMIN may use. */
-export const ADMIN_ONLY_REASONS: ReadonlySet<EntryReason> = new Set<EntryReason>([
-  "OPENING_STOCK",
-  "CORRECTION",
-  "SUPPLIER_RETURN",
-  "DAMAGED_LOST",
-]);
+/** Reasons only an ADMIN may use (opening stock has its own import screen). */
+export const ADMIN_ONLY_REASONS: ReadonlySet<EntryReason> = new Set<EntryReason>(["OPENING_STOCK"]);
+
+/** Reasons STAFF may not use. Corrections and damaged/lost are allowed — through approval (decision A2). */
+export const MANAGER_REASONS: ReadonlySet<EntryReason> = new Set<EntryReason>(["SUPPLIER_RETURN"]);
 
 /** Selling reasons — only allowed from SELLABLE warehouses (Q4). */
 export const SALES_REASONS: ReadonlySet<EntryReason> = new Set<EntryReason>([
@@ -43,9 +41,17 @@ export function isValidReason(direction: Direction, reason: EntryReason): boolea
 }
 
 export function isReasonAllowed(role: Role, direction: Direction, reason: EntryReason): boolean {
-  if (role === "VIEWER") return false;
   if (!isValidReason(direction, reason)) return false;
-  return role === "ADMIN" || !ADMIN_ONLY_REASONS.has(reason);
+  switch (role) {
+    case "ADMIN":
+      return true;
+    case "MANAGER":
+      return !ADMIN_ONLY_REASONS.has(reason);
+    case "STAFF":
+      return !ADMIN_ONLY_REASONS.has(reason) && !MANAGER_REASONS.has(reason);
+    default:
+      return false; // TECHNICIAN, ACCOUNTANT, VIEWER record nothing here
+  }
 }
 
 /** Reasons to show on the Stock In / Stock Out form for this role, in display order. */

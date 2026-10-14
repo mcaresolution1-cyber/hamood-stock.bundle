@@ -133,4 +133,6 @@ export const emptyEntryForm = (direction: "IN" | "OUT"): EntryFormValues => ({
 export const voidSchema = z.object({
   entryId: id,
   reason: z.string().trim().min(3, "void.errors.reasonRequired").max(500, "validation.tooLong"),
+  /** One key per open dialog: a repeated submit returns the request already saved. */
+  idempotencyKey: z.string().regex(/^[A-Za-z0-9-]{8,64}$/).optional(),
 });

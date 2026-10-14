@@ -11,7 +11,13 @@ export const ENTRY_NUMBER_PREFIXES = {
   VOID: "VOID",
 } as const;
 
-export type CounterKey = (typeof ENTRY_NUMBER_PREFIXES)[keyof typeof ENTRY_NUMBER_PREFIXES];
+/** Approval requests (REQ-000001) draw from the same Counter table. */
+export const REQUEST_NUMBER_PREFIX = "REQ" as const;
+
+/** Every row the Counter table needs (created at start-up and by the test reset). */
+export const COUNTER_KEYS = [...Object.values(ENTRY_NUMBER_PREFIXES), REQUEST_NUMBER_PREFIX] as const;
+
+export type CounterKey = (typeof COUNTER_KEYS)[number];
 
 export type EntryTypeName =
   | "IN"

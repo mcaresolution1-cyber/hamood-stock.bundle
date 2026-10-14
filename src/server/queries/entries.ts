@@ -129,9 +129,11 @@ export async function getEntry(id: string) {
       warehouse: { select: { id: true, name: true, city: true, kind: true } },
       createdBy: { select: { name: true } },
       voidedBy: { select: { name: true } },
-      linkedEntry: { select: { id: true, number: true, type: true, warehouse: { select: { name: true } } } },
+      linkedEntry: { select: { id: true, number: true, type: true, warehouse: { select: { id: true, name: true } } } },
+      approvedVia: { select: { id: true, number: true, decidedBy: { select: { name: true } } } },
+      voidRequests: { where: { status: "PENDING" }, select: { id: true, number: true } },
       linkedFrom: {
-        select: { id: true, number: true, type: true, note: true, warehouse: { select: { name: true } } },
+        select: { id: true, number: true, type: true, note: true, warehouse: { select: { id: true, name: true } } },
         orderBy: { createdAt: "asc" },
       },
       lines: {

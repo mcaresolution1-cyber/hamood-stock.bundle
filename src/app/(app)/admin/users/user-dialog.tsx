@@ -16,8 +16,10 @@ import { userFormSchema, type UserFormValues } from "@/lib/validation/users";
 import { createUser, updateUser } from "@/server/actions/users";
 import { runAction } from "@/lib/run-action";
 import type { ActionResult } from "@/server/actions/result";
+import type { Role } from "@/generated/prisma/enums";
+import { ROLES, usesWarehouses } from "@/lib/permissions";
 
-type Existing = { id: string; name: string; email: string; role: "ADMIN" | "STAFF" | "VIEWER"; warehouseIds: string[] };
+type Existing = { id: string; name: string; email: string; role: Role; warehouseIds: string[] };
 type WarehouseOption = { id: string; name: string };
 
 export function UserDialog({ user, warehouses }: { user?: Existing; warehouses: WarehouseOption[] }) {
@@ -81,9 +83,9 @@ export function UserDialog({ user, warehouses }: { user?: Existing; warehouses: 
               name="role"
               label={t("users.role")}
               hint={t(`users.roleHelp.${role}`)}
-              options={(["STAFF", "VIEWER", "ADMIN"] as const).map((r) => ({ value: r, label: t(`roles.${r}`) }))}
+              options={ROLES.map((r) => ({ value: r, label: t(`roles.${r}`) }))}
             />
-            {role === "STAFF" && (
+            {usesWarehouses(role) && (
               <FormField
                 control={form.control}
                 name="warehouseIds"

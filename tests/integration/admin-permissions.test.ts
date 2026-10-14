@@ -8,6 +8,7 @@ import * as users from "@/server/actions/users";
 import * as products from "@/server/actions/products";
 import * as productImport from "@/server/actions/product-import";
 import * as openingStock from "@/server/actions/opening-stock";
+import * as settings from "@/server/actions/settings";
 import { requirePagePermission } from "@/server/auth/dal";
 import { makeUser, makeWarehouse, resetDatabase, testDb } from "../helpers/db";
 import { signInAs } from "../helpers/auth";
@@ -23,10 +24,10 @@ const ACTIONS: [string, () => Promise<{ ok: boolean; error?: string }>][] = [
   ["createWarehouse", () => warehouses.createWarehouse({ name: "X", city: "Y", kind: "SELLABLE" })],
   ["updateWarehouse", () => warehouses.updateWarehouse("w", { name: "X", city: "Y", kind: "SELLABLE" })],
   ["setWarehouseActive", () => warehouses.setWarehouseActive("w", false)],
-  ["createUser", () => users.createUser({ name: "X", email: "x@x.test", role: "ADMIN", warehouseIds: [], password: "password1" })],
+  ["createUser", () => users.createUser({ name: "X", email: "x@x.test", role: "ADMIN", warehouseIds: [], password: "password123" })],
   ["updateUser", () => users.updateUser("u", { name: "X", email: "x@x.test", role: "ADMIN", warehouseIds: [] })],
   ["setUserActive", () => users.setUserActive("u", false)],
-  ["resetUserPassword", () => users.resetUserPassword("u", { password: "password1" })],
+  ["resetUserPassword", () => users.resetUserPassword("u", { password: "password123" })],
   ["createProduct", () => products.createProduct({})],
   ["updateProduct", () => products.updateProduct("p", {})],
   ["setProductActive", () => products.setProductActive("p", false)],
@@ -34,13 +35,14 @@ const ACTIONS: [string, () => Promise<{ ok: boolean; error?: string }>][] = [
   ["applyProductImport", () => productImport.applyProductImport(fd())],
   ["previewOpeningStock", () => openingStock.previewOpeningStock(fd())],
   ["applyOpeningStock", () => openingStock.applyOpeningStock(fd())],
+  ["saveApprovalRulesAction", () => settings.saveApprovalRulesAction({})],
 ];
 
 beforeAll(resetDatabase);
 afterAll(() => testDb.$disconnect());
 
 describe("admin actions reject non-admins on the server", () => {
-  for (const role of ["STAFF", "VIEWER"] as const) {
+  for (const role of ["MANAGER", "STAFF", "TECHNICIAN", "ACCOUNTANT", "VIEWER"] as const) {
     it.each(ACTIONS)(`${role}: %s → forbidden`, async (_name, call) => {
       const w = await makeWarehouse();
       signInAs(await makeUser(role, [w.id]));
@@ -48,8 +50,8 @@ describe("admin actions reject non-admins on the server", () => {
     });
   }
 
-  it("sends STAFF and VIEWER from admin pages to the dashboard with a notice", async () => {
-    for (const role of ["STAFF", "VIEWER"] as const) {
+  it("sends non-admins from admin pages to the dashboard with a notice", async () => {
+    for (const role of ["MANAGER", "STAFF", "TECHNICIAN", "ACCOUNTANT", "VIEWER"] as const) {
       signInAs(await makeUser(role));
       await expect(requirePagePermission("product:manage")).rejects.toMatchObject({
         digest: expect.stringContaining("/?denied=1"),

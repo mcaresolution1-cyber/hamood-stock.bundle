@@ -7,13 +7,17 @@ import mariadb from "mariadb";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient } from "@/generated/prisma/client";
 import type { Role, WarehouseKind } from "@/generated/prisma/enums";
-import { ENTRY_NUMBER_PREFIXES } from "@/lib/stock/numbering";
+import { COUNTER_KEYS } from "@/lib/stock/numbering";
 import { mariadbConfig } from "@/lib/db-config";
 import { testDatabaseUrl } from "../setup/test-db-url";
 
 export const testDb = new PrismaClient({ adapter: new PrismaMariaDb(mariadbConfig(testDatabaseUrl())) });
 
 const TABLES = [
+  "ApprovalRequest",
+  "AuditLog",
+  "LoginEvent",
+  "Setting",
   "StockEntryLine",
   "StockEntry",
   "StockLevel",
@@ -38,7 +42,7 @@ export async function resetDatabase() {
   }
   // Counters are advanced with a plain UPDATE (CLAUDE.md), so the rows must exist.
   await testDb.counter.createMany({
-    data: Object.values(ENTRY_NUMBER_PREFIXES).map((key) => ({ key, value: 0 })),
+    data: COUNTER_KEYS.map((key) => ({ key, value: 0 })),
   });
 }
 

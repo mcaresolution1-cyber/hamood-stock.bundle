@@ -47,13 +47,15 @@
       "invalidCredentials": "Incorrect email or password.",
       "emailInvalid": "Enter a valid email address.",
       "passwordRequired": "Enter your password.",
-      "generic": "Something went wrong. Please try again."
+      "generic": "Something went wrong. Please try again.",
+      "rateLimited": "Too many attempts. Try again in 15 minutes."
     }
   },
   "topBar": {
     "language": "Language",
     "signedInAs": "Signed in as",
-    "openMenu": "Open user menu"
+    "openMenu": "Open user menu",
+    "account": "Change password"
   },
   "language": {
     "en": "English",
@@ -62,7 +64,10 @@
   "roles": {
     "ADMIN": "Admin",
     "STAFF": "Staff",
-    "VIEWER": "Viewer"
+    "VIEWER": "Viewer",
+    "MANAGER": "Manager",
+    "TECHNICIAN": "Technician",
+    "ACCOUNTANT": "Accountant"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -81,7 +86,9 @@
     "today": "Entries today",
     "recent": "Latest entries",
     "viewAll": "View all",
-    "noEntries": "No entries yet."
+    "noEntries": "No entries yet.",
+    "pendingApprovals": "Waiting for your approval",
+    "myRequests": "My requests waiting"
   },
   "categories": {
     "wall-mount": "TV wall mounts",
@@ -111,13 +118,17 @@
     "stockIn": "Stock in",
     "stockOut": "Stock out",
     "entries": "Entries",
-    "reports": "Reports"
+    "reports": "Reports",
+    "approvals": "Approvals",
+    "audit": "Audit log",
+    "settings": "Settings",
+    "jobs": "My jobs"
   },
   "validation": {
     "required": "This field is required.",
     "tooLong": "This is too long.",
     "email": "Enter a valid email address.",
-    "passwordMin": "Use at least 8 characters.",
+    "passwordMin": "Use at least 10 characters.",
     "url": "Enter a full web address starting with http:// or https://.",
     "money": "Enter an amount like 1250 or 1250.50.",
     "wholeNumber": "Enter a whole number (0 or more).",
@@ -159,27 +170,48 @@
     "password": "Password",
     "newPassword": "New password",
     "warehouses": "Warehouses",
-    "warehousesHint": "Staff can only record stock in the warehouses ticked here.",
+    "warehousesHint": "Staff and managers work only in the warehouses ticked here.",
     "noWarehouses": "No warehouses assigned",
     "allWarehouses": "All warehouses",
     "resetPassword": "Reset password",
     "resetTitle": "Reset password for {name}",
-    "resetDone": "Password changed. Share it with {name} securely.",
+    "resetDone": "Password changed. Share it with {name} securely — they will choose a new one when they sign in.",
     "you": "you",
     "empty": "No users yet.",
     "deactivateConfirm": "Deactivate {name}? They will be signed out and can't sign in.",
     "activateConfirm": "Let {name} sign in again?",
     "roleHelp": {
-      "ADMIN": "Everything, including cost, voids and settings.",
-      "STAFF": "Records stock in, out and transfers in their warehouses.",
-      "VIEWER": "Can look at stock and history, can't change anything."
+      "ADMIN": "Everything, including cost, settings and the audit log. Never needs approval.",
+      "STAFF": "Records stock in, out and transfers in their warehouses; corrections and write-offs go for approval.",
+      "VIEWER": "Can look at stock and history, can't change anything.",
+      "MANAGER": "Records everything in their warehouses (incl. corrections, write-offs, voids) and approves requests there. No cost.",
+      "TECHNICIAN": "Sees only the installation jobs issued to them.",
+      "ACCOUNTANT": "Read-only, sees cost, stock value and the audit log."
     },
     "errors": {
       "emailTaken": "A user with this email already exists.",
       "self": "You can't remove your own admin access.",
       "lastAdmin": "There must always be at least one active admin.",
       "unknownWarehouse": "One of the selected warehouses no longer exists."
-    }
+    },
+    "lastLogin": "Last sign-in",
+    "never": "Never",
+    "mustChange": "Must change password",
+    "loginHistory": "Sign-in history",
+    "loginHistorySubtitle": "The last 50 sign-in attempts for this account.",
+    "loginEmpty": "No sign-ins yet.",
+    "when": "When",
+    "result": "Result",
+    "ip": "IP address",
+    "loginOk": "Signed in",
+    "loginReasons": {
+      "password": "Wrong password",
+      "inactive": "Account deactivated",
+      "rateLimited": "Blocked — too many attempts",
+      "pending": "Not finished"
+    },
+    "details": "Details",
+    "backToUsers": "All users"
   },
   "products": {
     "title": "Products",
@@ -381,7 +413,10 @@
       "orderOrCustomer": "Enter the order no. or the customer name.",
       "tooManyLines": "At most 50 products per entry. Save this one and start another.",
       "overAvailable": "Some quantities are more than what's in stock."
-    }
+    },
+    "sentForApproval": "Sent for approval",
+    "approvalHint": "Stock changes only when a manager or admin approves it.",
+    "viewRequest": "View request"
   },
   "productPicker": {
     "add": "Add product",
@@ -416,7 +451,8 @@
       "alreadyVoided": "This entry has already been voided.",
       "cannotVoidVoid": "A void can't be voided.",
       "warehouseInactive": "That warehouse is no longer active, so stock can't be put back into it."
-    }
+    },
+    "sentForApproval": "Sent for approval: {number}"
   },
   "entries": {
     "title": "Entries",
@@ -455,7 +491,8 @@
     "photo": "Delivery note photo",
     "quantity": "Qty",
     "total": "Total",
-    "backToList": "All entries"
+    "backToList": "All entries",
+    "voidRequested": "Void waiting for approval"
   },
   "deliveryNote": {
     "title": "Delivery note",
@@ -545,5 +582,173 @@
     "copyDetails": "Copy details",
     "copied": "Copied",
     "reportHint": "If it keeps happening, send these details to your admin."
+  },
+  "approvals": {
+    "title": "Approvals",
+    "subtitle": "Corrections, write-offs and voids waiting for a decision.",
+    "views": {
+      "toDecide": "Waiting for me",
+      "mine": "My requests",
+      "decided": "Decided"
+    },
+    "empty": {
+      "toDecide": "Nothing is waiting for you.",
+      "mine": "You haven't sent any requests.",
+      "decided": "No decisions yet."
+    },
+    "number": "Request",
+    "what": "What",
+    "rules": {
+      "correction": "Correction",
+      "damaged": "Damaged / lost",
+      "void": "Void"
+    },
+    "status": {
+      "PENDING": "Pending",
+      "APPROVED": "Approved",
+      "REJECTED": "Rejected",
+      "CANCELLED": "Withdrawn"
+    },
+    "requestedBy": "Requested by",
+    "requestedAt": "Requested",
+    "decidedBy": "Decided by",
+    "decidedAt": "Decided",
+    "warehouse": "Warehouse",
+    "units": "Units",
+    "value": "Value at cost",
+    "note": "Note",
+    "voidReason": "Why void it",
+    "entryToVoid": "Entry to void",
+    "result": "Entry saved",
+    "decisionNote": "Decision note",
+    "direction": {
+      "IN": "Stock in",
+      "OUT": "Stock out"
+    },
+    "product": "Product",
+    "quantity": "Qty",
+    "unknownProduct": "Deleted product",
+    "approve": "Approve",
+    "reject": "Reject",
+    "approveTitle": "Approve {number}?",
+    "approveHint": "The entry is saved now and stock changes.",
+    "rejectTitle": "Reject {number}?",
+    "rejectHint": "Nothing changes in stock. The requester sees your note.",
+    "noteOptional": "Note (optional)",
+    "noteRequired": "Why? (at least 3 characters)",
+    "approved": "Approved — {number} saved.",
+    "rejected": "Request rejected.",
+    "withdraw": "Withdraw request",
+    "withdrawConfirm": "Withdraw {number}? Nothing changes in stock.",
+    "withdrawn": "Request withdrawn.",
+    "autoCancelled": "Closed because the entry was voided directly.",
+    "ownHint": "Your request — another manager or an admin decides it.",
+    "notYoursHint": "Only a manager of this warehouse or an admin can decide this request.",
+    "alreadyVoided": "This entry has been voided meanwhile — reject the request.",
+    "approvedVia": "Approved by {name} ({number})",
+    "errors": {
+      "ownRequest": "You can't approve or reject your own request.",
+      "notYourWarehouse": "This request is for a warehouse you don't manage.",
+      "notPending": "This request has already been decided.",
+      "noteRequired": "Give a reason (at least 3 characters).",
+      "voidAlreadyRequested": "A void of this entry is already waiting for approval.",
+      "requesterInactive": "The requester's account is deactivated — reject the request."
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Approval limits for corrections, write-offs and voids.",
+    "approvalsTitle": "Approval limits",
+    "approvalsHint": "Managers and staff save directly up to these limits; anything above waits for a manager or admin. 0 units = always ask. Admins never need approval.",
+    "maxUnits": "Up to (units)",
+    "maxValue": "and up to (SAR)",
+    "maxValueHint": "Empty = no SAR limit. Value = quantity × product cost; products without a cost count by units only.",
+    "saved": "Settings saved."
+  },
+  "audit": {
+    "title": "Audit log",
+    "subtitle": "Who changed products, users, warehouses, settings and approvals.",
+    "empty": "Nothing recorded yet.",
+    "when": "When",
+    "user": "By",
+    "area": "Area",
+    "action": "What",
+    "subject": "Item",
+    "changes": "Changes",
+    "allAreas": "All areas",
+    "allUsers": "All users",
+    "areas": {
+      "product": "Products",
+      "user": "Users",
+      "warehouse": "Warehouses",
+      "setting": "Settings",
+      "approval": "Approvals"
+    },
+    "actions": {
+      "product_create": "Product created",
+      "product_update": "Product changed",
+      "product_import": "Products imported",
+      "user_create": "User created",
+      "user_update": "User changed",
+      "user_activate": "User activated",
+      "user_deactivate": "User deactivated",
+      "user_resetPassword": "Password reset by admin",
+      "warehouse_create": "Warehouse created",
+      "warehouse_update": "Warehouse changed",
+      "warehouse_activate": "Warehouse activated",
+      "warehouse_deactivate": "Warehouse deactivated",
+      "setting_update": "Settings changed",
+      "approval_approve": "Request approved",
+      "approval_reject": "Request rejected"
+    },
+    "fields": {
+      "modelCode": "Model code",
+      "nameEn": "Name (English)",
+      "nameAr": "Name (Arabic)",
+      "category": "Category",
+      "variant": "Variant",
+      "imageUrl": "Image",
+      "cost": "Cost",
+      "lowStockLevel": "Low-stock level",
+      "wooProductId": "WooCommerce ID",
+      "active": "Active",
+      "name": "Name",
+      "email": "Email",
+      "role": "Role",
+      "warehouses": "Warehouses",
+      "city": "City",
+      "kind": "Type",
+      "status": "Status",
+      "correction": "Corrections",
+      "damaged": "Damaged / lost",
+      "void": "Voids",
+      "fileName": "File",
+      "created": "Created",
+      "updated": "Updated",
+      "note": "Note",
+      "maxUnits": "Units limit",
+      "maxValue": "SAR limit",
+      "entry": "Entry"
+    }
+  },
+  "account": {
+    "title": "Change password",
+    "subtitle": "Choose a password only you know.",
+    "mustChange": "Choose a new password before you continue.",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmPassword": "Repeat new password",
+    "submit": "Change password",
+    "done": "Password changed.",
+    "errors": {
+      "wrongCurrent": "Your current password is not correct.",
+      "mismatch": "The two new passwords don't match.",
+      "sameAsOld": "Choose a password different from the current one."
+    }
+  },
+  "jobs": {
+    "title": "My jobs",
+    "subtitle": "Installation jobs issued to you.",
+    "empty": "No jobs yet. They appear here when a manager issues stock to you for an installation."
   }
 }
