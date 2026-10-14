@@ -76,7 +76,7 @@ describe("saveEntry", () => {
       ...emptyEntryForm("OUT"),
       reason: "WEBSITE_ORDER",
       warehouseId: main,
-      reference: "WC-1",
+      reference: "10001",
       lines: [{ productId: p1, quantity: "6" }],
     });
     expect(result).toEqual({

@@ -90,6 +90,8 @@ model User {
   createdEntries StockEntry[] @relation("EntryCreatedBy")
   voidedEntries  StockEntry[] @relation("EntryVoidedBy")
   attachments    Attachment[]
+  lineCosts      LineCost[]
+  supplierReturnUpdates SupplierReturn[]
   loginEvents    LoginEvent[]
   auditActions   AuditLog[]
   requests       ApprovalRequest[] @relation("RequestedBy")
@@ -259,6 +261,14 @@ model StockEntry {
   supplierId     String?
   note           String?     @db.Text
   photoUrl       String?
+  /// Phase C1 — return reason (customer return) or damage category (damaged/lost), see src/lib/stock/details.ts
+  reasonCode     String?     @db.VarChar(32)
+  /// Direct sale: CASH | CARD | TRANSFER
+  paymentMethod  String?     @db.VarChar(16)
+  /// Direct sale: who sold it (defaults to the user saving the entry)
+  salesperson    String?     @db.VarChar(100)
+  /// Customer return: the sale (OUT entry) the goods came from, when known
+  originalEntryId String?
   /// One key per submitted form: a repeated submit (slow connection, retry) returns the entry already saved.
   idempotencyKey String?     @unique @db.VarChar(64)
   /// Transfer pair partner, or (for a VOID entry) the entry being voided
@@ -276,6 +286,11 @@ model StockEntry {
   linkedEntry StockEntry?      @relation("LinkedEntry", fields: [linkedEntryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   linkedFrom  StockEntry[]     @relation("LinkedEntry")
   lines       StockEntryLine[]
+  /// onUpdate Restrict like linkedEntry (ids never change)
+  originalEntry StockEntry?    @relation("OriginalEntry", fields: [originalEntryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  returns       StockEntry[]   @relation("OriginalEntry")
+  attachments   EntryAttachment[]
+  supplierReturn SupplierReturn?
 
   voidRequests  ApprovalRequest[] @relation("RequestTarget")
   approvedVia   ApprovalRequest?  @relation("RequestResult")
@@ -287,6 +302,8 @@ model StockEntry {
   @@index([linkedEntryId])
   @@index([reference])
   @@index([supplierId, reference])
+  @@index([originalEntryId])
+  @@index([reason, reference])
 }
 
 model StockEntryLine {
@@ -298,6 +315,7 @@ model StockEntryLine {
 
   entry   StockEntry @relation(fields: [entryId], references: [id], onDelete: Restrict)
   product Product    @relation(fields: [productId], references: [id], onDelete: Restrict)
+  cost    LineCost?
 
   @@index([entryId])
   @@index([productId])
@@ -335,6 +353,7 @@ model Attachment {
   createdAt   DateTime @default(now()) @db.DateTime(3)
 
   createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  entries   EntryAttachment[]
 }
 
 // ─── Controls (v2 Phase A) ────────────────────────────────────────────────
@@ -426,4 +445,49 @@ model Setting {
   value       Json
   updatedAt   DateTime @updatedAt @db.DateTime(3)
   updatedById String?
+}
+
+// ─── Entry details (v2 Phase C1) ──────────────────────────────────────────
+
+/// Unit cost of a supplier-delivery line (decision PC3). Separate from the line so ledger lines stay immutable;
+/// entered with the delivery or later ("cost pending"), corrected only with an audit row.
+model LineCost {
+  lineId      String   @id
+  unitCost    Decimal  @db.Decimal(12, 2)
+  enteredById String
+  enteredAt   DateTime @default(now()) @db.DateTime(3)
+
+  line      StockEntryLine @relation(fields: [lineId], references: [id], onDelete: Restrict)
+  enteredBy User           @relation(fields: [enteredById], references: [id], onDelete: Restrict)
+}
+
+/// Photos of an entry (up to 5); StockEntry.photoUrl keeps the first one.
+model EntryAttachment {
+  entryId      String
+  attachmentId String
+  position     Int
+
+  entry      StockEntry @relation(fields: [entryId], references: [id], onDelete: Restrict)
+  attachment Attachment @relation(fields: [attachmentId], references: [id], onDelete: Restrict)
+
+  @@id([entryId, attachmentId])
+  /// A photo belongs to one entry.
+  @@unique([attachmentId])
+}
+
+/// Return to supplier follow-up: expected credit and whether it arrived (the entry itself never changes).
+model SupplierReturn {
+  entryId          String    @id
+  expectedCredit   Decimal?  @db.Decimal(12, 2)
+  /// SENT | CREDIT_RECEIVED
+  status           String    @default("SENT") @db.VarChar(20)
+  creditAmount     Decimal?  @db.Decimal(12, 2)
+  creditReceivedAt DateTime? @db.DateTime(3)
+  updatedById      String
+  updatedAt        DateTime  @updatedAt @db.DateTime(3)
+
+  entry     StockEntry @relation(fields: [entryId], references: [id], onDelete: Restrict)
+  updatedBy User       @relation(fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@index([status])
 }

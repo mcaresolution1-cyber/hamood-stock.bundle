@@ -110,8 +110,10 @@ describe("stock on hand", () => {
 
 describe("low stock (Q5)", () => {
   it("lists products whose total sellable stock is at or below their level; damaged stock doesn't count", async () => {
-    await inn(main, p1, 6);
-    await createEntry(testDb, admin, { direction: "IN", reason: "CUSTOMER_RETURN", returnCondition: "DAMAGED", warehouseId: damaged, customerName: "x", lines: [{ productId: p1, quantity: 50 }] });
+    await inn(main, p1, 56);
+    // 50 sold and returned broken: they sit in the damaged warehouse
+    await createEntry(testDb, admin, { direction: "OUT", reason: "WEBSITE_ORDER", warehouseId: main, reference: "20001", lines: [{ productId: p1, quantity: 50 }] });
+    await createEntry(testDb, admin, { direction: "IN", reason: "CUSTOMER_RETURN", returnCondition: "DAMAGED", warehouseId: damaged, reference: "20001", reasonCode: "DEFECTIVE", lines: [{ productId: p1, quantity: 50 }] });
     let r = await lowStock({});
     expect(r.rows.map((x) => [x.modelCode, x.total, x.shortBy])).toEqual([["HMD-772", 6, 4]]);
     expect(r.warehouses.map((w) => w.name)).toEqual(["Jeddah", "Riyadh Main"]);

@@ -89,6 +89,9 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
             {"cost" in product && product.cost && (
               <Badge variant="secondary">{t("productPage.cost", { cost: String(product.cost) })}</Badge>
             )}
+            {"averageCost" in product && product.averageCost && (
+              <Badge variant="secondary">{t("productPage.averageCost", { cost: product.averageCost })}</Badge>
+            )}
           </div>
         </div>
         {can(user.role, "product:manage") && (

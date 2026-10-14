@@ -3,7 +3,7 @@ import { fieldsFor, keepReasonFields, noteRequired } from "./fields";
 
 describe("reason fields", () => {
   it("lists required fields per reason", () => {
-    expect(fieldsFor("DIRECT_SALE").filter((f) => f.required).map((f) => f.field)).toEqual(["customerName", "customerPhone"]);
+    expect(fieldsFor("DIRECT_SALE").filter((f) => f.required).map((f) => f.field)).toEqual(["customerName", "customerPhone", "paymentMethod"]);
     expect(fieldsFor("")).toEqual([]);
     expect(noteRequired("CORRECTION")).toBe(true);
     expect(noteRequired("WEBSITE_ORDER")).toBe(false);

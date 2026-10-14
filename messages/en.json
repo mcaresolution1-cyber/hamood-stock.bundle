@@ -475,15 +475,49 @@
       "reasonRequired": "Choose what happened.",
       "warehouseRequired": "Choose a warehouse.",
       "destinationRequired": "Choose where the stock goes.",
-      "orderOrCustomer": "Enter the order no. or the customer name.",
       "tooManyLines": "At most 50 products per entry. Save this one and start another.",
-      "overAvailable": "Some quantities are more than what's in stock."
+      "overAvailable": "Some quantities are more than what's in stock.",
+      "orderRequired": "Enter the order no. or the sale's entry no. (OUT-…).",
+      "photoRequired": "Add a photo of the broken item.",
+      "tooManyPhotos": "Up to 5 photos.",
+      "websiteOrder": "Use the website order number (digits only, e.g. 12345).",
+      "twoCosts": "The same product has two different unit costs."
     },
     "sentForApproval": "Sent for approval",
     "approvalHint": "Stock changes only when a manager or admin approves it.",
     "viewRequest": "View request",
     "supplier": "Supplier",
-    "duplicateInvoice": "Invoice {reference} from this supplier was already received in {number}. Save anyway only if this is really a second delivery."
+    "duplicateInvoice": "Invoice {reference} from this supplier was already received in {number}. Save anyway only if this is really a second delivery.",
+    "returnReason": "Return reason",
+    "damageReason": "What happened",
+    "choose": "Choose…",
+    "paymentMethod": "Payment method",
+    "payment": {
+      "CASH": "Cash",
+      "CARD": "Card",
+      "TRANSFER": "Bank transfer"
+    },
+    "salesperson": "Salesperson",
+    "expectedCredit": "Expected credit (SAR)",
+    "returnOrderNo": "Order no. or sale entry no.",
+    "receiptNo": "Receipt / invoice no.",
+    "rmaNo": "RMA / reference no.",
+    "codes": {
+      "WRONG_SIZE": "Wrong size",
+      "CHANGED_MIND": "Customer changed mind",
+      "DEFECTIVE": "Defective",
+      "DAMAGED_IN_DELIVERY": "Damaged in delivery",
+      "INSTALLATION_CANCELLED": "Installation cancelled",
+      "OTHER": "Other",
+      "BROKEN_WAREHOUSE": "Broken in the warehouse",
+      "BROKEN_DELIVERY": "Broken in delivery",
+      "MISSING": "Missing",
+      "OBSOLETE": "Expired / obsolete"
+    },
+    "unitCost": "Unit cost (SAR)",
+    "unitCostHint": "Leave empty if you don't know it yet — a manager fills it in later.",
+    "atCost": "at {cost} SAR",
+    "duplicateWebsiteOrder": "Website order {reference} was already shipped in {number}. Save only if this is a second part of the same order."
   },
   "productPicker": {
     "add": "Add product",
@@ -500,8 +534,12 @@
     "remove": "Remove photo",
     "errors": {
       "type": "Use a JPEG, PNG or WebP image.",
-      "tooBig": "The photo is larger than 4 MB."
-    }
+      "tooBig": "The photo is larger than 4 MB.",
+      "used": "This photo is already attached to another entry. Take or choose it again."
+    },
+    "labelMany": "Photos",
+    "numbered": "Photo {n}",
+    "removeNumbered": "Remove photo {n}"
   },
   "void": {
     "button": "Void",
@@ -560,7 +598,33 @@
     "quantity": "Qty",
     "total": "Total",
     "backToList": "All entries",
-    "voidRequested": "Void waiting for approval"
+    "voidRequested": "Void waiting for approval",
+    "costPending": "Cost pending",
+    "costPendingFilter": "Only cost pending",
+    "returnOf": "Return of",
+    "returnedIn": "Returned in",
+    "photos": "Photos",
+    "paymentMethod": "Payment",
+    "salesperson": "Salesperson",
+    "costs": "Unit costs",
+    "costsHint": "Enter the cost per unit from the supplier's invoice. Corrections are logged.",
+    "saveCosts": "Save costs",
+    "costsSaved": "Costs saved.",
+    "enteredBy": "by {name}",
+    "supplierCredit": "Supplier credit",
+    "expectedCredit": "Expected",
+    "creditStatus": {
+      "SENT": "Sent — waiting for credit",
+      "CREDIT_RECEIVED": "Credit received"
+    },
+    "creditAmount": "Credit received (SAR)",
+    "markCredit": "Mark credit received",
+    "markSent": "Back to waiting",
+    "creditSaved": "Saved.",
+    "errors": {
+      "notCostable": "Costs can only be entered on a supplier delivery that isn't voided.",
+      "voidedEntry": "This entry was voided; it can no longer be changed."
+    }
   },
   "deliveryNote": {
     "title": "Delivery note",
@@ -599,7 +663,8 @@
     "edit": "Edit product",
     "cost": "Unit cost: {cost} SAR",
     "price": "Price {price} SAR",
-    "reorderAt": "reorder at {level}"
+    "reorderAt": "reorder at {level}",
+    "averageCost": "Average cost: {cost} SAR"
   },
   "reports": {
     "title": "Reports",
@@ -753,7 +818,8 @@
       "warehouse": "Warehouses",
       "setting": "Settings",
       "approval": "Approvals",
-      "supplier": "Suppliers"
+      "supplier": "Suppliers",
+      "entry": "Entries"
     },
     "actions": {
       "product_create": "Product created",
@@ -774,7 +840,9 @@
       "supplier_create": "Supplier created",
       "supplier_update": "Supplier changed",
       "supplier_activate": "Supplier activated",
-      "supplier_deactivate": "Supplier deactivated"
+      "supplier_deactivate": "Supplier deactivated",
+      "entry_costs": "Delivery costs entered",
+      "entry_supplierCredit": "Supplier credit updated"
     },
     "fields": {
       "modelCode": "Model code",
@@ -823,7 +891,8 @@
       "vatNumber": "VAT no.",
       "paymentTerms": "Payment terms",
       "notes": "Notes",
-      "country": "Country"
+      "country": "Country",
+      "creditAmount": "Credit"
     }
   },
   "account": {
@@ -877,6 +946,12 @@
       "nameTaken": "A supplier with this name already exists.",
       "inactive": "A supplier with this name exists but is deactivated. Ask a manager to activate it.",
       "required": "Choose a supplier."
+    }
+  },
+  "returns": {
+    "errors": {
+      "noSale": "No recorded sale with {reference}. For sales from before the app, use Correction +.",
+      "tooMany": "Only {available} {modelCode} can still be returned on {reference}."
     }
   }
 }

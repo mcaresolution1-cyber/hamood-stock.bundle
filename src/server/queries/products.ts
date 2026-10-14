@@ -8,6 +8,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { can } from "@/lib/permissions";
 import { PRODUCT_STATUSES, type ProductStatusName } from "@/lib/products";
 import type { CurrentUser } from "@/server/auth/dal";
+import { effectiveCosts } from "@/server/stock/costs";
 
 export const PRODUCT_PAGE_SIZE = 25;
 export const PRODUCT_EXPORT_LIMIT = 5000;
@@ -97,6 +98,10 @@ export async function listProducts(user: CurrentUser, filters: ProductFilters, o
     db.warehouse.findMany({ where: { active: true }, select: { id: true, name: true, kind: true }, orderBy: [{ kind: "asc" }, { name: "asc" }] }),
   ]);
   const kindOf = new Map(warehouses.map((w) => [w.id, w.kind]));
+  // Stock value uses the weighted-average delivery cost where known, else the product's own cost (PC3).
+  const costs = showCost
+    ? await effectiveCosts(db, rows.map((r) => ({ id: r.id, cost: ((r as { cost?: Prisma.Decimal | null }).cost ?? null) })))
+    : new Map<string, Prisma.Decimal | null>();
 
   return {
     total,
@@ -109,7 +114,8 @@ export async function listProducts(user: CurrentUser, filters: ProductFilters, o
       const sellable = levels.filter((l) => kindOf.get(l.warehouseId) === "SELLABLE").reduce((s, l) => s + l.quantity, 0);
       const damaged = levels.filter((l) => kindOf.get(l.warehouseId) === "DAMAGED").reduce((s, l) => s + l.quantity, 0);
       const units = sellable + damaged;
-      const c = (cost ?? null) as Prisma.Decimal | null;
+      void cost;
+      const c = costs.get(p.id) ?? null;
       return {
         ...p,
         sellingPrice: sellingPrice ? sellingPrice.toFixed(2) : null,

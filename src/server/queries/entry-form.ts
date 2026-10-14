@@ -6,7 +6,7 @@
  */
 import "server-only";
 import { db } from "@/lib/db";
-import { canWriteToWarehouse } from "@/lib/permissions";
+import { can, canWriteToWarehouse } from "@/lib/permissions";
 import { formReasons, type Direction } from "@/lib/stock/policy";
 import type { CurrentUser } from "@/server/auth/dal";
 
@@ -51,6 +51,10 @@ export async function loadEntryForm(user: CurrentUser, direction: Direction) {
   return {
     direction,
     reasons: formReasons(user.role, direction),
+    /** May enter supplier-delivery unit costs (ADMIN, MANAGER) */
+    canEnterCost: can(user.role, "cost:enter"),
+    /** Default salesperson on a direct sale */
+    userName: user.name,
     warehouses: warehouses.map((w) => ({ ...w, writable: canWriteToWarehouse(user, w.id) })),
     products,
     stock,

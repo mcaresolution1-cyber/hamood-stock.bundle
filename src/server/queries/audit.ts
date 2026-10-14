@@ -5,7 +5,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { isValidDay, parsePage, riyadhDayStart } from "./entries";
 
 export const AUDIT_PAGE_SIZE = 50;
-export const AUDIT_AREAS = ["product", "supplier", "user", "warehouse", "setting", "approval"] as const;
+export const AUDIT_AREAS = ["product", "supplier", "entry", "user", "warehouse", "setting", "approval"] as const;
 export type AuditArea = (typeof AUDIT_AREAS)[number];
 
 export type AuditFilters = { area?: AuditArea; userId?: string; from?: string; to?: string; page: number };

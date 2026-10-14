@@ -475,15 +475,49 @@
       "reasonRequired": "اختر ماذا حدث.",
       "warehouseRequired": "اختر مستودعًا.",
       "destinationRequired": "اختر المستودع المحوَّل إليه.",
-      "orderOrCustomer": "أدخل رقم الطلب أو اسم العميل.",
       "tooManyLines": "50 منتجًا كحد أقصى في القيد. احفظ هذا القيد وابدأ قيدًا آخر.",
-      "overAvailable": "بعض الكميات أكبر من المتوفر في المخزون."
+      "overAvailable": "بعض الكميات أكبر من المتوفر في المخزون.",
+      "orderRequired": "أدخل رقم الطلب أو رقم قيد البيع (OUT-…).",
+      "photoRequired": "أضف صورة للقطعة المكسورة.",
+      "tooManyPhotos": "حتى 5 صور.",
+      "websiteOrder": "استخدم رقم طلب الموقع (أرقام فقط، مثل 12345).",
+      "twoCosts": "للمنتج نفسه تكلفتان مختلفتان."
     },
     "sentForApproval": "أُرسل للموافقة",
     "approvalHint": "لن يتغير المخزون إلا بعد موافقة مدير المستودع أو مسؤول النظام.",
     "viewRequest": "عرض الطلب",
     "supplier": "المورد",
-    "duplicateInvoice": "الفاتورة {reference} من هذا المورد استُلمت من قبل في {number}. احفظ فقط إن كان هذا توريدًا ثانيًا فعلًا."
+    "duplicateInvoice": "الفاتورة {reference} من هذا المورد استُلمت من قبل في {number}. احفظ فقط إن كان هذا توريدًا ثانيًا فعلًا.",
+    "returnReason": "سبب الإرجاع",
+    "damageReason": "ماذا حدث",
+    "choose": "اختر…",
+    "paymentMethod": "طريقة الدفع",
+    "payment": {
+      "CASH": "نقدًا",
+      "CARD": "بطاقة",
+      "TRANSFER": "تحويل بنكي"
+    },
+    "salesperson": "البائع",
+    "expectedCredit": "الرصيد الدائن المتوقع (ريال)",
+    "returnOrderNo": "رقم الطلب أو رقم قيد البيع",
+    "receiptNo": "رقم الإيصال / الفاتورة",
+    "rmaNo": "رقم RMA / المرجع",
+    "codes": {
+      "WRONG_SIZE": "مقاس خاطئ",
+      "CHANGED_MIND": "غيّر العميل رأيه",
+      "DEFECTIVE": "معيب",
+      "DAMAGED_IN_DELIVERY": "تلف أثناء التوصيل",
+      "INSTALLATION_CANCELLED": "أُلغي التركيب",
+      "OTHER": "أخرى",
+      "BROKEN_WAREHOUSE": "انكسر في المستودع",
+      "BROKEN_DELIVERY": "انكسر أثناء التوصيل",
+      "MISSING": "مفقود",
+      "OBSOLETE": "منتهي / قديم"
+    },
+    "unitCost": "تكلفة الوحدة (ريال)",
+    "unitCostHint": "اتركها فارغة إن لم تكن تعرفها بعد — يكملها مدير المستودع لاحقًا.",
+    "atCost": "بسعر {cost} ريال",
+    "duplicateWebsiteOrder": "طلب الموقع {reference} شُحن من قبل في {number}. احفظ فقط إن كان هذا جزءًا ثانيًا من الطلب نفسه."
   },
   "productPicker": {
     "add": "إضافة منتج",
@@ -500,8 +534,12 @@
     "remove": "حذف الصورة",
     "errors": {
       "type": "استخدم صورة بصيغة JPEG أو PNG أو WebP.",
-      "tooBig": "حجم الصورة أكبر من 4 ميجابايت."
-    }
+      "tooBig": "حجم الصورة أكبر من 4 ميجابايت.",
+      "used": "هذه الصورة مرفقة بقيد آخر. التقطها أو اخترها من جديد."
+    },
+    "labelMany": "الصور",
+    "numbered": "الصورة {n}",
+    "removeNumbered": "حذف الصورة {n}"
   },
   "void": {
     "button": "إلغاء",
@@ -560,7 +598,33 @@
     "quantity": "الكمية",
     "total": "الإجمالي",
     "backToList": "كل القيود",
-    "voidRequested": "طلب إلغاء بانتظار الموافقة"
+    "voidRequested": "طلب إلغاء بانتظار الموافقة",
+    "costPending": "التكلفة معلّقة",
+    "costPendingFilter": "المعلّقة التكلفة فقط",
+    "returnOf": "إرجاع لـ",
+    "returnedIn": "أُرجع في",
+    "photos": "الصور",
+    "paymentMethod": "الدفع",
+    "salesperson": "البائع",
+    "costs": "تكاليف الوحدات",
+    "costsHint": "أدخل تكلفة الوحدة من فاتورة المورد. تُسجّل كل التعديلات.",
+    "saveCosts": "حفظ التكاليف",
+    "costsSaved": "تم حفظ التكاليف.",
+    "enteredBy": "بواسطة {name}",
+    "supplierCredit": "رصيد المورد",
+    "expectedCredit": "المتوقع",
+    "creditStatus": {
+      "SENT": "أُرسل — بانتظار الرصيد",
+      "CREDIT_RECEIVED": "استُلم الرصيد"
+    },
+    "creditAmount": "الرصيد المستلم (ريال)",
+    "markCredit": "تسجيل استلام الرصيد",
+    "markSent": "إرجاع إلى الانتظار",
+    "creditSaved": "تم الحفظ.",
+    "errors": {
+      "notCostable": "لا تُدخل التكاليف إلا على توريد من مورد غير ملغى.",
+      "voidedEntry": "تم إلغاء هذا القيد، ولا يمكن تعديله."
+    }
   },
   "deliveryNote": {
     "title": "إذن تسليم",
@@ -599,7 +663,8 @@
     "edit": "تعديل المنتج",
     "cost": "تكلفة الوحدة: {cost} ريال",
     "price": "السعر {price} ريال",
-    "reorderAt": "إعادة الطلب عند {level}"
+    "reorderAt": "إعادة الطلب عند {level}",
+    "averageCost": "متوسط التكلفة: {cost} ريال"
   },
   "reports": {
     "title": "التقارير",
@@ -753,7 +818,8 @@
       "warehouse": "المستودعات",
       "setting": "الإعدادات",
       "approval": "الموافقات",
-      "supplier": "الموردون"
+      "supplier": "الموردون",
+      "entry": "القيود"
     },
     "actions": {
       "product_create": "إنشاء منتج",
@@ -774,7 +840,9 @@
       "supplier_create": "إنشاء مورد",
       "supplier_update": "تعديل مورد",
       "supplier_activate": "تفعيل مورد",
-      "supplier_deactivate": "إيقاف مورد"
+      "supplier_deactivate": "إيقاف مورد",
+      "entry_costs": "إدخال تكاليف توريد",
+      "entry_supplierCredit": "تحديث رصيد المورد"
     },
     "fields": {
       "modelCode": "رقم الموديل",
@@ -823,7 +891,8 @@
       "vatNumber": "الرقم الضريبي",
       "paymentTerms": "شروط الدفع",
       "notes": "ملاحظات",
-      "country": "الدولة"
+      "country": "الدولة",
+      "creditAmount": "الرصيد"
     }
   },
   "account": {
@@ -877,6 +946,12 @@
       "nameTaken": "يوجد مورد بهذا الاسم بالفعل.",
       "inactive": "يوجد مورد بهذا الاسم لكنه موقوف. اطلب من مدير المستودع تفعيله.",
       "required": "اختر المورد."
+    }
+  },
+  "returns": {
+    "errors": {
+      "noSale": "لا يوجد بيع مسجل بالرقم {reference}. للمبيعات قبل استخدام التطبيق استخدم تصحيح +.",
+      "tooMany": "يمكن إرجاع {available} فقط من {modelCode} على {reference}."
     }
   }
 }

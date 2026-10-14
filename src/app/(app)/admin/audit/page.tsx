@@ -50,7 +50,7 @@ export default async function AuditPage({ searchParams }: PageProps<"/admin/audi
     return has(key) ? tr(key) : a;
   };
   const subjectHref = (type: string, id: string | null) =>
-    !id ? null : type === "product" ? `/products/${id}` : type === "approval" ? `/approvals/${id}` : type === "user" ? `/admin/users/${id}` : null;
+    !id ? null : type === "product" ? `/products/${id}` : type === "entry" ? `/entries/${id}` : type === "approval" ? `/approvals/${id}` : type === "user" ? `/admin/users/${id}` : null;
   const activeFilters = [filters.area, filters.userId, filters.from, filters.to].filter(Boolean).length;
 
   return (

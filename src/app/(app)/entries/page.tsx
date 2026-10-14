@@ -8,6 +8,8 @@ import { Pagination } from "@/components/pagination";
 import { Ltr } from "@/components/ltr";
 import { MobileCard, ResponsiveList } from "@/components/mobile-list";
 import { EntryTypeBadge } from "@/components/entry-badges";
+import { Badge } from "@/components/ui/badge";
+import { can } from "@/lib/permissions";
 import { requirePagePermission } from "@/server/auth/dal";
 import { listEntries, parseEntryFilters } from "@/server/queries/entries";
 import { EntryFilterForm } from "@/components/entry-filters";
@@ -17,8 +19,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function EntriesPage({ searchParams }: PageProps<"/entries">) {
-  await requirePagePermission("stock:view");
-  const filters = parseEntryFilters(await searchParams);
+  const user = await requirePagePermission("stock:view");
+  // Whether a delivery still lacks costs is money information: only the roles that see or enter costs.
+  const costRole = can(user.role, "cost:view") || can(user.role, "cost:enter");
+  const parsed = parseEntryFilters(await searchParams);
+  const filters = costRole ? parsed : { ...parsed, costPending: undefined };
   const [t, tc, format, result] = await Promise.all([
     getTranslations(),
     getTranslations("common"),
@@ -34,7 +39,7 @@ export default async function EntriesPage({ searchParams }: PageProps<"/entries"
     <>
       <PageHeader title={t("entries.title")} description={t("entries.subtitle")} />
 
-      <EntryFilterForm filters={filters} basePath="/entries" />
+      <EntryFilterForm filters={filters} basePath="/entries" showCostPending={costRole} />
 
       <p className="mb-2 text-sm text-muted-foreground">{tc("results", { count: result.total })}</p>
 
@@ -47,7 +52,10 @@ export default async function EntriesPage({ searchParams }: PageProps<"/entries"
               <Link href={`/entries/${e.id}`} className="block">
                 <div className="flex items-start justify-between gap-2">
                   <Ltr className="font-semibold">{e.number}</Ltr>
-                  <EntryTypeBadge type={e.type} voided={Boolean(e.voidedAt)} />
+                  <span className="flex flex-wrap justify-end gap-1">
+                    {costRole && e.costPending && <Badge variant="outline">{t("entries.costPending")}</Badge>}
+                    <EntryTypeBadge type={e.type} voided={Boolean(e.voidedAt)} />
+                  </span>
                 </div>
                 <p className="mt-1 text-sm">
                   {t(`reasons.${e.reason}`)} · {e.warehouse.name}
@@ -86,7 +94,10 @@ export default async function EntriesPage({ searchParams }: PageProps<"/entries"
                     </TableCell>
                     <TableCell className="whitespace-nowrap">{when(e.entryDate)}</TableCell>
                     <TableCell>
-                      <EntryTypeBadge type={e.type} voided={Boolean(e.voidedAt)} />
+                      <span className="flex flex-wrap gap-1">
+                        <EntryTypeBadge type={e.type} voided={Boolean(e.voidedAt)} />
+                        {costRole && e.costPending && <Badge variant="outline">{t("entries.costPending")}</Badge>}
+                      </span>
                     </TableCell>
                     <TableCell>{t(`reasons.${e.reason}`)}</TableCell>
                     <TableCell>{e.warehouse.name}</TableCell>

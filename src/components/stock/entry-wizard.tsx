@@ -22,7 +22,8 @@ import { ProductThumb } from "@/components/product-thumb";
 import { Ltr } from "@/components/ltr";
 import { ProductPicker } from "./product-picker";
 import { QuantityStepper } from "./quantity-stepper";
-import { PhotoInput } from "./photo-input";
+import { PhotosInput } from "./photo-input";
+import { MAX_PHOTOS, PAYMENT_METHODS, photoRequired, photosAllowed, reasonCodesFor } from "@/lib/stock/details";
 import { cn } from "@/lib/utils";
 import { normalizeNumberText } from "@/lib/import/normalize";
 import { fieldsFor, noteRequired, type DetailField } from "@/lib/stock/fields";
@@ -32,7 +33,7 @@ import type { EntryReason } from "@/generated/prisma/enums";
 import type { EntryFormData } from "@/server/queries/entry-form";
 import type { EntrySubmitResult } from "@/server/stock/approvals";
 import { newSubmitKey } from "@/lib/submit-key";
-import { findDuplicateInvoice, saveEntry } from "@/server/actions/entries";
+import { findDuplicateInvoice, findRepeatedWebsiteOrder, saveEntry } from "@/server/actions/entries";
 import type { SupplierOption } from "@/server/actions/suppliers";
 import { SupplierPicker, supplierLabel } from "./supplier-picker";
 import { runAction } from "@/lib/run-action";
@@ -40,6 +41,10 @@ import { runAction } from "@/lib/run-action";
 type Step = "form" | "review" | "done";
 
 const DETAIL_LABEL: Record<Exclude<DetailField, "returnCondition" | "destinationWarehouseId" | "supplierId">, string> = {
+  reasonCode: "reasonCode",
+  paymentMethod: "paymentMethod",
+  salesperson: "salesperson",
+  expectedCredit: "expectedCredit",
   supplierName: "supplierName",
   reference: "reference",
   customerName: "customerName",
@@ -51,7 +56,10 @@ const DETAIL_LABEL: Record<Exclude<DetailField, "returnCondition" | "destination
 function referenceLabel(reason: string) {
   if (reason === "SUPPLIER_DELIVERY") return "invoiceNo";
   if (reason === "WEBSITE_ORDER") return "wooOrderNo";
-  if (reason === "CUSTOMER_RETURN" || reason === "INSTALLATION" || reason === "DIRECT_SALE") return "orderNo";
+  if (reason === "CUSTOMER_RETURN") return "returnOrderNo";
+  if (reason === "DIRECT_SALE") return "receiptNo";
+  if (reason === "SUPPLIER_RETURN") return "rmaNo";
+  if (reason === "INSTALLATION") return "orderNo";
   return "reference";
 }
 
@@ -62,7 +70,7 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
   const [step, setStep] = useState<Step>("form");
   const [saved, setSaved] = useState<EntrySubmitResult | null>(null);
   const [suppliers, setSuppliers] = useState(data.suppliers);
-  const [duplicate, setDuplicate] = useState<{ id: string; number: string } | null>(null);
+  const [duplicate, setDuplicate] = useState<{ id: string; number: string; kind: "invoice" | "websiteOrder" } | null>(null);
   const [lastValues, setLastValues] = useState<EntryFormValues | null>(null);
   const [pending, startTransition] = useTransition();
   // One key per review screen: retries of the same submit reuse it (the server returns the entry already
@@ -119,7 +127,12 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
     const current = form.getValues();
     if (current.reason === "SUPPLIER_DELIVERY" && current.supplierId && current.reference?.trim()) {
       const found = await runAction(() => findDuplicateInvoice({ supplierId: current.supplierId, reference: current.reference }), { retry: true });
-      if (found.ok) setDuplicate(found.data);
+      if (found.ok) setDuplicate(found.data && { ...found.data, kind: "invoice" });
+    }
+    // Same website order already shipped? Also only a warning (PC2: one order can ship from two warehouses).
+    if (current.reason === "WEBSITE_ORDER" && current.reference?.trim()) {
+      const found = await runAction(() => findRepeatedWebsiteOrder({ reference: current.reference }), { retry: true });
+      if (found.ok) setDuplicate(found.data && { ...found.data, kind: "websiteOrder" });
     }
     setStep("review");
     window.scrollTo({ top: 0 });
@@ -131,7 +144,7 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
       const result = await runAction(() => saveEntry({ ...current, idempotencyKey: submitKey }), { retry: true }); // safe: idempotency key
       if (result.ok) {
         setSaved(result.data);
-        setLastValues({ ...current, photoUrl: "" });
+        setLastValues({ ...current, photoUrl: "", photoUrls: [], lines: current.lines.map((l) => ({ ...l, unitCost: "" })) });
         setStep("done");
         router.refresh(); // fresh stock numbers for the next entry
         window.scrollTo({ top: 0 });
@@ -211,7 +224,28 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
                   )}
                   {fieldsFor(reason)
                     .filter((f) => f.field in DETAIL_LABEL)
-                    .map(({ field, required }) => (
+                    .map(({ field, required }) =>
+                      field === "reasonCode" ? (
+                        <SelectField
+                          key={field}
+                          name="reasonCode"
+                          label={t(reason === "DAMAGED_LOST" ? "entryForm.damageReason" : "entryForm.returnReason")}
+                          placeholder={t("entryForm.choose")}
+                          options={reasonCodesFor(reason as EntryReason).map((c) => ({ value: c, label: t(`entryForm.codes.${c}` as never) }))}
+                        />
+                      ) : field === "paymentMethod" ? (
+                        <SelectField
+                          key={field}
+                          name="paymentMethod"
+                          label={t("entryForm.paymentMethod")}
+                          placeholder={t("entryForm.choose")}
+                          options={PAYMENT_METHODS.map((m) => ({ value: m, label: t(`entryForm.payment.${m}`) }))}
+                        />
+                      ) : field === "expectedCredit" ? (
+                        <TextField key={field} name="expectedCredit" label={t("entryForm.expectedCredit")} inputMode="decimal" dir="ltr" optional />
+                      ) : field === "salesperson" ? (
+                        <TextField key={field} name="salesperson" label={t("entryForm.salesperson")} placeholder={data.userName} optional />
+                      ) : (
                       <TextField
                         key={field}
                         name={field}
@@ -220,13 +254,23 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
                         {...(field === "customerPhone" ? { inputMode: "tel" as const, dir: "ltr", autoComplete: "tel" } : {})}
                         {...(field === "reference" ? { dir: "ltr" } : {})}
                       />
-                    ))}
+                      ),
+                    )}
                   <TextField name="note" label={t("entryForm.note")} optional={!noteRequired(reason)} />
-                  {data.direction === "IN" && (
-                    <PhotoInput
-                      value={values.photoUrl ?? ""}
-                      onChange={(url) => form.setValue("photoUrl", url, { shouldDirty: true })}
-                    />
+                  {photosAllowed(data.direction, reason as EntryReason) && (
+                    <div>
+                      <PhotosInput
+                        value={values.photoUrls ?? []}
+                        max={MAX_PHOTOS}
+                        required={photoRequired(reason as EntryReason, values.reasonCode)}
+                        onChange={(urls) => form.setValue("photoUrls", urls, { shouldDirty: true, shouldValidate: form.formState.isSubmitted })}
+                      />
+                      {form.formState.errors.photoUrls?.message && (
+                        <p role="alert" className="mt-1 text-sm text-destructive">
+                          {message(form.formState.errors.photoUrls.message)}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -253,7 +297,10 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
             <Summary values={form.getValues()} data={data} productById={productById} suppliers={suppliers} />
             {duplicate && (
               <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-50">
-                {t("entryForm.duplicateInvoice", { reference: form.getValues().reference ?? "", number: duplicate.number })}
+                {t(duplicate.kind === "invoice" ? "entryForm.duplicateInvoice" : "entryForm.duplicateWebsiteOrder", {
+                  reference: form.getValues().reference ?? "",
+                  number: duplicate.number,
+                })}
               </p>
             )}
             <StickyBar>
@@ -374,6 +421,8 @@ function LinesEditor({
   disabled: boolean;
 }) {
   const t = useTranslations("entryForm");
+  const reason = useWatch({ control: form.control, name: "reason" });
+  const showCost = data.canEnterCost && reason === "SUPPLIER_DELIVERY";
   const locale = useLocale();
   const message = useMessage();
   const { fields, append, update, remove } = useFieldArray({ control: form.control, name: "lines" });
@@ -416,9 +465,21 @@ function LinesEditor({
                     label={t("quantity", { modelCode: product.modelCode })}
                     value={lines[i]?.quantity ?? ""}
                     invalid={over || Boolean(qtyError)}
-                    onChange={(v) => update(i, { productId: product.id, quantity: v })}
+                    onChange={(v) => update(i, { ...lines[i], productId: product.id, quantity: v })}
                   />
                 </div>
+                {showCost && (
+                  <div className="mt-2">
+                    <TextField
+                      name={`lines.${i}.unitCost`}
+                      label={t("unitCost")}
+                      hint={t("unitCostHint")}
+                      inputMode="decimal"
+                      dir="ltr"
+                      optional
+                    />
+                  </div>
+                )}
                 {over && (
                   <p role="alert" className="mt-1 text-sm text-destructive">
                     {t("onlyLeft", { available: available ?? 0, modelCode: product.modelCode, warehouse: warehouseName })}
@@ -434,7 +495,7 @@ function LinesEditor({
           products={data.products.filter((p) => !lines.some((l) => l.productId === p.id))}
           available={stock}
           disabled={disabled}
-          onPick={(p) => append({ productId: p.id, quantity: "1" })}
+          onPick={(p) => append({ productId: p.id, quantity: "1", unitCost: "" })}
         />
       </CardContent>
     </Card>
@@ -470,7 +531,16 @@ function Summary({
     if (!(field in DETAIL_LABEL)) continue;
     const v = values[field as keyof EntryFormValues] as string;
     if (!v) continue;
-    const shown = field === "reference" || field === "customerPhone" ? <Ltr key={field}>{v}</Ltr> : <bdi key={field}>{v}</bdi>;
+    if (field === "reasonCode") {
+      rows.push([t(values.reason === "DAMAGED_LOST" ? "entryForm.damageReason" : "entryForm.returnReason"), t(`entryForm.codes.${v}` as never)]);
+      continue;
+    }
+    if (field === "paymentMethod") {
+      rows.push([t("entryForm.paymentMethod"), t(`entryForm.payment.${v}` as never)]);
+      continue;
+    }
+    const ltr = field === "reference" || field === "customerPhone" || field === "expectedCredit";
+    const shown = ltr ? <Ltr key={field}>{v}</Ltr> : <bdi key={field}>{v}</bdi>;
     rows.push([t(`entryForm.${field === "reference" ? referenceLabel(values.reason) : field}` as never), shown]);
   }
   if (values.note) rows.push([t("entryForm.note"), values.note]);
@@ -489,9 +559,13 @@ function Summary({
             </div>
           ))}
         </dl>
-        {values.photoUrl && (
-          // eslint-disable-next-line @next/next/no-img-element -- private, auth-protected route
-          <img src={values.photoUrl} alt={t("photo.label")} className="h-28 rounded-md border object-cover" />
+        {(values.photoUrls ?? []).length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {(values.photoUrls ?? []).map((url, i) => (
+              // eslint-disable-next-line @next/next/no-img-element -- private, auth-protected route
+              <img key={url} src={url} alt={t("photo.numbered", { n: i + 1 })} className="h-20 w-20 rounded-md border object-cover" />
+            ))}
+          </div>
         )}
         <ul className="divide-y rounded-md border">
           {values.lines.map((l) => {
@@ -502,7 +576,14 @@ function Summary({
                   <Ltr className="block font-medium">{p?.modelCode}</Ltr>
                   <span className="block truncate text-sm text-muted-foreground">{locale === "ar" ? p?.nameAr : p?.nameEn}</span>
                 </div>
-                <span className="text-lg font-semibold tabular-nums">× {normalizeNumberText(l.quantity)}</span>
+                <span className="text-end">
+                  <span className="block text-lg font-semibold tabular-nums">× {normalizeNumberText(l.quantity)}</span>
+                  {l.unitCost && values.reason === "SUPPLIER_DELIVERY" && (
+                    <span className="block text-xs text-muted-foreground">
+                      {t("entryForm.atCost", { cost: `\u2066${normalizeNumberText(l.unitCost)}\u2069` })}
+                    </span>
+                  )}
+                </span>
               </li>
             );
           })}

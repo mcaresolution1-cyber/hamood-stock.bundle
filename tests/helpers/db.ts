@@ -14,6 +14,9 @@ import { testDatabaseUrl } from "../setup/test-db-url";
 export const testDb = new PrismaClient({ adapter: new PrismaMariaDb(mariadbConfig(testDatabaseUrl())) });
 
 const TABLES = [
+  "LineCost",
+  "EntryAttachment",
+  "SupplierReturn",
   "ApprovalRequest",
   "AuditLog",
   "LoginEvent",
