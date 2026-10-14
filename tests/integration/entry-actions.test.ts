@@ -14,6 +14,7 @@ import { signInAs } from "../helpers/auth";
 
 let main: string;
 let other: string;
+let acme: string;
 let p1: string;
 let staff: Awaited<ReturnType<typeof makeUser>>;
 let admin: Awaited<ReturnType<typeof makeUser>>;
@@ -22,7 +23,7 @@ const delivery = (warehouseId: string, extra = {}) => ({
   ...emptyEntryForm("IN"),
   reason: "SUPPLIER_DELIVERY",
   warehouseId,
-  supplierName: "Acme",
+  supplierId: acme,
   reference: "INV-1",
   lines: [{ productId: p1, quantity: "5" }],
   ...extra,
@@ -38,6 +39,7 @@ beforeEach(async () => {
   main = (await makeWarehouse("SELLABLE", "Riyadh Main")).id;
   other = (await makeWarehouse("SELLABLE", "Jeddah")).id;
   p1 = (await makeProduct("HMD-772")).id;
+  acme = (await testDb.supplier.create({ data: { nameEn: "Acme" } })).id;
   staff = await makeUser("STAFF", [main]);
   admin = await makeUser("ADMIN");
 });
@@ -49,7 +51,7 @@ describe("saveEntry", () => {
     const result = await saveEntry(delivery(main, { technicianName: "should be dropped", customerName: "dropped" }));
     expect(result).toMatchObject({ ok: true, data: { status: "saved", entry: { number: "IN-000001" } } });
     const e = await testDb.stockEntry.findFirstOrThrow();
-    expect(e).toMatchObject({ supplierName: "Acme", reference: "INV-1", technicianName: null, customerName: null, createdById: staff.id });
+    expect(e).toMatchObject({ supplierId: acme, supplierName: "Acme", reference: "INV-1", technicianName: null, customerName: null, createdById: staff.id });
     expect(await level(p1, main)).toBe(5);
   });
 
@@ -63,8 +65,8 @@ describe("saveEntry", () => {
 
   it("returns field errors from the shared schema", async () => {
     signInAs(staff);
-    const result = await saveEntry({ ...delivery(main), supplierName: "", lines: [] });
-    expect(result).toMatchObject({ ok: false, fieldErrors: { supplierName: "validation.required", lines: "stock.errors.noLines" } });
+    const result = await saveEntry({ ...delivery(main), supplierId: "", lines: [] });
+    expect(result).toMatchObject({ ok: false, fieldErrors: { supplierId: "suppliers.errors.required", lines: "stock.errors.noLines" } });
   });
 
   it("returns the 'only N left' message for a stock out", async () => {
@@ -74,7 +76,7 @@ describe("saveEntry", () => {
       ...emptyEntryForm("OUT"),
       reason: "WEBSITE_ORDER",
       warehouseId: main,
-      reference: "WC-1",
+      reference: "10001",
       lines: [{ productId: p1, quantity: "6" }],
     });
     expect(result).toEqual({

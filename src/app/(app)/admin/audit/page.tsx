@@ -36,6 +36,7 @@ export default async function AuditPage({ searchParams }: PageProps<"/admin/audi
     const s = String(v);
     const ns = { role: "roles", kind: "warehouseKinds", category: "categories", status: "approvals.status" }[field];
     if (ns && /^[\w-]+$/.test(s) && has(`${ns}.${s}`)) return tr(`${ns}.${s}`);
+    if (field === "status" && /^\w+$/.test(s) && has(`products.statuses.${s}`)) return tr(`products.statuses.${s}`);
     return s;
   };
   const changes = (before: Json, after: Json) => {
@@ -49,7 +50,7 @@ export default async function AuditPage({ searchParams }: PageProps<"/admin/audi
     return has(key) ? tr(key) : a;
   };
   const subjectHref = (type: string, id: string | null) =>
-    !id ? null : type === "product" ? `/products/${id}` : type === "approval" ? `/approvals/${id}` : type === "user" ? `/admin/users/${id}` : null;
+    !id ? null : type === "product" ? `/products/${id}` : type === "entry" ? `/entries/${id}` : type === "approval" ? `/approvals/${id}` : type === "user" ? `/admin/users/${id}` : null;
   const activeFilters = [filters.area, filters.userId, filters.from, filters.to].filter(Boolean).length;
 
   return (

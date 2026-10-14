@@ -10,7 +10,8 @@ import { NativeSelect } from "@/components/native-select";
 import { ProductThumb } from "@/components/product-thumb";
 import { Ltr } from "@/components/ltr";
 import { ReportTable, type ReportColumn } from "@/components/reports/report-table";
-import { isCategory } from "@/lib/products";
+import { attributeLine, isCategory } from "@/lib/products";
+import { ProductStatusBadge } from "@/components/product-status-badge";
 import { cn } from "@/lib/utils";
 import { can } from "@/lib/permissions";
 import { getCurrentUser, requirePagePermission } from "@/server/auth/dal";
@@ -62,15 +63,34 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
           </h1>
           <p>{locale === "ar" ? product.nameAr : product.nameEn}</p>
           <p className="text-sm text-muted-foreground">
-            {[isCategory(product.category) ? t(`categories.${product.category}`) : product.category, product.variant]
+            {[isCategory(product.category) ? t(`categories.${product.category}`) : product.category, attributeLine(product, t("products.kg"))]
               .filter(Boolean)
               .join(" · ")}
           </p>
+          <p className="text-xs text-muted-foreground">
+            {t("products.sku")}: <Ltr>{product.sku}</Ltr>
+            {product.barcode && (
+              <>
+                {" · "}
+                {t("products.barcode")}: <Ltr>{product.barcode}</Ltr>
+              </>
+            )}
+            {product.defaultSupplier && (
+              <>
+                {" · "}
+                {t("products.defaultSupplier")}: {locale === "ar" && product.defaultSupplier.nameAr ? product.defaultSupplier.nameAr : product.defaultSupplier.nameEn}
+              </>
+            )}
+          </p>
           <div className="mt-1 flex flex-wrap gap-1">
-            {!product.active && <Badge variant="outline">{t("productPage.inactive")}</Badge>}
+            <ProductStatusBadge status={product.status} />
+            {product.sellingPrice && <Badge variant="secondary">{t("productPage.price", { price: product.sellingPrice })}</Badge>}
             {data.lowStock && <Badge variant="destructive">{t("productPage.lowStock")}</Badge>}
             {"cost" in product && product.cost && (
               <Badge variant="secondary">{t("productPage.cost", { cost: String(product.cost) })}</Badge>
+            )}
+            {"averageCost" in product && product.averageCost && (
+              <Badge variant="secondary">{t("productPage.averageCost", { cost: product.averageCost })}</Badge>
             )}
           </div>
         </div>
@@ -111,6 +131,11 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
               <li key={w.id} className="flex items-center justify-between gap-3 py-2">
                 <span>
                   {w.name}
+                  {product.reorder.some((r) => r.warehouseId === w.id && r.reorderLevel > 0) && (
+                    <span className="ms-2 text-xs text-muted-foreground">
+                      {t("productPage.reorderAt", { level: product.reorder.find((r) => r.warehouseId === w.id)!.reorderLevel })}
+                    </span>
+                  )}
                   {w.kind === "DAMAGED" && (
                     <Badge variant="destructive" className="ms-2">
                       {t("warehouseKinds.DAMAGED")}
@@ -123,6 +148,31 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
           </ul>
         </CardContent>
       </Card>
+
+      {"costHistory" in product && product.costHistory && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t("products.costHistory")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {product.costHistory.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t("products.noCostHistory")}</p>
+            ) : (
+              <ul className="divide-y text-sm">
+                {product.costHistory.map((c) => (
+                  <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                    <span className="text-muted-foreground">
+                      {format.dateTime(c.at, { dateStyle: "medium", timeStyle: "short" })} · {c.changedBy.name} ·{" "}
+                      {t.has(`products.costSource.${c.source}` as "products.costSource.MANUAL") ? t(`products.costSource.${c.source}` as "products.costSource.MANUAL") : c.source}
+                    </span>
+                    <Ltr className="font-medium tabular-nums">{c.cost ?? "—"}</Ltr>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-2">

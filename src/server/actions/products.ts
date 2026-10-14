@@ -4,19 +4,83 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
+import { PRODUCT_STATUSES } from "@/lib/products";
 import { id as idSchema } from "@/lib/validation/common";
 import { requirePermission } from "@/server/auth/dal";
 import { audit, changedFields } from "@/server/audit";
-import { productSchema, type ProductInput } from "@/lib/validation/products";
+import { productColumns, productSchema, type ProductInput } from "@/lib/validation/products";
+import type { Tx } from "@/server/stock/createEntry";
 import { guarded, isUniqueViolation, UserFacingError, type ActionResult } from "./result";
+
+/** Which unique field a P2002 hit (model code, SKU or barcode), as a translation key. */
+function uniqueError(e: unknown): UserFacingError | null {
+  if (!isUniqueViolation(e)) return null;
+  const target = JSON.stringify((e as { meta?: unknown }).meta ?? "") + String((e as Error).message ?? "");
+  if (/sku/i.test(target)) return new UserFacingError("products.errors.skuTaken");
+  if (/barcode/i.test(target)) return new UserFacingError("products.errors.barcodeTaken");
+  return new UserFacingError("products.errors.codeTaken");
+}
+
+/** Supplier / image / warehouses referenced by the form must exist (and the supplier be active). */
+async function checkReferences(tx: Tx, data: ProductInput, currentSupplierId: string | null = null) {
+  const columns = productColumns(data);
+  if (data.defaultSupplierId && data.defaultSupplierId !== currentSupplierId) {
+    const ok = await tx.supplier.count({ where: { id: data.defaultSupplierId, active: true } });
+    if (!ok) throw new UserFacingError("products.errors.unknownSupplier");
+  }
+  if (columns.imageId && !(await tx.productImage.count({ where: { id: columns.imageId } }))) {
+    throw new UserFacingError("validation.photo");
+  }
+  const warehouseIds = [...new Set(data.reorder.map((r) => r.warehouseId))];
+  if (warehouseIds.length !== data.reorder.length) throw new UserFacingError("errors.invalidInput");
+  if (warehouseIds.length && (await tx.warehouse.count({ where: { id: { in: warehouseIds } } })) !== warehouseIds.length) {
+    throw new UserFacingError("users.errors.unknownWarehouse");
+  }
+}
+
+/** Replace the per-warehouse reorder levels (rows left empty on the form have no override). */
+async function saveReorder(tx: Tx, productId: string, rows: ProductInput["reorder"]) {
+  await tx.productReorder.deleteMany({ where: { productId } });
+  if (rows.length) await tx.productReorder.createMany({ data: rows.map((r) => ({ ...r, productId })) });
+}
+
+/**
+ * Inactive = retired (PB1): only with no stock anywhere. Locks the product row; entry saves share-lock
+ * their products (createEntryInTx), so no stock can arrive between this check and the status change.
+ */
+async function assertCanRetire(tx: Tx, productId: string) {
+  await tx.$queryRaw`SELECT id FROM \`Product\` WHERE id = ${productId} FOR UPDATE`;
+  const sum = await tx.stockLevel.aggregate({ where: { productId }, _sum: { quantity: true } });
+  if ((sum._sum.quantity ?? 0) > 0) throw new UserFacingError("products.errors.retireHasStock");
+}
+
+/** Cost for audit/history comparisons: "12.5" from the form and 12.50 from the database are equal. */
+const costOf = (v: string | Prisma.Decimal | null) => (v === null ? null : new Prisma.Decimal(v).toFixed(2));
+
+function forAudit(data: ProductInput) {
+  const { imageId: _imageId, ...columns } = productColumns(data);
+  void _imageId;
+  return {
+    ...columns,
+    cost: data.cost === null ? null : new Prisma.Decimal(data.cost),
+    sellingPrice: data.sellingPrice === null ? null : new Prisma.Decimal(data.sellingPrice),
+    reorder: data.reorder,
+  };
+}
 
 export async function createProduct(values: unknown): Promise<ActionResult<{ id: string }>> {
   return guarded(async () => {
     const actor = await requirePermission("product:manage");
     const data = productSchema.parse(values);
+    if (data.status === "INACTIVE") throw new UserFacingError("products.errors.newInactive");
     try {
       const p = await db.$transaction(async (tx) => {
-        const created = await tx.product.create({ data, select: { id: true } });
+        await checkReferences(tx, data);
+        const created = await tx.product.create({ data: productColumns(data), select: { id: true } });
+        await saveReorder(tx, created.id, data.reorder);
+        if (data.cost !== null) {
+          await tx.productCost.create({ data: { productId: created.id, cost: data.cost, source: "MANUAL", changedById: actor.id } });
+        }
         await audit(tx, actor.id, {
           action: "product.create",
           subjectType: "product",
@@ -29,8 +93,7 @@ export async function createProduct(values: unknown): Promise<ActionResult<{ id:
       revalidatePath("/admin/products");
       return p;
     } catch (e) {
-      if (isUniqueViolation(e)) throw new UserFacingError("products.errors.codeTaken");
-      throw e;
+      throw uniqueError(e) ?? e;
     }
   });
 }
@@ -42,45 +105,59 @@ export async function updateProduct(id: string, values: unknown): Promise<Action
     const data = productSchema.parse(values);
     try {
       await db.$transaction(async (tx) => {
-        const before = await tx.product.findUnique({ where: { id: productId } });
+        const before = await tx.product.findUnique({
+          where: { id: productId },
+          include: { reorder: { select: { warehouseId: true, reorderLevel: true, reorderQty: true }, orderBy: { warehouseId: "asc" } } },
+        });
         if (!before) throw new UserFacingError("errors.notFound");
-        await tx.product.update({ where: { id: productId }, data });
-        const diff = changedFields(before, forAudit(data));
+        await checkReferences(tx, data, before.defaultSupplierId);
+        if (data.status === "INACTIVE" && before.status !== "INACTIVE") await assertCanRetire(tx, productId);
+
+        await tx.product.update({ where: { id: productId }, data: productColumns(data) });
+        await saveReorder(tx, productId, data.reorder);
+        if (costOf(before.cost) !== costOf(data.cost)) {
+          await tx.productCost.create({ data: { productId, cost: data.cost, source: "MANUAL", changedById: actor.id } });
+        }
+        const after = forAudit(data);
+        after.reorder = [...after.reorder].sort((a, b) => a.warehouseId.localeCompare(b.warehouseId));
+        const diff = changedFields({ ...before, reorder: before.reorder }, after);
         if (diff) {
           await audit(tx, actor.id, { action: "product.update", subjectType: "product", subjectId: productId, subjectLabel: data.modelCode, ...diff });
         }
       });
     } catch (e) {
-      if (isUniqueViolation(e)) throw new UserFacingError("products.errors.codeTaken");
-      throw e;
+      throw uniqueError(e) ?? e;
     }
     revalidatePath("/admin/products");
+    revalidatePath(`/products/${productId}`);
     return null;
   });
 }
 
-/** Deactivating keeps history and remaining stock; the product just stops coming in (decision Q7). */
-export async function setProductActive(id: string, active: boolean): Promise<ActionResult> {
+/**
+ * Change only the status from the products list (decision PB1). Discontinued keeps history and
+ * remaining stock; Inactive needs zero stock.
+ */
+export async function setProductStatus(id: string, status: string): Promise<ActionResult> {
   return guarded(async () => {
     const actor = await requirePermission("product:manage");
-    const input = z.object({ id: idSchema, active: z.boolean() }).parse({ id, active });
+    const input = z.object({ id: idSchema, status: z.enum(PRODUCT_STATUSES) }).parse({ id, status });
     await db.$transaction(async (tx) => {
-      const p = await tx.product.update({ where: { id: input.id }, data: { active: input.active }, select: { modelCode: true } });
+      const before = await tx.product.findUnique({ where: { id: input.id }, select: { modelCode: true, status: true } });
+      if (!before) throw new UserFacingError("errors.notFound");
+      if (before.status === input.status) return;
+      if (input.status === "INACTIVE") await assertCanRetire(tx, input.id);
+      await tx.product.update({ where: { id: input.id }, data: { status: input.status } });
       await audit(tx, actor.id, {
         action: "product.update",
         subjectType: "product",
         subjectId: input.id,
-        subjectLabel: p.modelCode,
-        before: { active: !input.active },
-        after: { active: input.active },
+        subjectLabel: before.modelCode,
+        before: { status: before.status },
+        after: { status: input.status },
       });
     });
     revalidatePath("/admin/products");
     return null;
   });
-}
-
-/** Cost as a Decimal, so "12.5" from the form and 12.50 from the database compare equal. */
-function forAudit(data: ProductInput) {
-  return { ...data, cost: data.cost === null ? null : new Prisma.Decimal(data.cost) };
 }

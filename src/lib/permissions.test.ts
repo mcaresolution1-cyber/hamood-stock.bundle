@@ -17,7 +17,7 @@ describe("can", () => {
   });
 
   it("lets MANAGER void and approve, but not manage the catalogue, users or see cost", () => {
-    for (const a of ["entry:create", "entry:correct", "entry:void", "stock:view", "approval:decide"] as const) {
+    for (const a of ["entry:create", "entry:correct", "entry:void", "stock:view", "approval:decide", "supplier:manage", "cost:enter"] as const) {
       expect(can("MANAGER", a)).toBe(true);
     }
     for (const a of ["cost:view", "product:manage", "warehouse:manage", "user:manage", "openingStock:import", "settings:manage", "audit:view"] as const) {

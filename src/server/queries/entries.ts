@@ -28,6 +28,8 @@ export type EntryFilters = {
   reason?: EntryReason;
   userId?: string;
   product?: string; // model code (contains)
+  /** Supplier deliveries with a line still missing its unit cost (Phase C1) */
+  costPending?: "1";
   page?: number;
 };
 
@@ -51,6 +53,13 @@ export function riyadhDayStart(day: string): Date {
   return new Date(`${day}T00:00:00+03:00`);
 }
 
+/** A non-voided supplier delivery with at least one line without a unit cost. */
+export const COST_PENDING: Prisma.StockEntryWhereInput = {
+  reason: "SUPPLIER_DELIVERY",
+  voidedAt: null,
+  lines: { some: { cost: { is: null } } },
+};
+
 export function entryWhere(f: EntryFilters): Prisma.StockEntryWhereInput {
   const entryDate: Prisma.DateTimeFilter = {};
   if (isValidDay(f.from)) entryDate.gte = riyadhDayStart(f.from);
@@ -63,6 +72,7 @@ export function entryWhere(f: EntryFilters): Prisma.StockEntryWhereInput {
     ...(f.reason ? { reason: f.reason } : {}),
     ...(f.userId ? { createdById: f.userId } : {}),
     ...(product ? { lines: { some: { product: { modelCode: { contains: product } } } } } : {}),
+    ...(f.costPending ? COST_PENDING : {}),
   };
 }
 
@@ -88,7 +98,8 @@ export async function listEntries(f: EntryFilters) {
         voidedAt: true,
         warehouse: { select: { name: true } },
         createdBy: { select: { name: true } },
-        lines: { select: { quantity: true } },
+        // Only whether a cost exists (never the amount), for the "cost pending" badge.
+        lines: { select: { quantity: true, cost: { select: { lineId: true } } } },
       },
     }),
   ]);
@@ -96,7 +107,12 @@ export async function listEntries(f: EntryFilters) {
     total,
     page,
     pageCount: Math.max(1, Math.ceil(total / ENTRY_PAGE_SIZE)),
-    rows: rows.map(({ lines, ...e }) => ({ ...e, units: lines.reduce((s, l) => s + l.quantity, 0), lineCount: lines.length })),
+    rows: rows.map(({ lines, ...e }) => ({
+      ...e,
+      units: lines.reduce((s, l) => s + l.quantity, 0),
+      lineCount: lines.length,
+      costPending: e.reason === "SUPPLIER_DELIVERY" && !e.voidedAt && lines.some((l) => !l.cost),
+    })),
   };
 }
 
@@ -125,7 +141,13 @@ export async function getEntry(id: string) {
       supplierName: true,
       note: true,
       photoUrl: true,
+      reasonCode: true,
+      paymentMethod: true,
+      salesperson: true,
       voidedAt: true,
+      originalEntry: { select: { id: true, number: true } },
+      returns: { where: { voidedAt: null }, select: { id: true, number: true }, orderBy: { createdAt: "asc" } },
+      attachments: { select: { attachmentId: true }, orderBy: { position: "asc" } },
       warehouse: { select: { id: true, name: true, city: true, kind: true } },
       createdBy: { select: { name: true } },
       voidedBy: { select: { name: true } },
@@ -174,6 +196,33 @@ export function parseEntryFilters(sp: Record<string, string | string[] | undefin
     reason: (ENTRY_REASONS as string[]).includes(one("reason")) ? (one("reason") as EntryReason) : undefined,
     userId: one("userId") || undefined,
     product: one("product").slice(0, 50) || undefined,
+    costPending: one("costPending") === "1" ? "1" : undefined,
     page: parsePage(one("page")),
+  };
+}
+
+/**
+ * Money on one entry — delivery line costs and the return-to-supplier credit. Only call it for users who may
+ * see it: cost:view (ADMIN, ACCOUNTANT) or cost:enter in the entry's warehouse (MANAGER).
+ */
+export async function getEntryMoney(id: string) {
+  const entry = await db.stockEntry.findUnique({
+    where: { id },
+    select: {
+      lines: { select: { id: true, productId: true, cost: { select: { unitCost: true, enteredAt: true, enteredBy: { select: { name: true } } } } } },
+      supplierReturn: { select: { expectedCredit: true, status: true, creditAmount: true, creditReceivedAt: true } },
+    },
+  });
+  if (!entry) return null;
+  return {
+    lineCosts: Object.fromEntries(entry.lines.map((l) => [l.id, l.cost ? { unitCost: l.cost.unitCost.toFixed(2), enteredBy: l.cost.enteredBy.name, enteredAt: l.cost.enteredAt } : null])),
+    supplierReturn: entry.supplierReturn
+      ? {
+          status: entry.supplierReturn.status as "SENT" | "CREDIT_RECEIVED",
+          expectedCredit: entry.supplierReturn.expectedCredit?.toFixed(2) ?? null,
+          creditAmount: entry.supplierReturn.creditAmount?.toFixed(2) ?? null,
+          creditReceivedAt: entry.supplierReturn.creditReceivedAt,
+        }
+      : null,
   };
 }

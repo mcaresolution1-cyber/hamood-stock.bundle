@@ -111,6 +111,7 @@ export async function lowStockXlsx(filters: { category?: string }) {
       { key: "total", header: t("reports.col.total"), number: true },
       { key: "level", header: t("reports.col.level"), number: true },
       { key: "shortBy", header: t("reports.col.shortBy"), number: true },
+      { key: "suggested", header: t("reports.col.reorderQty"), number: true },
     ],
     rows: r.rows.map((x) => ({
       modelCode: x.modelCode,
@@ -120,6 +121,7 @@ export async function lowStockXlsx(filters: { category?: string }) {
       total: x.total,
       level: x.lowStockLevel,
       shortBy: x.shortBy,
+      suggested: x.suggestedQty,
     })),
     rtl,
   });

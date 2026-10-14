@@ -41,6 +41,8 @@ const storedEntrySchema = z.object({
   supplierName: z.string().nullish(),
   note: z.string().nullish(),
   photoUrl: z.string().nullish(),
+  photoUrls: z.array(z.string()).max(5).optional(),
+  reasonCode: z.string().nullish(),
 });
 const storedVoidSchema = z.object({ entryId: z.string(), reason: z.string() });
 

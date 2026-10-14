@@ -14,6 +14,9 @@ import { testDatabaseUrl } from "../setup/test-db-url";
 export const testDb = new PrismaClient({ adapter: new PrismaMariaDb(mariadbConfig(testDatabaseUrl())) });
 
 const TABLES = [
+  "LineCost",
+  "EntryAttachment",
+  "SupplierReturn",
   "ApprovalRequest",
   "AuditLog",
   "LoginEvent",
@@ -21,10 +24,14 @@ const TABLES = [
   "StockEntryLine",
   "StockEntry",
   "StockLevel",
+  "ProductCost",
+  "ProductReorder",
   "Counter",
   "Attachment",
   "_UserWarehouses",
   "Product",
+  "ProductImage",
+  "Supplier",
   "Warehouse",
   "User",
 ];
@@ -72,6 +79,7 @@ export async function makeProduct(modelCode?: string) {
   return testDb.product.create({
     data: {
       modelCode: modelCode ?? `TST-${n}`,
+      sku: modelCode ?? `TST-${n}`,
       nameEn: `Test product ${n}`,
       nameAr: `منتج تجريبي ${n}`,
       category: "wall-mount",

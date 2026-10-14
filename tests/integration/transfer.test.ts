@@ -77,13 +77,8 @@ describe("transfers", () => {
 
   it("can move stock out of a damaged warehouse", async () => {
     const damaged = (await makeWarehouse("DAMAGED")).id;
-    await createEntry(testDb, admin, {
-      direction: "IN",
-      reason: "CUSTOMER_RETURN",
-      returnCondition: "DAMAGED",
-      warehouseId: damaged,
-      lines: [{ productId: p1, quantity: 1 }],
-    });
+    await receive(riyadh, 1);
+    await transfer(admin, riyadh, damaged, 1);
     await expect(transfer(admin, damaged, riyadh, 1)).resolves.toBeTruthy();
   });
 });
@@ -92,15 +87,19 @@ describe("customer returns", () => {
   it("lets any STAFF put a damaged return into a DAMAGED warehouse they aren't assigned to (Q2)", async () => {
     const damaged = (await makeWarehouse("DAMAGED")).id;
     const staff = actorOf(await makeUser("STAFF", [riyadh]));
+    await receive(riyadh, 3);
+    await createEntry(testDb, admin, { direction: "OUT", reason: "WEBSITE_ORDER", warehouseId: riyadh, reference: "40001", lines: [{ productId: p1, quantity: 3 }] });
     const input: EntryInput = {
       direction: "IN",
       reason: "CUSTOMER_RETURN",
       returnCondition: "DAMAGED",
       warehouseId: damaged,
       customerName: "Khalid",
+      reference: "40001",
+      reasonCode: "DEFECTIVE",
       lines: [{ productId: p1, quantity: 1 }],
     };
-    await expect(createEntry(testDb, staff, input)).resolves.toMatchObject({ number: "IN-000001" });
+    await expect(createEntry(testDb, staff, input)).resolves.toMatchObject({ number: "IN-000002" });
     // …but resellable goods can't be put into a damaged warehouse, nor damaged ones into a sellable one
     await expect(createEntry(testDb, staff, { ...input, returnCondition: "RESELLABLE" })).rejects.toMatchObject({
       key: "stock.errors.returnWarehouseKind",

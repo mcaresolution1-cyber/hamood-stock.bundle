@@ -6,8 +6,9 @@ import { useLocale, useTranslations } from "next-intl";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { ProductThumb } from "@/components/product-thumb";
 import { Ltr } from "@/components/ltr";
+import { searchKeywords } from "@/lib/products";
 
-type Item = { id: string; modelCode: string; nameEn: string; nameAr: string; variant: string | null; imageUrl: string | null; active: boolean; sellable: number };
+type Item = Parameters<typeof searchKeywords>[0] & { id: string; modelCode: string; imageUrl: string | null; sellable: number };
 
 /** Type-ahead product search; choosing a product opens its stock page. Results appear once you type. */
 export function ProductSearch({ products }: { products: Item[] }) {
@@ -29,7 +30,7 @@ export function ProductSearch({ products }: { products: Item[] }) {
           <CommandItem
             key={p.id}
             value={p.modelCode}
-            keywords={[p.nameEn, p.nameAr, p.variant ?? ""]}
+            keywords={searchKeywords(p)}
             onSelect={() => router.push(`/products/${p.id}`)}
             className="min-h-14 gap-3 px-3"
           >

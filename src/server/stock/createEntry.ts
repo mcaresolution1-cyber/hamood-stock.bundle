@@ -9,10 +9,14 @@
  * Takes the Prisma client as a parameter so tests can pass the test-database client.
  * Permissions are enforced here as well as in the server actions (defence in depth).
  */
-import type { PrismaClient } from "@/generated/prisma/client";
+import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import type { EntryReason } from "@/generated/prisma/enums";
 import { counterKeyFor, formatEntryNumber, type CounterKey } from "@/lib/stock/numbering";
 import { directionOf, mergeLines, type LineInput } from "@/lib/stock/lines";
+import { canMove, canReceive } from "@/lib/products";
+import { can } from "@/lib/permissions";
+import { checkReturnAgainstSale } from "./returns";
+import { normalizeWebsiteOrder, reasonCodesFor } from "@/lib/stock/details";
 import { entryPermissionError, entryTypeFor, type Direction, type EntryActor } from "@/lib/stock/policy";
 import { ApprovalRequiredError, EntryRuleError, InsufficientStockError } from "./errors";
 import { approvalNeeded, approvalRuleFor } from "./approval-rules";
@@ -35,8 +39,20 @@ export type EntryInput = {
   customerPhone?: string | null;
   technicianName?: string | null;
   supplierName?: string | null;
+  /** Supplier master record (Phase B). The caller checks it exists and is active. */
+  supplierId?: string | null;
   note?: string | null;
   photoUrl?: string | null;
+  /** Phase C1 — return reason / damage category, payment method, salesperson (src/lib/stock/details.ts) */
+  reasonCode?: string | null;
+  paymentMethod?: string | null;
+  salesperson?: string | null;
+  /** Return to supplier: expected credit (SAR) */
+  expectedCredit?: string | null;
+  /** Photos (attachment paths, ownership checked by the caller); photoUrl becomes the first */
+  photoUrls?: string[];
+  /** Supplier delivery: unit cost per product (SAR). Only for users with cost:enter. */
+  lineCosts?: Record<string, string>;
   /** Repeat-submit protection: the same key (from the same user) returns the entry already saved. */
   idempotencyKey?: string | null;
 };
@@ -104,6 +120,10 @@ export async function createEntryInTx(
     }
   }
 
+  // Customer returns must match a recorded sale and can't exceed it (PC1). Checked first: it locks the sale
+  // rows, and a void locks its entry row before the warehouse, so both take the locks in the same order.
+  const originalEntryId = input.reason === "CUSTOMER_RETURN" ? await checkReturnAgainstSale(tx, input.reference, mergeLines(input.lines)) : null;
+
   const warehouse = await lockActiveWarehouse(tx, input.warehouseId);
   const denied = entryPermissionError(actor, { direction: input.direction, reason: input.reason, warehouse });
   if (denied) throw new EntryRuleError(denied);
@@ -123,16 +143,24 @@ export async function createEntryInTx(
   }
 
   const lines = mergeLines(input.lines);
+  // Share-lock the products: retiring a product (status INACTIVE) takes FOR UPDATE and then checks it
+  // holds no stock, so it waits for this save (src/server/actions/products.ts).
+  const productIds = [...new Set(lines.map((l) => l.productId))].sort();
+  await tx.$queryRaw`SELECT id FROM \`Product\` WHERE id IN (${Prisma.join(productIds)}) LOCK IN SHARE MODE`;
   const products = await tx.product.findMany({
     where: { id: { in: lines.map((l) => l.productId) } },
-    select: { id: true, modelCode: true, active: true },
+    select: { id: true, modelCode: true, status: true },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
   for (const line of lines) {
     const product = byId.get(line.productId);
     if (!product) throw new EntryRuleError("stock.errors.productNotFound");
+    // PB1: inactive (retired) products don't move at all.
+    if (!canMove(product.status)) {
+      throw new EntryRuleError("stock.errors.productRetired", { modelCode: product.modelCode });
+    }
     // Q7: discontinued products can still leave or move (sell-off) but can't be received.
-    if (!product.active && input.direction === "IN") {
+    if (!canReceive(product.status) && input.direction === "IN") {
       throw new EntryRuleError("stock.errors.productInactive", { modelCode: product.modelCode });
     }
   }
@@ -143,17 +171,39 @@ export async function createEntryInTx(
     if (need) throw new ApprovalRequiredError({ ...need, warehouseId: warehouse.id });
   }
 
+  // Unit costs: only on supplier deliveries, only by users who may enter costs (ADMIN / MANAGER).
+  const lineCosts = Object.entries(input.lineCosts ?? {}).filter(([, c]) => c !== "" && c != null);
+  if (lineCosts.length) {
+    if (input.reason !== "SUPPLIER_DELIVERY") throw new EntryRuleError("errors.invalidInput");
+    if (!can(actor.role, "cost:enter")) throw new EntryRuleError("errors.forbidden");
+  }
+
+
+  // Checked here too (not only in the form action), so an approved request can't use a supplier that was
+  // deactivated while it waited.
+  if (input.supplierId && !(await tx.supplier.count({ where: { id: input.supplierId, active: true } }))) {
+    throw new EntryRuleError("products.errors.unknownSupplier");
+  }
+
+  // Codes only where the reason has a list, and only from that list (the form checks too; this guards replays).
+  const code = clean(input.reasonCode);
+  if (code && !reasonCodesFor(input.reason).includes(code)) throw new EntryRuleError("errors.invalidInput");
   const prefix = counterKeyFor(type);
   const value = await nextCounterValue(tx, prefix);
   const fields = {
     reason: input.reason,
-    reference: clean(input.reference),
+    // A return by order no. is stored like the sale's ("#12 345" → "12345"), so later returns find it.
+    reference: input.reason === "CUSTOMER_RETURN" ? (normalizeWebsiteOrder(input.reference) ?? clean(input.reference)) : clean(input.reference),
     customerName: clean(input.customerName),
     customerPhone: clean(input.customerPhone),
     technicianName: clean(input.technicianName),
     supplierName: clean(input.supplierName),
+    supplierId: input.supplierId || null,
     note: clean(input.note),
-    photoUrl: clean(input.photoUrl),
+    photoUrl: clean(input.photoUrls?.[0] ?? input.photoUrl),
+    reasonCode: clean(input.reasonCode),
+    paymentMethod: clean(input.paymentMethod),
+    salesperson: clean(input.salesperson),
     createdById: actor.id,
   };
 
@@ -164,10 +214,12 @@ export async function createEntryInTx(
       number: formatEntryNumber(prefix, value, type),
       type,
       warehouseId: warehouse.id,
+      originalEntryId,
       lines: { create: lines },
     },
-    select: { id: true, number: true },
+    select: { id: true, number: true, lines: { select: { id: true, productId: true } } },
   });
+  await saveEntryExtras(tx, actor, entry, input, lineCosts);
   const changes: LevelChange[] = lines.map((l) => ({
     productId: l.productId,
     warehouseId: warehouse.id,
@@ -192,7 +244,36 @@ export async function createEntryInTx(
   }
 
   await applyLevelChanges(tx, changes);
-  return linked ? { ...entry, linked } : entry;
+  const saved = { id: entry.id, number: entry.number };
+  return linked ? { ...saved, linked } : saved;
+}
+
+/** Photos, delivery line costs (+ the product's cost history) and the return-to-supplier follow-up. */
+async function saveEntryExtras(
+  tx: Tx,
+  actor: EntryActor,
+  entry: { id: string; lines: { id: string; productId: string }[] },
+  input: EntryInput,
+  lineCosts: [string, string][],
+) {
+  const photos = [...new Set(input.photoUrls ?? (input.photoUrl ? [input.photoUrl] : []))];
+  if (photos.length) {
+    // Each photo belongs to one entry (unique attachmentId); checked again here for requests approved later.
+    const ids = photos.map((url) => url.split("/").pop()!);
+    if (await tx.entryAttachment.count({ where: { attachmentId: { in: ids } } })) throw new EntryRuleError("photo.errors.used");
+    await tx.entryAttachment.createMany({
+      data: photos.map((url, position) => ({ entryId: entry.id, attachmentId: url.split("/").pop()!, position })),
+    });
+  }
+  for (const [productId, unitCost] of lineCosts) {
+    const line = entry.lines.find((l) => l.productId === productId);
+    if (!line) throw new EntryRuleError("errors.invalidInput");
+    await tx.lineCost.create({ data: { lineId: line.id, unitCost, enteredById: actor.id } });
+    await tx.productCost.create({ data: { productId, cost: unitCost, source: "DELIVERY", changedById: actor.id } });
+  }
+  if (input.reason === "SUPPLIER_RETURN") {
+    await tx.supplierReturn.create({ data: { entryId: entry.id, expectedCredit: clean(input.expectedCredit), status: "SENT", updatedById: actor.id } });
+  }
 }
 
 /**

@@ -10,7 +10,9 @@ import { ProductThumb } from "@/components/product-thumb";
 import { Ltr } from "@/components/ltr";
 import { can, canWriteToWarehouse } from "@/lib/permissions";
 import { getCurrentUser, requirePagePermission } from "@/server/auth/dal";
-import { getEntry, relatedEntries } from "@/server/queries/entries";
+import { getEntry, getEntryMoney, relatedEntries } from "@/server/queries/entries";
+import { LineCostsForm } from "./line-costs-form";
+import { SupplierCreditForm } from "./supplier-credit-form";
 import { VoidDialog } from "./void-dialog";
 
 export async function generateMetadata({ params }: PageProps<"/entries/[id]">): Promise<Metadata> {
@@ -39,6 +41,15 @@ export default async function EntryPage({ params }: PageProps<"/entries/[id]">) 
     canWriteToWarehouse(user, entry.warehouse.id) &&
     (!partner || canWriteToWarehouse(user, partner.warehouse.id));
 
+  // Money on this entry: cost:view roles see it; a MANAGER sees and enters it for his own warehouses.
+  const canEnterMoney = can(user.role, "cost:enter") && canWriteToWarehouse(user, entry.warehouse.id) && !entry.voidedAt;
+  const showMoney = can(user.role, "cost:view") || canEnterMoney;
+  const money = showMoney && (entry.reason === "SUPPLIER_DELIVERY" || entry.reason === "SUPPLIER_RETURN") ? await getEntryMoney(entry.id) : null;
+  const photos = entry.attachments.length ? entry.attachments.map((a) => `/api/attachments/${a.attachmentId}`) : entry.photoUrl ? [entry.photoUrl] : [];
+
+  /** Names and dates inside a sentence keep their own direction (a Latin name in Arabic text). */
+  const isolate = (s: string) => `\u2068${s}\u2069`;
+
   const details: [string, React.ReactNode][] = [
     [t("entries.reason"), t(`reasons.${entry.reason}`)],
     [t("entries.warehouse"), entry.warehouse.name],
@@ -51,6 +62,16 @@ export default async function EntryPage({ params }: PageProps<"/entries/[id]">) 
   if (entry.customerName) details.push([t("entries.customer"), <bdi key="c">{entry.customerName}</bdi>]);
   if (entry.customerPhone) details.push([t("entries.phone"), <Ltr key="p">{entry.customerPhone}</Ltr>]);
   if (entry.technicianName) details.push([t("entries.technician"), entry.technicianName]);
+  if (entry.reasonCode) {
+    details.push([
+      t(entry.reason === "DAMAGED_LOST" ? "entryForm.damageReason" : "entryForm.returnReason"),
+      t.has(`entryForm.codes.${entry.reasonCode}` as "entryForm.codes.OTHER") ? t(`entryForm.codes.${entry.reasonCode}` as "entryForm.codes.OTHER") : entry.reasonCode,
+    ]);
+  }
+  if (entry.paymentMethod) {
+    details.push([t("entries.paymentMethod"), t.has(`entryForm.payment.${entry.paymentMethod}` as "entryForm.payment.CASH") ? t(`entryForm.payment.${entry.paymentMethod}` as "entryForm.payment.CASH") : entry.paymentMethod]);
+  }
+  if (entry.salesperson) details.push([t("entries.salesperson"), <bdi key="sp">{entry.salesperson}</bdi>]);
   if (entry.note && entry.type !== "VOID") details.push([t("entries.note"), entry.note]);
   if (entry.type === "VOID" && entry.note) details.push([t("void.reason"), entry.note]);
 
@@ -99,8 +120,8 @@ export default async function EntryPage({ params }: PageProps<"/entries/[id]">) 
 
       {/* Audit trail: who did what, when */}
       <Card>
-        <CardContent className="space-y-1 pt-6 text-sm">
-          <p>{t("entries.created", { name: entry.createdBy.name, date: when(entry.createdAt) })}</p>
+        <CardContent className="space-y-1 text-sm">
+          <p>{t("entries.created", { name: isolate(entry.createdBy.name), date: isolate(when(entry.createdAt)) })}</p>
           {entry.approvedVia && (
             <p>
               <Link href={`/approvals/${entry.approvedVia.id}`} className="underline underline-offset-4">
@@ -132,6 +153,22 @@ export default async function EntryPage({ params }: PageProps<"/entries/[id]">) 
               {t("entries.reverses")}: {linkTo(rel.reverses)}
             </p>
           )}
+          {entry.originalEntry && (
+            <p>
+              {t("entries.returnOf")}: {linkTo(entry.originalEntry)}
+            </p>
+          )}
+          {entry.returns.length > 0 && (
+            <p>
+              {t("entries.returnedIn")}:{" "}
+              {entry.returns.map((r, i) => (
+                <span key={r.id}>
+                  {i > 0 && ", "}
+                  {linkTo(r)}
+                </span>
+              ))}
+            </p>
+          )}
           {(rel.transferIn || rel.transferOut) && (
             <p>
               {t("entries.transferPair")}: {linkTo((rel.transferIn ?? rel.transferOut)!)}
@@ -141,7 +178,7 @@ export default async function EntryPage({ params }: PageProps<"/entries/[id]">) 
       </Card>
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
             {details.map(([k, v]) => (
               <div key={k} className="contents">
@@ -150,14 +187,63 @@ export default async function EntryPage({ params }: PageProps<"/entries/[id]">) 
               </div>
             ))}
           </dl>
-          {entry.photoUrl && (
-            <a href={entry.photoUrl} target="_blank" rel="noreferrer" className="mt-4 inline-block">
-              {/* eslint-disable-next-line @next/next/no-img-element -- private, auth-protected route */}
-              <img src={entry.photoUrl} alt={t("entries.photo")} className="h-40 rounded-md border object-cover" />
-            </a>
+          {photos.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {photos.map((url, i) => (
+                <a key={url} href={url} target="_blank" rel="noreferrer">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- private, auth-protected route */}
+                  <img src={url} alt={t("photo.numbered", { n: i + 1 })} className="h-32 rounded-md border object-cover" />
+                </a>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>
+
+      {money && entry.reason === "SUPPLIER_DELIVERY" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t("entries.costs")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <LineCostsForm
+              entryId={entry.id}
+              editable={canEnterMoney}
+              lines={entry.lines.map((l) => ({
+                id: l.id,
+                modelCode: l.product.modelCode,
+                quantity: l.quantity,
+                unitCost: money.lineCosts[l.id]?.unitCost ?? null,
+                enteredBy: money.lineCosts[l.id]?.enteredBy ?? null,
+              }))}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {money?.supplierReturn && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t("entries.supplierCredit")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p>
+              {t(`entries.creditStatus.${money.supplierReturn.status}`)}
+              {money.supplierReturn.creditReceivedAt && <> · {when(money.supplierReturn.creditReceivedAt)}</>}
+            </p>
+            <p>
+              {t("entries.expectedCredit")}: <Ltr>{money.supplierReturn.expectedCredit ?? "—"}</Ltr>
+              {money.supplierReturn.creditAmount && (
+                <>
+                  {" · "}
+                  {t("entries.creditAmount")}: <Ltr>{money.supplierReturn.creditAmount}</Ltr>
+                </>
+              )}
+            </p>
+            {canEnterMoney && <SupplierCreditForm entryId={entry.id} status={money.supplierReturn.status} />}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

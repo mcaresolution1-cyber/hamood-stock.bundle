@@ -3,8 +3,11 @@ import { sheetFromMatrix } from "./sheet";
 import { validateProductImport } from "./products";
 
 const HEAD = ["modelCode", "nameEn", "nameAr", "category", "variant", "imageUrl", "cost", "lowStockLevel"];
-const run = (rows: string[][], existing: string[] = []) =>
-  validateProductImport(sheetFromMatrix([HEAD, ...rows]), new Set(existing));
+const ctx = (existing: string[] = []) => ({
+  products: new Map(existing.map((m) => [m, { sku: m, barcode: null }])),
+  suppliers: new Map([["acme trading", "sup1"], ["أكمي", "sup1"]]),
+});
+const run = (rows: string[][], existing: string[] = []) => validateProductImport(sheetFromMatrix([HEAD, ...rows]), ctx(existing));
 
 describe("validateProductImport", () => {
   it("creates new products and updates existing ones by model code", () => {
@@ -18,6 +21,7 @@ describe("validateProductImport", () => {
     expect(r.counts).toEqual({ create: 1, update: 1, error: 0 });
     expect(r.rows[0].data).toEqual({
       modelCode: "HMD-900",
+      sku: "HMD-900",
       nameEn: "Mount",
       nameAr: "حامل",
       category: "wall-mount",
@@ -60,13 +64,44 @@ describe("validateProductImport", () => {
       ["a-1", "y", "ص", "wall-mount", "", "", "", ""],
     ]);
     expect(r.rows[0].action).toBe("create");
-    expect(r.rows[1].errors).toEqual([{ field: "modelCode", key: "import.errors.duplicateInFile" }]);
+    expect(r.rows[1].errors).toContainEqual({ field: "modelCode", key: "import.errors.duplicateInFile" });
   });
 
   it("reports a missing modelCode column or empty file", () => {
-    expect(validateProductImport(sheetFromMatrix([["name"], ["x"]]), new Set()).fileErrors).toEqual([
+    expect(validateProductImport(sheetFromMatrix([["name"], ["x"]]), ctx()).fileErrors).toEqual([
       "import.errors.missingModelCode",
     ]);
-    expect(validateProductImport(sheetFromMatrix([HEAD]), new Set()).fileErrors).toEqual(["import.errors.empty"]);
+    expect(validateProductImport(sheetFromMatrix([HEAD]), ctx()).fileErrors).toEqual(["import.errors.empty"]);
+  });
+
+  it("checks SKU and barcode against the file and the database, and finds suppliers by name", () => {
+    const head = ["modelCode", "nameEn", "nameAr", "category", "sku", "barcode", "supplier", "sellingPrice", "maxLoadKg"];
+    const c = { products: new Map([["OLD-1", { sku: "SKU-OLD", barcode: "6281234" }]]), suppliers: ctx().suppliers };
+    const r = validateProductImport(
+      sheetFromMatrix([
+        head,
+        ["N-1", "a", "ب", "wall-mount", "sku-1", "٦٢٨٩", "Acme Trading", "199.00", "45"],
+        ["N-2", "a", "ب", "wall-mount", "SKU-1", "6281234", "Nobody", "x", "-3"],
+        ["N-3", "a", "ب", "wall-mount", "SKU-OLD", "", "أكمي", "", ""],
+        ["OLD-1", "", "", "", "SKU-OLD", "6281234", "", "", ""],
+      ]),
+      c,
+    );
+    expect(r.rows[0].data).toMatchObject({ sku: "SKU-1", barcode: "6289", defaultSupplierId: "sup1", sellingPrice: "199.00", maxLoadKg: 45 });
+    expect(r.rows[1].errors).toEqual([
+      { field: "sku", key: "import.errors.duplicateInFile" },
+      { field: "barcode", key: "products.errors.barcodeTaken" },
+      { field: "maxLoadKg", key: "validation.wholeNumber" },
+      { field: "sellingPrice", key: "validation.money" },
+      { field: "supplier", key: "import.errors.unknownSupplier" },
+    ]);
+    expect(r.rows[2].errors).toEqual([{ field: "sku", key: "products.errors.skuTaken" }]);
+    // Its own SKU and barcode are fine — but they were already used by earlier rows of this file.
+    expect(r.rows[3].errors).toEqual([
+      { field: "sku", key: "import.errors.duplicateInFile" },
+      { field: "barcode", key: "import.errors.duplicateInFile" },
+    ]);
+    const own = validateProductImport(sheetFromMatrix([head, ["OLD-1", "", "", "", "SKU-OLD", "6281234", "", "", ""]]), c);
+    expect(own.rows[0].action).toBe("update");
   });
 });

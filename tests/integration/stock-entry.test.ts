@@ -153,7 +153,7 @@ describe("rules", () => {
 
   it("blocks receiving a deactivated product but allows selling off what's left (Q7)", async () => {
     await stockIn([{ productId: p1, quantity: 2 }]);
-    await testDb.product.update({ where: { id: p1 }, data: { active: false } });
+    await testDb.product.update({ where: { id: p1 }, data: { status: "DISCONTINUED" } });
     await expect(stockIn([{ productId: p1, quantity: 1 }])).rejects.toMatchObject({ key: "stock.errors.productInactive" });
     await expect(stockOut([{ productId: p1, quantity: 2 }])).resolves.toBeTruthy();
     expect(await level(p1, wh)).toBe(0);
@@ -161,7 +161,9 @@ describe("rules", () => {
 
   it("blocks sales from a damaged warehouse (Q4) and inactive warehouses", async () => {
     const damaged = (await makeWarehouse("DAMAGED")).id;
-    await createEntry(testDb, admin, { direction: "IN", reason: "CUSTOMER_RETURN", returnCondition: "DAMAGED", warehouseId: damaged, lines: [{ productId: p1, quantity: 1 }] });
+    await stockIn([{ productId: p1, quantity: 1 }]);
+    await stockOut([{ productId: p1, quantity: 1 }], { reason: "WEBSITE_ORDER", reference: "30001" });
+    await createEntry(testDb, admin, { direction: "IN", reason: "CUSTOMER_RETURN", returnCondition: "DAMAGED", warehouseId: damaged, reference: "30001", reasonCode: "DEFECTIVE", lines: [{ productId: p1, quantity: 1 }] });
     await expect(stockOut([{ productId: p1, quantity: 1 }], { warehouseId: damaged })).rejects.toMatchObject({
       key: "stock.errors.reasonNotForWarehouse",
     });

@@ -8,6 +8,7 @@ import { exceedsRule, type ApprovalRuleKey } from "@/lib/settings";
 import type { EntryActor } from "@/lib/stock/policy";
 import { getApprovalRules } from "@/server/settings";
 import type { Tx } from "./createEntry";
+import { effectiveCosts } from "./costs";
 
 export function approvalRuleFor(type: EntryType, reason: EntryReason): ApprovalRuleKey | null {
   if (type === "CORRECTION_IN" || type === "CORRECTION_OUT") return "correction";
@@ -16,13 +17,13 @@ export function approvalRuleFor(type: EntryType, reason: EntryReason): ApprovalR
   return null;
 }
 
-/** Units and value (Σ quantity × current product cost) of some lines. Value null when no product has a cost. */
+/** Units and value (Σ quantity × weighted-average or product cost) of some lines. Value null when no product has a cost. */
 export async function linesUnitsAndValue(tx: Tx, lines: readonly { productId: string; quantity: number }[]) {
   const products = await tx.product.findMany({
     where: { id: { in: [...new Set(lines.map((l) => l.productId))] } },
     select: { id: true, cost: true },
   });
-  const cost = new Map(products.map((p) => [p.id, p.cost]));
+  const cost = await effectiveCosts(tx, products);
   let units = 0;
   let value = new Prisma.Decimal(0);
   let anyCost = false;

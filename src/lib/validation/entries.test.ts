@@ -15,28 +15,41 @@ const errors = (v: EntryFormValues) => {
 describe("entryFormSchema", () => {
   it("requires supplier and invoice for a supplier delivery", () => {
     expect(errors(base({ reason: "SUPPLIER_DELIVERY" }))).toEqual({
-      supplierName: "validation.required",
+      supplierId: "suppliers.errors.required",
       reference: "validation.required",
     });
-    expect(errors(base({ reason: "SUPPLIER_DELIVERY", supplierName: "Acme", reference: "INV-1" }))).toEqual({});
+    expect(errors(base({ reason: "SUPPLIER_DELIVERY", supplierId: "sup1", reference: "INV-1" }))).toEqual({});
   });
 
-  it("needs order no. or customer name, and the condition, for a customer return", () => {
+  it("needs the order no., the condition and a reason for a customer return", () => {
     expect(errors(base({ reason: "CUSTOMER_RETURN" }))).toEqual({
-      reference: "entryForm.errors.orderOrCustomer",
+      reference: "entryForm.errors.orderRequired",
       returnCondition: "validation.required",
+      reasonCode: "validation.required",
     });
-    expect(errors(base({ reason: "CUSTOMER_RETURN", customerName: "Khalid", returnCondition: "DAMAGED" }))).toEqual({});
+    expect(errors(base({ reason: "CUSTOMER_RETURN", reference: "12345", returnCondition: "DAMAGED", reasonCode: "DEFECTIVE" }))).toEqual({});
+  });
+
+  it("checks website order numbers, direct-sale payment and the photo for broken items", () => {
+    expect(errors(base({ direction: "OUT", reason: "WEBSITE_ORDER", reference: "ABC" }))).toEqual({ reference: "entryForm.errors.websiteOrder" });
+    expect(errors(base({ direction: "OUT", reason: "WEBSITE_ORDER", reference: "#12345" }))).toEqual({});
+    expect(errors(base({ direction: "OUT", reason: "DIRECT_SALE", customerName: "A", customerPhone: "0501234567" }))).toEqual({
+      paymentMethod: "validation.required",
+    });
+    expect(errors(base({ direction: "OUT", reason: "DAMAGED_LOST", note: "x", reasonCode: "BROKEN_WAREHOUSE" }))).toEqual({
+      photoUrls: "entryForm.errors.photoRequired",
+    });
+    expect(errors(base({ direction: "OUT", reason: "DAMAGED_LOST", note: "x", reasonCode: "MISSING" }))).toEqual({});
   });
 
   it("requires a note for corrections and damaged/lost", () => {
     expect(errors(base({ reason: "CORRECTION" }))).toEqual({ note: "validation.required" });
-    expect(errors(base({ direction: "OUT", reason: "DAMAGED_LOST" }))).toEqual({ note: "validation.required" });
+    expect(errors(base({ direction: "OUT", reason: "DAMAGED_LOST", reasonCode: "MISSING" }))).toEqual({ note: "validation.required" });
   });
 
   it("validates the out reasons' own fields", () => {
     expect(errors(base({ direction: "OUT", reason: "WEBSITE_ORDER" }))).toEqual({ reference: "validation.required" });
-    expect(errors(base({ direction: "OUT", reason: "DIRECT_SALE", customerName: "A", customerPhone: "12" }))).toEqual({
+    expect(errors(base({ direction: "OUT", reason: "DIRECT_SALE", customerName: "A", customerPhone: "12", paymentMethod: "CASH" }))).toEqual({
       customerPhone: "validation.phone",
     });
     expect(errors(base({ direction: "OUT", reason: "INSTALLATION", customerName: "A" }))).toEqual({
@@ -45,11 +58,11 @@ describe("entryFormSchema", () => {
     expect(errors(base({ direction: "OUT", reason: "TRANSFER", destinationWarehouseId: "w1" }))).toEqual({
       destinationWarehouseId: "stock.errors.sameWarehouse",
     });
-    expect(errors(base({ direction: "OUT", reason: "SUPPLIER_RETURN" }))).toEqual({ supplierName: "validation.required" });
+    expect(errors(base({ direction: "OUT", reason: "SUPPLIER_RETURN" }))).toEqual({ supplierId: "suppliers.errors.required", note: "validation.required" });
   });
 
   it("normalises Saudi phone numbers with Arabic digits and spaces", () => {
-    const r = entryFormSchema.parse(base({ direction: "OUT", reason: "DIRECT_SALE", customerName: "A", customerPhone: "٠٥٠ ١٢٣ ٤٥٦٧" }));
+    const r = entryFormSchema.parse(base({ direction: "OUT", reason: "DIRECT_SALE", customerName: "A", customerPhone: "٠٥٠ ١٢٣ ٤٥٦٧", paymentMethod: "CARD" }));
     expect(r.customerPhone).toBe("0501234567");
   });
 

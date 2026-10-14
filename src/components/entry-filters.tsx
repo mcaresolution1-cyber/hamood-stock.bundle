@@ -7,7 +7,16 @@ import { NativeSelect } from "@/components/native-select";
 import { ENTRY_REASONS, ENTRY_TYPES, entryFilterOptions, type EntryFilters } from "@/server/queries/entries";
 
 /** Collapsible GET filter form shared by the entry list and the movement history report. */
-export async function EntryFilterForm({ filters, basePath }: { filters: EntryFilters; basePath: string }) {
+export async function EntryFilterForm({
+  filters,
+  basePath,
+  showCostPending = false,
+}: {
+  filters: EntryFilters;
+  basePath: string;
+  /** "Cost pending" checkbox: deliveries still missing a unit cost (cost roles only). */
+  showCostPending?: boolean;
+}) {
   const [t, tc, options] = await Promise.all([getTranslations(), getTranslations("common"), entryFilterOptions()]);
   const activeFilters = Object.entries(filters).filter(([k, v]) => k !== "page" && v).length;
   return (
@@ -74,6 +83,12 @@ export async function EntryFilterForm({ filters, basePath }: { filters: EntryFil
             {t("entries.product")}
             <Input name="product" defaultValue={filters.product ?? ""} placeholder={t("entries.productPlaceholder")} dir="ltr" className="h-11 md:h-10" />
           </label>
+          {showCostPending && (
+            <label className="flex min-h-11 items-center gap-2 self-end text-sm">
+              <input type="checkbox" name="costPending" value="1" defaultChecked={filters.costPending === "1"} className="size-5" />
+              {t("entries.costPendingFilter")}
+            </label>
+          )}
           <div className="flex items-end gap-2">
             <Button type="submit" className="h-11 md:h-10 flex-1">
               {t("entries.filter")}

@@ -24,6 +24,76 @@ async function resize(file: File): Promise<Blob> {
   );
 }
 
+/** Several photos (up to `max`): thumbnails with remove buttons and one "Add photo" button. */
+export function PhotosInput({ value, onChange, max, required }: { value: string[]; onChange: (urls: string[]) => void; max: number; required?: boolean }) {
+  const t = useTranslations("photo");
+  const tc = useTranslations("common");
+  const message = useMessage();
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function pick(files: FileList | null) {
+    if (!files?.length) return;
+    setBusy(true);
+    try {
+      const added: string[] = [];
+      for (const file of [...files].slice(0, max - value.length)) {
+        const blob = await resize(file).catch(() => file);
+        const fd = new FormData();
+        fd.set("file", new File([blob], "photo.jpg", { type: blob.type || "image/jpeg" }));
+        const result = await runAction(() => uploadAttachment(fd));
+        if (result.ok) added.push(result.data.url);
+        else toast.error(message(result.error, result.params));
+      }
+      if (added.length) onChange([...value, ...added]);
+    } finally {
+      setBusy(false);
+      if (input.current) input.current.value = "";
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium">
+        {t("labelMany")}
+        {!required && <span className="font-normal text-muted-foreground"> ({tc("optional")})</span>}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {value.map((url, i) => (
+          <div key={url} className="relative">
+            {/* eslint-disable-next-line @next/next/no-img-element -- private, auth-protected route */}
+            <img src={url} alt={t("numbered", { n: i + 1 })} className="h-24 w-24 rounded-md border object-cover" />
+            <Button
+              type="button"
+              size="icon"
+              variant="secondary"
+              className="absolute end-1 top-1 size-11 md:size-8"
+              aria-label={t("removeNumbered", { n: i + 1 })}
+              onClick={() => onChange(value.filter((u) => u !== url))}
+            >
+              <XIcon className="size-4" aria-hidden />
+            </Button>
+          </div>
+        ))}
+        {value.length < max && (
+          <Button type="button" variant="outline" className="h-24 w-24 flex-col gap-1" onClick={() => input.current?.click()} disabled={busy}>
+            <CameraIcon className="size-5" aria-hidden />
+            <span className="text-xs">{busy ? t("uploading") : t("add")}</span>
+          </Button>
+        )}
+      </div>
+      <input
+        ref={input}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        multiple
+        className="sr-only"
+        onChange={(e) => pick(e.target.files)}
+      />
+    </div>
+  );
+}
+
 export function PhotoInput({ value, onChange }: { value: string; onChange: (url: string) => void }) {
   const t = useTranslations("photo");
   const message = useMessage();

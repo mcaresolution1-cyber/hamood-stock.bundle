@@ -1,17 +1,18 @@
 /**
  * Stock In / Stock Out form schema — the SAME schema validates the form in the browser and the input
  * in the server action. Required fields depend on the reason (spec Phase 2):
- *   Supplier delivery  supplier name + invoice no.      Customer return  order no. OR customer name, condition
+ *   Supplier delivery  supplier (from the list) + invoice no.      Customer return  order no. OR customer name, condition
  *   Correction ±       note                             Website order    WooCommerce order no.
  *   Direct sale        customer name + phone            Installation     technician + customer
- *   Transfer           destination warehouse            Return to supplier  supplier name
+ *   Transfer           destination warehouse            Return to supplier  supplier (from the list)
  *   Damaged/lost       note
  * Messages are translation keys.
  */
 import { z } from "zod";
 import { IN_REASONS, OUT_REASONS } from "@/lib/stock/policy";
 import { normalizeNumberText, toWesternDigits } from "@/lib/import/normalize";
-import { id, optionalText } from "./common";
+import { id, moneyText, optionalText } from "./common";
+import { MAX_PHOTOS, PAYMENT_METHODS, normalizeWebsiteOrder, photoRequired, reasonCodesFor } from "@/lib/stock/details";
 
 export const MAX_FORM_LINES = 50;
 
@@ -37,10 +38,11 @@ const phone = z
   .refine((v) => v === "" || /^\+?\d{7,15}$/.test(v), "validation.phone")
   .transform((v) => (v === "" ? null : v));
 
+const PHOTO_PATH = /^\/api\/attachments\/[a-z0-9]{10,40}$/;
 const photoUrl = z
   .string()
   .trim()
-  .refine((v) => v === "" || /^\/api\/attachments\/[a-z0-9]{10,40}$/.test(v), "validation.photo")
+  .refine((v) => v === "" || PHOTO_PATH.test(v), "validation.photo")
   .transform((v) => (v === "" ? null : v));
 
 export const entryFormSchema = z
@@ -54,15 +56,32 @@ export const entryFormSchema = z
     returnCondition: z.enum(["", "RESELLABLE", "DAMAGED"]),
     reference: optionalText(100),
     supplierName: optionalText(100),
+    /** Supplier master record (Phase B); the server stores its name on the entry too. */
+    supplierId: z.string().max(64).default(""),
     customerName: optionalText(100),
     customerPhone: phone,
     technicianName: optionalText(100),
     note: optionalText(500),
     photoUrl,
+    /** Several photos (Phase C1); photoUrl is kept for older clients and becomes the first one. */
+    photoUrls: z.array(z.string().regex(PHOTO_PATH, "validation.photo")).max(MAX_PHOTOS, "entryForm.errors.tooManyPhotos").default([]),
+    /** Return reason or damage category (src/lib/stock/details.ts) */
+    reasonCode: z.string().max(32).default(""),
+    paymentMethod: z.enum(["", ...PAYMENT_METHODS]).default(""),
+    salesperson: optionalText(100).default(""),
+    /** Return to supplier: expected credit in SAR */
+    expectedCredit: moneyText.default(""),
     /** Set by the form when submitting; the same key twice returns the entry already saved. */
     idempotencyKey: z.string().regex(/^[A-Za-z0-9-]{8,64}$/).optional(),
     lines: z
-      .array(z.object({ productId: id, quantity }))
+      .array(
+        z.object({
+          productId: id,
+          quantity,
+          /** Supplier delivery: unit cost in SAR (ADMIN / MANAGER only, empty = cost pending) */
+          unitCost: moneyText.default(""),
+        }),
+      )
       .min(1, "stock.errors.noLines")
       .max(MAX_FORM_LINES, "entryForm.errors.tooManyLines"),
   })
@@ -77,23 +96,30 @@ export const entryFormSchema = z
     }
     switch (v.reason) {
       case "SUPPLIER_DELIVERY":
-        need("supplierName", v.supplierName);
+        need("supplierId", v.supplierId, "suppliers.errors.required");
         need("reference", v.reference);
         break;
       case "CUSTOMER_RETURN":
-        need("reference", v.reference || v.customerName, "entryForm.errors.orderOrCustomer");
+        need("reference", v.reference, "entryForm.errors.orderRequired");
         need("returnCondition", v.returnCondition);
+        need("reasonCode", reasonCodesFor(v.reason).includes(v.reasonCode));
         break;
       case "CORRECTION":
+        need("note", v.note);
+        break;
       case "DAMAGED_LOST":
         need("note", v.note);
+        need("reasonCode", reasonCodesFor(v.reason).includes(v.reasonCode));
+        if (photoRequired(v.reason, v.reasonCode)) need("photoUrls", v.photoUrls.length > 0 || v.photoUrl, "entryForm.errors.photoRequired");
         break;
       case "WEBSITE_ORDER":
         need("reference", v.reference);
+        if (v.reference) need("reference", normalizeWebsiteOrder(v.reference), "entryForm.errors.websiteOrder");
         break;
       case "DIRECT_SALE":
         need("customerName", v.customerName);
         need("customerPhone", v.customerPhone);
+        need("paymentMethod", v.paymentMethod);
         break;
       case "INSTALLATION":
         need("technicianName", v.technicianName);
@@ -106,7 +132,8 @@ export const entryFormSchema = z
         }
         break;
       case "SUPPLIER_RETURN":
-        need("supplierName", v.supplierName);
+        need("supplierId", v.supplierId, "suppliers.errors.required");
+        need("note", v.note);
         break;
     }
   });
@@ -122,11 +149,17 @@ export const emptyEntryForm = (direction: "IN" | "OUT"): EntryFormValues => ({
   returnCondition: "",
   reference: "",
   supplierName: "",
+  supplierId: "",
   customerName: "",
   customerPhone: "",
   technicianName: "",
   note: "",
   photoUrl: "",
+  photoUrls: [],
+  reasonCode: "",
+  paymentMethod: "",
+  salesperson: "",
+  expectedCredit: "",
   lines: [],
 });
 

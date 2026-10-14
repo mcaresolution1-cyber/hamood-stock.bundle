@@ -3,7 +3,7 @@ import { fieldsFor, keepReasonFields, noteRequired } from "./fields";
 
 describe("reason fields", () => {
   it("lists required fields per reason", () => {
-    expect(fieldsFor("DIRECT_SALE").filter((f) => f.required).map((f) => f.field)).toEqual(["customerName", "customerPhone"]);
+    expect(fieldsFor("DIRECT_SALE").filter((f) => f.required).map((f) => f.field)).toEqual(["customerName", "customerPhone", "paymentMethod"]);
     expect(fieldsFor("")).toEqual([]);
     expect(noteRequired("CORRECTION")).toBe(true);
     expect(noteRequired("WEBSITE_ORDER")).toBe(false);
@@ -11,7 +11,7 @@ describe("reason fields", () => {
 
   it("drops fields the reason doesn't use", () => {
     expect(
-      keepReasonFields("WEBSITE_ORDER", { reference: "W-1", supplierName: "Acme", technicianName: "T", destinationWarehouseId: "w2" }),
-    ).toEqual({ reference: "W-1", supplierName: null, technicianName: null, destinationWarehouseId: null });
+      keepReasonFields("WEBSITE_ORDER", { reference: "W-1", supplierId: "s1", supplierName: "Acme", technicianName: "T", destinationWarehouseId: "w2" }),
+    ).toEqual({ reference: "W-1", supplierId: null, supplierName: null, technicianName: null, destinationWarehouseId: null });
   });
 });

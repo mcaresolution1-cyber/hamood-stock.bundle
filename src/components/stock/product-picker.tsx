@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { ProductThumb } from "@/components/product-thumb";
+import { searchKeywords } from "@/lib/products";
 import { Ltr } from "@/components/ltr";
 import type { FormProduct } from "@/server/queries/entry-form";
 
@@ -49,7 +50,7 @@ export function ProductPicker({
                 <CommandItem
                   key={p.id}
                   value={p.id}
-                  keywords={[p.modelCode, p.nameEn, p.nameAr, p.variant ?? ""]}
+                  keywords={[p.modelCode, ...searchKeywords(p)]}
                   onSelect={() => {
                     onPick(p);
                     setOpen(false);

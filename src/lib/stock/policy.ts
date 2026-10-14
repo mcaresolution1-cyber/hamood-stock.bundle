@@ -22,7 +22,7 @@ export const OUT_REASONS = [
 /** Reasons only an ADMIN may use (opening stock has its own import screen). */
 export const ADMIN_ONLY_REASONS: ReadonlySet<EntryReason> = new Set<EntryReason>(["OPENING_STOCK"]);
 
-/** Reasons STAFF may not use. Corrections and damaged/lost are allowed — through approval (decision A2). */
+/** Reasons STAFF may not use. Corrections and damaged/lost are allowed — through approval (decision PA2). */
 export const MANAGER_REASONS: ReadonlySet<EntryReason> = new Set<EntryReason>(["SUPPLIER_RETURN"]);
 
 /** Selling reasons — only allowed from SELLABLE warehouses (Q4). */

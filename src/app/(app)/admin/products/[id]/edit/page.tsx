@@ -1,34 +1,28 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
 import { requirePagePermission } from "@/server/auth/dal";
-import { getProductForEdit } from "@/server/queries/products";
+import { getProductForEdit, productFormOptions } from "@/server/queries/products";
 import { isCategory } from "@/lib/products";
 import { ProductForm } from "../../product-form";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: (await getTranslations("products"))("title") };
+}
 
 export default async function EditProductPage({ params }: PageProps<"/admin/products/[id]/edit">) {
   await requirePagePermission("product:manage");
   const { id } = await params;
   const product = await getProductForEdit(id);
   if (!product) notFound();
-  const t = await getTranslations("products");
+  const [t, options, locale] = await Promise.all([getTranslations("products"), productFormOptions(product.values.defaultSupplierId), getLocale()]);
+  const values = { ...product.values, category: isCategory(product.values.category) ? product.values.category : "wall-mount" };
 
   return (
     <>
-      <PageHeader title={t("editTitle", { modelCode: product.modelCode })} />
-      <ProductForm
-        product={{
-          id: product.id,
-          modelCode: product.modelCode,
-          nameEn: product.nameEn,
-          nameAr: product.nameAr,
-          category: isCategory(product.category) ? product.category : "wall-mount",
-          variant: product.variant ?? "",
-          imageUrl: product.imageUrl ?? "",
-          cost: product.cost ?? "",
-          lowStockLevel: String(product.lowStockLevel),
-        }}
-      />
+      <PageHeader title={t("editTitle", { modelCode: product.values.modelCode })} />
+      <ProductForm product={{ id: product.id, values, reorder: product.reorder }} options={options} locale={locale} />
     </>
   );
 }

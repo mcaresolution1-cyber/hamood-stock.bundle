@@ -1,12 +1,13 @@
 /**
  * Opening stock file validation (columns: modelCode, quantity). Pure.
- * Model codes must exist and be active (Q7: inactive products can't come in).
+ * Model codes must exist and be Active (Q7/PB1: discontinued or inactive products can't come in).
  */
+import { canReceive, type ProductStatusName } from "@/lib/products";
 import { normalizeModelCode, parseWholeNumber } from "./normalize";
 import type { ParsedSheet } from "./sheet";
 import type { RowError } from "./products";
 
-export type OpeningStockProduct = { id: string; modelCode: string; nameEn: string; nameAr: string; active: boolean };
+export type OpeningStockProduct = { id: string; modelCode: string; nameEn: string; nameAr: string; status: ProductStatusName };
 
 export type OpeningStockRow = {
   row: number;
@@ -40,7 +41,7 @@ export function validateOpeningStock(
 
     if (!modelCode) errors.push({ field: "modelCode", key: "validation.required" });
     else if (!product) errors.push({ field: "modelCode", key: "import.errors.unknownProduct" });
-    else if (!product.active) errors.push({ field: "modelCode", key: "import.errors.inactiveProduct" });
+    else if (!canReceive(product.status)) errors.push({ field: "modelCode", key: "import.errors.inactiveProduct" });
     if (modelCode && seen.has(modelCode)) errors.push({ field: "modelCode", key: "import.errors.duplicateInFile" });
     if (modelCode) seen.add(modelCode);
 
