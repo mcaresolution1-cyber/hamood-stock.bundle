@@ -2,6 +2,7 @@
  * Database helpers for integration tests. Build fixtures through the real services; never write
  * StockLevel or entries directly (scripts/check-rules.mjs enforces this).
  */
+import { DEFAULT_CATEGORIES } from "@/lib/categories";
 import bcrypt from "bcryptjs";
 import mariadb from "mariadb";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
@@ -29,6 +30,8 @@ const TABLES = [
   "Counter",
   "Attachment",
   "_UserWarehouses",
+  "ProductCategory",
+  "Category",
   "Product",
   "ProductImage",
   "Supplier",
@@ -51,6 +54,8 @@ export async function resetDatabase() {
   await testDb.counter.createMany({
     data: COUNTER_KEYS.map((key) => ({ key, value: 0 })),
   });
+  // The migration creates the four default categories; tests start from the same state.
+  await testDb.category.createMany({ data: DEFAULT_CATEGORIES.map((c) => ({ ...c })) });
 }
 
 let seq = 0;
@@ -82,7 +87,7 @@ export async function makeProduct(modelCode?: string) {
       sku: modelCode ?? `TST-${n}`,
       nameEn: `Test product ${n}`,
       nameAr: `منتج تجريبي ${n}`,
-      category: "wall-mount",
+      categories: { create: [{ categoryId: "cat-wall-mount" }] },
     },
   });
 }

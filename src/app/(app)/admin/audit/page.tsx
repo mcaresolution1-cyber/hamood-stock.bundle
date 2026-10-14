@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { FilterIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { Pagination } from "@/components/pagination";
 import { requirePagePermission } from "@/server/auth/dal";
+import { categoryName, DEFAULT_CATEGORIES } from "@/lib/categories";
 import { AUDIT_AREAS, listAudit, parseAuditFilters } from "@/server/queries/audit";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -20,7 +21,7 @@ type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 export default async function AuditPage({ searchParams }: PageProps<"/admin/audit">) {
   await requirePagePermission("audit:view");
   const filters = parseAuditFilters(await searchParams);
-  const [t, tc, format, result] = await Promise.all([getTranslations(), getTranslations("common"), getFormatter(), listAudit(filters)]);
+  const [t, tc, format, locale, result] = await Promise.all([getTranslations(), getTranslations("common"), getFormatter(), getLocale(), listAudit(filters)]);
   const when = (d: Date) => format.dateTime(d, { dateStyle: "medium", timeStyle: "short" });
 
   // Message keys are built from stored values; anything unknown is shown as stored.
@@ -34,7 +35,12 @@ export default async function AuditPage({ searchParams }: PageProps<"/admin/audi
     if (Array.isArray(v)) return v.length ? v.map((x) => show(field, x)).join(", ") : "—";
     if (typeof v === "object") return Object.entries(v).map(([k, x]) => `${label(k)}: ${show(k, x)}`).join(" · ");
     const s = String(v);
-    const ns = { role: "roles", kind: "warehouseKinds", category: "categories", status: "approvals.status" }[field];
+    // Entries written before categories became data hold the old fixed keys ("wall-mount").
+    if (field === "category") {
+      const legacy = DEFAULT_CATEGORIES.find((c) => c.id === `cat-${s}`);
+      if (legacy) return categoryName(legacy, locale);
+    }
+    const ns = { role: "roles", kind: "warehouseKinds", status: "approvals.status" }[field];
     if (ns && /^[\w-]+$/.test(s) && has(`${ns}.${s}`)) return tr(`${ns}.${s}`);
     if (field === "status" && /^\w+$/.test(s) && has(`products.statuses.${s}`)) return tr(`products.statuses.${s}`);
     return s;

@@ -33,7 +33,8 @@
     "results": "{count, plural, =0 {No results} =1 {1 result} other {# results}}",
     "menu": "Menu",
     "download": "Download",
-    "upload": "Upload"
+    "upload": "Upload",
+    "delete": "Delete"
   },
   "auth": {
     "title": "Sign in",
@@ -91,10 +92,30 @@
     "myRequests": "My requests waiting"
   },
   "categories": {
-    "wall-mount": "TV wall mounts",
-    "floor-stand": "Floor stands",
-    "monitor-mount": "Monitor mounts",
-    "tv-table": "TV tables"
+    "title": "Categories",
+    "subtitle": "Group products for lists, filters and reports. A product can be in several categories.",
+    "new": "New category",
+    "newHint": "Give the category a name in English and in Arabic.",
+    "editTitle": "Edit category",
+    "nameEn": "Name (English)",
+    "nameAr": "Name (Arabic)",
+    "position": "Order",
+    "positionHint": "Lower numbers come first in lists.",
+    "add": "Add category",
+    "created": "Category added.",
+    "main": "Main",
+    "inactive": "Hidden",
+    "empty": "No categories yet.",
+    "products": "Products",
+    "productCount": "{count, plural, =0 {No products} =1 {1 product} other {# products}}",
+    "deleteConfirm": "Delete the category {name}?",
+    "deactivateConfirm": "Hide the category {name}?",
+    "activateConfirm": "Show the category {name} again?",
+    "deactivateHelp": "Products keep it, but it can't be chosen for other products until you show it again.",
+    "errors": {
+      "nameTaken": "A category with this name already exists.",
+      "inUse": "{count, plural, =1 {1 product uses} other {# products use}} this category. Hide it instead."
+    }
   },
   "errors": {
     "forbidden": "You don't have permission to do that.",
@@ -123,7 +144,14 @@
     "audit": "Audit log",
     "settings": "Settings",
     "jobs": "My jobs",
-    "suppliers": "Suppliers"
+    "suppliers": "Suppliers",
+    "productsNew": "Add product",
+    "productsImport": "Import products",
+    "categories": "Categories",
+    "sections": {
+      "catalog": "Products",
+      "admin": "Admin"
+    }
   },
   "validation": {
     "required": "This field is required.",
@@ -247,7 +275,10 @@
       "barcodeTaken": "Another product already uses this barcode.",
       "unknownSupplier": "Choose an active supplier.",
       "retireHasStock": "This product still has stock. Move or write it off first, or set it to Discontinued.",
-      "newInactive": "A new product can't start as Inactive."
+      "newInactive": "A new product can't start as Inactive.",
+      "categoryRequired": "Choose at least one category.",
+      "tooManyCategories": "Choose at most 10 categories.",
+      "unknownCategory": "Choose categories from the list."
     },
     "sections": {
       "identity": "Product",
@@ -306,27 +337,28 @@
       "IMPORT": "Import",
       "DELIVERY": "Delivery"
     },
-    "noCostHistory": "No cost recorded yet."
+    "noCostHistory": "No cost recorded yet.",
+    "categories": "Categories",
+    "categoriesHint": "Pick one or more. The first one you pick is the main category.",
+    "newSubtitle": "Add one product here, or import many from an Excel or CSV file.",
+    "importMany": "Import from Excel / CSV"
   },
   "import": {
     "title": "Import products",
-    "subtitle": "Upload an Excel (.xlsx) or CSV file. Existing model codes are updated; empty cells keep the current value.",
-    "columns": "Columns",
-    "columnsHelp": "modelCode is required; new products also need nameEn, nameAr and category. Optional: sku, barcode, sizeRange, colour, maxLoadKg, vesa, variant, imageUrl, cost, sellingPrice, lowStockLevel, leadTimeDays, wooProductId, wooSku, supplier (name).",
+    "subtitle": "Upload an Excel (.xlsx) or CSV file. The columns are matched to product fields for you; check them, see the rows, then import. Existing model codes are updated; empty cells keep the current value.",
     "file": "File",
     "chooseFile": "Choose file",
-    "preview": "Check file",
+    "preview": "Check {count, plural, =1 {1 row} other {all # rows}}",
     "apply": "Import {count, plural, =1 {1 product} other {# products}}",
     "checking": "Checking…",
     "importing": "Importing…",
     "summary": "{create} new · {update} updated · {error} with errors",
     "row": "Row",
-    "action": "Result",
     "problems": "Problems",
     "actionCreate": "New",
     "actionUpdate": "Update",
     "actionError": "Error",
-    "done": "Imported: {created} new, {updated} updated.",
+    "done": "Imported: {created} new, {updated} updated, {categories} new categories.",
     "fixAndRetry": "Fix the rows with errors in your file and check it again.",
     "template": "Download template",
     "errors": {
@@ -339,14 +371,55 @@
       "missingModelCode": "The file needs a modelCode column.",
       "missingQuantity": "The file needs a quantity column.",
       "duplicateInFile": "This value appears more than once in the file.",
-      "unknownCategory": "Unknown category. Use wall-mount, floor-stand, monitor-mount or tv-table.",
       "unknownProduct": "No product with this model code.",
       "inactiveProduct": "This product is discontinued or inactive.",
       "fixFirst": "The file has errors. Nothing was saved.",
-      "unknownSupplier": "No active supplier with this name."
+      "unknownSupplier": "No active supplier with this name.",
+      "columnsChanged": "The file changed. Choose it again.",
+      "duplicateField": "Each product field can be matched to one column only.",
+      "changedMeanwhile": "Categories changed while importing. Check the file again.",
+      "hiddenCategory": "This category is hidden. Show it again on the Categories page, or use another one."
     },
     "errorsColumn": "Errors",
-    "downloadErrors": "Download rows with errors"
+    "downloadErrors": "Download rows with errors",
+    "step1": "1. Choose a file",
+    "step1Help": "Any Excel or CSV file with one product per row and a header row — your own columns are fine.",
+    "step2": "2. Match the columns",
+    "step2Help": "{count, plural, =1 {1 row} other {# rows}} found. Each column of your file is matched to a product field — change any that are wrong, or skip columns you don't need.",
+    "step3": "3. Check and import",
+    "reading": "Reading the file…",
+    "noHeader": "Column {n} (no header)",
+    "emptyColumn": "Empty in the first rows",
+    "fieldFor": "Product field for the column {column}",
+    "skipColumn": "Don't import",
+    "requiredNote": "* Model code is always needed; names and categories are needed for new products.",
+    "needModelCode": "Choose which column holds the model code.",
+    "missingForNew": "Not matched: {fields}. Rows for new products will need them.",
+    "firstRows": "First rows as they will be read",
+    "result": "Result",
+    "backToColumns": "Change columns",
+    "newCategories": "{count, plural, =1 {This category is new and will be created:} other {These # categories are new and will be created:}}",
+    "fields": {
+      "modelcode": "Model code",
+      "sku": "SKU",
+      "barcode": "Barcode",
+      "nameen": "Name (English)",
+      "namear": "Name (Arabic)",
+      "category": "Categories",
+      "sizerange": "Size range",
+      "colour": "Colour",
+      "maxloadkg": "Max load (kg)",
+      "vesa": "VESA",
+      "variant": "Other details",
+      "imageurl": "Image link",
+      "cost": "Cost",
+      "sellingprice": "Selling price",
+      "lowstocklevel": "Low-stock level",
+      "leadtimedays": "Lead time (days)",
+      "wooproductid": "WooCommerce product ID",
+      "woosku": "WooCommerce SKU",
+      "supplier": "Supplier"
+    }
   },
   "openingStock": {
     "title": "Opening stock",
@@ -819,7 +892,8 @@
       "setting": "Settings",
       "approval": "Approvals",
       "supplier": "Suppliers",
-      "entry": "Entries"
+      "entry": "Entries",
+      "category": "Categories"
     },
     "actions": {
       "product_create": "Product created",
@@ -842,7 +916,12 @@
       "supplier_activate": "Supplier activated",
       "supplier_deactivate": "Supplier deactivated",
       "entry_costs": "Delivery costs entered",
-      "entry_supplierCredit": "Supplier credit updated"
+      "entry_supplierCredit": "Supplier credit updated",
+      "category_create": "Category added",
+      "category_update": "Category changed",
+      "category_activate": "Category shown",
+      "category_deactivate": "Category hidden",
+      "category_delete": "Category deleted"
     },
     "fields": {
       "modelCode": "Model code",
@@ -892,7 +971,10 @@
       "paymentTerms": "Payment terms",
       "notes": "Notes",
       "country": "Country",
-      "creditAmount": "Credit"
+      "creditAmount": "Credit",
+      "categories": "Categories",
+      "position": "Order",
+      "newCategories": "New categories"
     }
   },
   "account": {

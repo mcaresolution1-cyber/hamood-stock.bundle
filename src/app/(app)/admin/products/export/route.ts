@@ -1,6 +1,7 @@
 /** Products list as Excel — the same rows (and cost rule) as the page, every page at once. */
 import { getLocale, getTranslations } from "next-intl/server";
-import { attributeLine, isCategory } from "@/lib/products";
+import { attributeLine } from "@/lib/products";
+import { categoryName } from "@/lib/categories";
 import { getCurrentUser } from "@/server/auth/dal";
 import { routeGuard } from "@/server/export/template";
 import { stamp, xlsxFile, type XlsxColumn } from "@/server/export/xlsx";
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
   if (denied) return denied;
   const user = (await getCurrentUser())!;
   const sp = Object.fromEntries(new URL(request.url).searchParams);
-  const filters = parseProductFilters(sp, isCategory);
+  const filters = parseProductFilters(sp);
   const [t, locale, r] = await Promise.all([getTranslations(), getLocale(), listProducts(user, filters, { all: true })]);
 
   const columns: XlsxColumn[] = [
@@ -38,7 +39,8 @@ export async function GET(request: Request) {
     sku: p.sku,
     barcode: p.barcode,
     name: locale === "ar" ? p.nameAr : p.nameEn,
-    category: isCategory(p.category) ? t(`categories.${p.category}`) : p.category,
+    // ", " so the file can be imported again (the import splits on commas)
+    category: p.categories.map((c) => categoryName(c.category, locale)).join(", "),
     details: attributeLine(p, t("products.kg")).replace(/[\u2066\u2069]/g, ""), // no invisible marks in Excel
     status: t(`products.statuses.${p.status}`),
     ...Object.fromEntries(r.warehouses.map((w) => [`w_${w.id}`, p.qty[w.id] ?? 0])),

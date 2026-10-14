@@ -33,7 +33,6 @@ export async function loadEntryForm(user: CurrentUser, direction: Direction) {
         vesa: true,
         wooSku: true,
         imageUrl: true,
-        category: true,
         status: true,
       },
       orderBy: { modelCode: "asc" },

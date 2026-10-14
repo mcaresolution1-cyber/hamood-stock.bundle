@@ -4,6 +4,8 @@
  * user may see cost (CLAUDE.md: strip it in the query, not the UI). Dates are Riyadh dates.
  */
 import "server-only";
+import type { CategoryName } from "@/lib/categories";
+import { productCategoriesSelect } from "@/server/queries/categories";
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { lowStockOf } from "@/lib/stock/low-stock";
@@ -29,7 +31,7 @@ export type StockOnHandRow = {
   modelCode: string;
   nameEn: string;
   nameAr: string;
-  category: string;
+  categories: CategoryName[];
   status: "ACTIVE" | "DISCONTINUED" | "INACTIVE";
   qty: Record<string, number>;
   total: number;
@@ -48,11 +50,11 @@ export async function stockOnHand(user: CurrentUser, filters: { category?: strin
     }),
     db.product.findMany({
       where: {
-        ...(filters.category ? { category: filters.category } : {}),
+        ...(filters.category ? { categories: { some: { categoryId: filters.category } } } : {}),
         // discontinued products only while they still hold stock (Q7 sell-off), inactive never (no stock)
         OR: [{ status: "ACTIVE" }, { levels: { some: { quantity: { gt: 0 } } } }],
       },
-      select: { id: true, modelCode: true, nameEn: true, nameAr: true, category: true, status: true, cost: showCost },
+      select: { id: true, modelCode: true, nameEn: true, nameAr: true, ...productCategoriesSelect, status: true, cost: showCost },
       orderBy: { modelCode: "asc" },
     }),
     db.stockLevel.findMany({ where: { quantity: { gt: 0 } }, select: { productId: true, warehouseId: true, quantity: true } }),
@@ -78,7 +80,7 @@ export async function stockOnHand(user: CurrentUser, filters: { category?: strin
       modelCode: p.modelCode,
       nameEn: p.nameEn,
       nameAr: p.nameAr,
-      category: p.category,
+      categories: p.categories.map((c) => c.category),
       status: p.status,
       qty,
       total,
@@ -191,14 +193,14 @@ export async function lowStock(filters: { category?: string }) {
       where: {
         status: "ACTIVE", // discontinued: sell what's left, don't reorder
         OR: [{ lowStockLevel: { gt: 0 } }, { reorder: { some: { reorderLevel: { gt: 0 } } } }],
-        ...(filters.category ? { category: filters.category } : {}),
+        ...(filters.category ? { categories: { some: { categoryId: filters.category } } } : {}),
       },
       select: {
         id: true,
         modelCode: true,
         nameEn: true,
         nameAr: true,
-        category: true,
+        ...productCategoriesSelect,
         lowStockLevel: true,
         levels: { where: { warehouse: { active: true, kind: "SELLABLE" } }, select: { warehouseId: true, quantity: true } },
         reorder: { select: { warehouseId: true, reorderLevel: true, reorderQty: true } },
@@ -218,7 +220,7 @@ export async function lowStock(filters: { category?: string }) {
         modelCode: p.modelCode,
         nameEn: p.nameEn,
         nameAr: p.nameAr,
-        category: p.category,
+        categories: p.categories.map((c) => c.category),
         /** The default level, or null when the product has its own per-warehouse levels */
         lowStockLevel: ownLevels.length ? null : p.lowStockLevel,
         levels: Object.fromEntries(ownLevels.map((r) => [r.warehouseId, r.reorderLevel])),

@@ -12,26 +12,25 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { LanguageSwitch } from "@/components/language-switch";
-import { DesktopNav, MobileNav } from "@/components/app-nav";
+import { MobileNav } from "@/components/app-nav";
 import { navItemsFor } from "@/lib/nav";
 import { logoutAction } from "@/server/actions/auth";
 import type { CurrentUser } from "@/server/auth/dal";
 
+/** Slim bar above the page: menu button + brand on phones (the sidebar has them from md up), language, account. */
 export async function TopBar({ user }: { user: CurrentUser }) {
   const t = await getTranslations();
   const nav = navItemsFor(user.role);
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4 lg:gap-3">
+      <div className="flex h-14 items-center gap-2 px-4 md:px-6">
         <MobileNav items={nav} />
-        {/* The brand never truncates from lg up; on a narrow phone it may shorten with "…". */}
-        <Link href="/" className="flex min-h-11 min-w-0 items-center gap-2 md:shrink-0">
+        {/* On a narrow phone the brand may shorten with "…". */}
+        <Link href="/" className="flex min-h-11 min-w-0 items-center gap-2 md:hidden">
           <WarehouseIcon className="size-5 shrink-0" aria-hidden />
-          {/* Tablet (md–lg): icon only, so the full menu fits in English too; the name stays for screen readers. */}
-          <span className="truncate font-semibold md:max-lg:sr-only lg:overflow-visible lg:whitespace-nowrap">{t("common.appName")}</span>
+          <span className="truncate font-semibold">{t("common.appName")}</span>
         </Link>
-        <DesktopNav items={nav} />
 
         <div className="ms-auto flex items-center gap-2">
           <LanguageSwitch />
@@ -40,7 +39,7 @@ export async function TopBar({ user }: { user: CurrentUser }) {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="gap-2" aria-label={t("topBar.openMenu")}>
                 <UserIcon className="size-4" aria-hidden />
-                <span className="hidden max-w-32 truncate xl:inline">{user.name}</span>
+                <span className="hidden max-w-40 truncate sm:inline">{user.name}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">

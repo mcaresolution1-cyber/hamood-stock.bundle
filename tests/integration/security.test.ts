@@ -155,7 +155,7 @@ describe("audit log", () => {
       barcode: "",
       nameEn: p.nameEn,
       nameAr: p.nameAr,
-      category: "wall-mount",
+      categoryIds: ["cat-wall-mount"],
       status: "ACTIVE",
       variant: "",
       sizeRange: "",

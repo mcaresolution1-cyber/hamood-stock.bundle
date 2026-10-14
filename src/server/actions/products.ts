@@ -10,10 +10,11 @@ import { requirePermission } from "@/server/auth/dal";
 import { audit, changedFields } from "@/server/audit";
 import { productColumns, productSchema, type ProductInput } from "@/lib/validation/products";
 import type { Tx } from "@/server/stock/createEntry";
-import { guarded, isUniqueViolation, UserFacingError, type ActionResult } from "./result";
+import { guarded, isForeignKeyViolation, isUniqueViolation, UserFacingError, type ActionResult } from "./result";
 
 /** Which unique field a P2002 hit (model code, SKU or barcode), as a translation key. */
 function uniqueError(e: unknown): UserFacingError | null {
+  if (isForeignKeyViolation(e)) return new UserFacingError("products.errors.unknownCategory");
   if (!isUniqueViolation(e)) return null;
   const target = JSON.stringify((e as { meta?: unknown }).meta ?? "") + String((e as Error).message ?? "");
   if (/sku/i.test(target)) return new UserFacingError("products.errors.skuTaken");
@@ -22,7 +23,7 @@ function uniqueError(e: unknown): UserFacingError | null {
 }
 
 /** Supplier / image / warehouses referenced by the form must exist (and the supplier be active). */
-async function checkReferences(tx: Tx, data: ProductInput, currentSupplierId: string | null = null) {
+async function checkReferences(tx: Tx, data: ProductInput, currentSupplierId: string | null = null, currentCategoryIds: readonly string[] = []) {
   const columns = productColumns(data);
   if (data.defaultSupplierId && data.defaultSupplierId !== currentSupplierId) {
     const ok = await tx.supplier.count({ where: { id: data.defaultSupplierId, active: true } });
@@ -31,11 +32,24 @@ async function checkReferences(tx: Tx, data: ProductInput, currentSupplierId: st
   if (columns.imageId && !(await tx.productImage.count({ where: { id: columns.imageId } }))) {
     throw new UserFacingError("validation.photo");
   }
+  // Categories must exist; a product may keep an inactive one it already has, but not get a new inactive one.
+  // Share-locked so hiding or deleting one (FOR UPDATE) waits for this save.
+  await tx.$queryRaw`SELECT id FROM \`Category\` WHERE id IN (${Prisma.join(data.categoryIds)}) LOCK IN SHARE MODE`;
+  const usable = await tx.category.count({
+    where: { id: { in: data.categoryIds }, OR: [{ active: true }, { id: { in: [...currentCategoryIds] } }] },
+  });
+  if (usable !== data.categoryIds.length) throw new UserFacingError("products.errors.unknownCategory");
   const warehouseIds = [...new Set(data.reorder.map((r) => r.warehouseId))];
   if (warehouseIds.length !== data.reorder.length) throw new UserFacingError("errors.invalidInput");
   if (warehouseIds.length && (await tx.warehouse.count({ where: { id: { in: warehouseIds } } })) !== warehouseIds.length) {
     throw new UserFacingError("users.errors.unknownWarehouse");
   }
+}
+
+/** Replace the product's categories; their order on the form is kept (position 0 = main). */
+async function saveCategories(tx: Tx, productId: string, categoryIds: readonly string[]) {
+  await tx.productCategory.deleteMany({ where: { productId } });
+  await tx.productCategory.createMany({ data: categoryIds.map((categoryId, position) => ({ productId, categoryId, position })) });
 }
 
 /** Replace the per-warehouse reorder levels (rows left empty on the form have no override). */
@@ -57,7 +71,14 @@ async function assertCanRetire(tx: Tx, productId: string) {
 /** Cost for audit/history comparisons: "12.5" from the form and 12.50 from the database are equal. */
 const costOf = (v: string | Prisma.Decimal | null) => (v === null ? null : new Prisma.Decimal(v).toFixed(2));
 
-function forAudit(data: ProductInput) {
+/** English names of categories, in the given order (the audit log shows names, not ids). */
+async function categoryNamesOf(tx: Tx, ids: readonly string[]) {
+  const rows = await tx.category.findMany({ where: { id: { in: [...ids] } }, select: { id: true, nameEn: true } });
+  const byId = new Map(rows.map((r) => [r.id, r.nameEn]));
+  return ids.map((id) => byId.get(id) ?? id);
+}
+
+function forAudit(data: ProductInput, categories: string[]) {
   const { imageId: _imageId, ...columns } = productColumns(data);
   void _imageId;
   return {
@@ -65,6 +86,7 @@ function forAudit(data: ProductInput) {
     cost: data.cost === null ? null : new Prisma.Decimal(data.cost),
     sellingPrice: data.sellingPrice === null ? null : new Prisma.Decimal(data.sellingPrice),
     reorder: data.reorder,
+    categories,
   };
 }
 
@@ -77,6 +99,7 @@ export async function createProduct(values: unknown): Promise<ActionResult<{ id:
       const p = await db.$transaction(async (tx) => {
         await checkReferences(tx, data);
         const created = await tx.product.create({ data: productColumns(data), select: { id: true } });
+        await saveCategories(tx, created.id, data.categoryIds);
         await saveReorder(tx, created.id, data.reorder);
         if (data.cost !== null) {
           await tx.productCost.create({ data: { productId: created.id, cost: data.cost, source: "MANUAL", changedById: actor.id } });
@@ -86,7 +109,7 @@ export async function createProduct(values: unknown): Promise<ActionResult<{ id:
           subjectType: "product",
           subjectId: created.id,
           subjectLabel: data.modelCode,
-          after: forAudit(data),
+          after: forAudit(data, await categoryNamesOf(tx, data.categoryIds)),
         });
         return created;
       });
@@ -107,20 +130,25 @@ export async function updateProduct(id: string, values: unknown): Promise<Action
       await db.$transaction(async (tx) => {
         const before = await tx.product.findUnique({
           where: { id: productId },
-          include: { reorder: { select: { warehouseId: true, reorderLevel: true, reorderQty: true }, orderBy: { warehouseId: "asc" } } },
+          include: {
+            reorder: { select: { warehouseId: true, reorderLevel: true, reorderQty: true }, orderBy: { warehouseId: "asc" } },
+            categories: { select: { categoryId: true }, orderBy: [{ position: "asc" }, { categoryId: "asc" }] },
+          },
         });
         if (!before) throw new UserFacingError("errors.notFound");
-        await checkReferences(tx, data, before.defaultSupplierId);
+        const beforeCategoryIds = before.categories.map((c) => c.categoryId);
+        await checkReferences(tx, data, before.defaultSupplierId, beforeCategoryIds);
         if (data.status === "INACTIVE" && before.status !== "INACTIVE") await assertCanRetire(tx, productId);
 
         await tx.product.update({ where: { id: productId }, data: productColumns(data) });
+        await saveCategories(tx, productId, data.categoryIds);
         await saveReorder(tx, productId, data.reorder);
         if (costOf(before.cost) !== costOf(data.cost)) {
           await tx.productCost.create({ data: { productId, cost: data.cost, source: "MANUAL", changedById: actor.id } });
         }
-        const after = forAudit(data);
+        const after = forAudit(data, await categoryNamesOf(tx, data.categoryIds));
         after.reorder = [...after.reorder].sort((a, b) => a.warehouseId.localeCompare(b.warehouseId));
-        const diff = changedFields({ ...before, reorder: before.reorder }, after);
+        const diff = changedFields({ ...before, reorder: before.reorder, categories: await categoryNamesOf(tx, beforeCategoryIds) }, after);
         if (diff) {
           await audit(tx, actor.id, { action: "product.update", subjectType: "product", subjectId: productId, subjectLabel: data.modelCode, ...diff });
         }

@@ -46,7 +46,7 @@ const productForm = (extra: Record<string, unknown> = {}) => ({
   barcode: "",
   nameEn: "Mount",
   nameAr: "حامل",
-  category: "wall-mount",
+  categoryIds: ["cat-wall-mount"],
   status: "ACTIVE",
   variant: "",
   sizeRange: "32–70″",
@@ -326,7 +326,9 @@ describe("product import (Phase B columns)", () => {
     const ws = wb.worksheets[0];
     expect(ws.rowCount).toBe(2);
     expect(ws.getCell("B2").value).toBe("BAD-1");
-    expect(String(ws.getRow(2).getCell(ws.columnCount).value)).toContain("category");
+    // the file's own columns come back, plus the errors (fields named as on screen)
+    expect(ws.getCell("B1").value).toBe("modelCode");
+    expect(String(ws.getRow(2).getCell(ws.columnCount).value)).toContain("Name (English)");
     const cross = await importErrors(new Request("http://x/admin/products/import/errors", { method: "POST", body: fd, headers: { "sec-fetch-site": "cross-site" } }));
     expect(cross.status).toBe(403);
   });

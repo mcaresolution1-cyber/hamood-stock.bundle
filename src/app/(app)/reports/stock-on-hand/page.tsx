@@ -3,7 +3,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { ReportTable, type ReportColumn } from "@/components/reports/report-table";
 import { ReportBar, qs } from "@/components/reports/report-bar";
 import { CategoryFilter } from "@/components/reports/category-filter";
-import { isCategory } from "@/lib/products";
+import { parseCategoryParam } from "@/server/queries/categories";
 import { requirePagePermission } from "@/server/auth/dal";
 import { stockOnHand } from "@/server/queries/reports";
 
@@ -13,8 +13,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function StockOnHandPage({ searchParams }: PageProps<"/reports/stock-on-hand">) {
   const user = await requirePagePermission("stock:view");
-  const raw = (await searchParams).category;
-  const category = typeof raw === "string" && isCategory(raw) ? raw : undefined;
+  const category = await parseCategoryParam((await searchParams).category);
   const [t, locale, r] = await Promise.all([getTranslations(), getLocale(), stockOnHand(user, { category })]);
 
   const columns: ReportColumn[] = [

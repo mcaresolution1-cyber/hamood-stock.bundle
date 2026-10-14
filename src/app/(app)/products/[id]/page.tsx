@@ -10,7 +10,8 @@ import { NativeSelect } from "@/components/native-select";
 import { ProductThumb } from "@/components/product-thumb";
 import { Ltr } from "@/components/ltr";
 import { ReportTable, type ReportColumn } from "@/components/reports/report-table";
-import { attributeLine, isCategory } from "@/lib/products";
+import { attributeLine } from "@/lib/products";
+import { categoryNames } from "@/lib/categories";
 import { ProductStatusBadge } from "@/components/product-status-badge";
 import { cn } from "@/lib/utils";
 import { can } from "@/lib/permissions";
@@ -63,7 +64,7 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
           </h1>
           <p>{locale === "ar" ? product.nameAr : product.nameEn}</p>
           <p className="text-sm text-muted-foreground">
-            {[isCategory(product.category) ? t(`categories.${product.category}`) : product.category, attributeLine(product, t("products.kg"))]
+            {[categoryNames(product.categories, locale), attributeLine(product, t("products.kg"))]
               .filter(Boolean)
               .join(" · ")}
           </p>
