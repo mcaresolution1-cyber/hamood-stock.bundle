@@ -102,7 +102,7 @@ describe("stock on hand", () => {
   });
 
   it("filters by category and hides inactive products with no stock", async () => {
-    await testDb.product.update({ where: { id: p2 }, data: { active: false } });
+    await testDb.product.update({ where: { id: p2 }, data: { status: "DISCONTINUED" } });
     expect((await stockOnHand(admin, {})).rows.map((r) => r.modelCode)).toEqual(["HMD-772"]);
     expect((await stockOnHand(admin, { category: "tv-table" })).rows).toEqual([]);
   });

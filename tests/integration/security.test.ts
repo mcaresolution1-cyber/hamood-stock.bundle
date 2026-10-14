@@ -149,7 +149,29 @@ describe("audit log", () => {
     const p = await makeProduct("HMD-1");
     await testDb.product.update({ where: { id: p.id }, data: { cost: "12.50" } });
     signInAs(admin, Date.now());
-    const form = { modelCode: "HMD-1", nameEn: p.nameEn, nameAr: p.nameAr, category: "wall-mount", variant: "", imageUrl: "", cost: "12.5", lowStockLevel: "0" };
+    const form = {
+      modelCode: "HMD-1",
+      sku: "",
+      barcode: "",
+      nameEn: p.nameEn,
+      nameAr: p.nameAr,
+      category: "wall-mount",
+      status: "ACTIVE",
+      variant: "",
+      sizeRange: "",
+      colour: "",
+      maxLoadKg: "",
+      vesa: "",
+      imageUrl: "",
+      cost: "12.5",
+      sellingPrice: "",
+      lowStockLevel: "0",
+      leadTimeDays: "",
+      wooProductId: "",
+      wooSku: "",
+      defaultSupplierId: "",
+      reorder: [],
+    };
     expect(await updateProduct(p.id, form)).toMatchObject({ ok: true });
     expect(await testDb.auditLog.count()).toBe(0); // nothing changed ("12.5" = 12.50)
     expect(await updateProduct(p.id, { ...form, cost: "15", nameEn: "New name" })).toMatchObject({ ok: true });

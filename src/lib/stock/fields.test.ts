@@ -11,7 +11,7 @@ describe("reason fields", () => {
 
   it("drops fields the reason doesn't use", () => {
     expect(
-      keepReasonFields("WEBSITE_ORDER", { reference: "W-1", supplierName: "Acme", technicianName: "T", destinationWarehouseId: "w2" }),
-    ).toEqual({ reference: "W-1", supplierName: null, technicianName: null, destinationWarehouseId: null });
+      keepReasonFields("WEBSITE_ORDER", { reference: "W-1", supplierId: "s1", supplierName: "Acme", technicianName: "T", destinationWarehouseId: "w2" }),
+    ).toEqual({ reference: "W-1", supplierId: null, supplierName: null, technicianName: null, destinationWarehouseId: null });
   });
 });

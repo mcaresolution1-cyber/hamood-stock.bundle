@@ -16,7 +16,7 @@ const prisma = new PrismaClient({ adapter: new PrismaMariaDb(mariadbConfig(proce
 
 const SAMPLE_PRODUCTS = process.env.SEED_SAMPLE_PRODUCTS === "true";
 
-const products: Prisma.ProductCreateInput[] = [
+const products: Omit<Prisma.ProductCreateInput, "sku">[] = [
   {
     modelCode: "HMD-772",
     nameEn: "Full-motion TV wall mount 37–75″",
@@ -94,7 +94,7 @@ async function main() {
 
   if (SAMPLE_PRODUCTS) {
     for (const p of products) {
-      await prisma.product.upsert({ where: { modelCode: p.modelCode }, create: p, update: {} });
+      await prisma.product.upsert({ where: { modelCode: p.modelCode }, create: { ...p, sku: p.modelCode }, update: {} });
     }
     console.log(`✓ sample products: ${products.length}`);
   } else {

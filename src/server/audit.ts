@@ -6,7 +6,7 @@
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import type { Tx } from "@/server/stock/createEntry";
 
-export type AuditSubject = "product" | "user" | "warehouse" | "setting" | "approval";
+export type AuditSubject = "product" | "user" | "warehouse" | "setting" | "approval" | "supplier";
 
 export type AuditInput = {
   action: string;

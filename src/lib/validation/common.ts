@@ -27,6 +27,21 @@ export const wholeNumberText = z
     return n;
   });
 
+/** Optional text → whole number ≥ 0, or null when empty (accepts Arabic-Indic digits). */
+export const optionalWholeNumberText = z.string().transform((v, ctx) => {
+  if (v.trim() === "") return null;
+  const n = parseWholeNumber(v);
+  if (n === null) {
+    ctx.addIssue({ code: "custom", message: "validation.wholeNumber" });
+    return z.NEVER;
+  }
+  if (n > 2_000_000_000) {
+    ctx.addIssue({ code: "custom", message: "validation.tooLarge" });
+    return z.NEVER;
+  }
+  return n;
+});
+
 /** Optional money text → decimal string or null (never a float). */
 export const moneyText = z.string().transform((v, ctx) => {
   if (v.trim() === "") return null;
@@ -38,11 +53,14 @@ export const moneyText = z.string().transform((v, ctx) => {
   return m;
 });
 
+/** An uploaded product image's path (src/app/api/product-images/[id]). */
+export const PRODUCT_IMAGE_PATH = /^\/api\/product-images\/[a-z0-9]{10,40}$/;
+
 export const optionalUrl = z
   .string()
   .trim()
   .max(500, "validation.tooLong")
-  .refine((v) => v === "" || isHttpUrl(v), "validation.url")
+  .refine((v) => v === "" || isHttpUrl(v) || PRODUCT_IMAGE_PATH.test(v), "validation.url")
   .transform((v) => (v === "" ? null : v));
 
 export const modelCode = z

@@ -153,7 +153,7 @@ describe("rules", () => {
 
   it("blocks receiving a deactivated product but allows selling off what's left (Q7)", async () => {
     await stockIn([{ productId: p1, quantity: 2 }]);
-    await testDb.product.update({ where: { id: p1 }, data: { active: false } });
+    await testDb.product.update({ where: { id: p1 }, data: { status: "DISCONTINUED" } });
     await expect(stockIn([{ productId: p1, quantity: 1 }])).rejects.toMatchObject({ key: "stock.errors.productInactive" });
     await expect(stockOut([{ productId: p1, quantity: 2 }])).resolves.toBeTruthy();
     expect(await level(p1, wh)).toBe(0);

@@ -23,6 +23,7 @@ export default async function LowStockPage({ searchParams }: PageProps<"/reports
     { key: "total", header: t("reports.col.total"), kind: "number" },
     { key: "level", header: t("reports.col.level"), kind: "number" },
     { key: "shortBy", header: t("reports.col.shortBy"), kind: "number" },
+    { key: "suggested", header: t("reports.col.reorderQty"), kind: "number" },
   ];
   const rows = r.rows.map((x) => ({
     modelCode: x.modelCode,
@@ -32,6 +33,7 @@ export default async function LowStockPage({ searchParams }: PageProps<"/reports
     total: x.total,
     level: x.lowStockLevel,
     shortBy: x.shortBy,
+    suggested: x.suggestedQty,
   }));
 
   return (

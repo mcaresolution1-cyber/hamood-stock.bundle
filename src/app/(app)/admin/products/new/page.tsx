@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { getTranslations } from "next-intl/server";
+import { getLocale, getTranslations } from "next-intl/server";
 import { PageHeader } from "@/components/page-header";
 import { requirePagePermission } from "@/server/auth/dal";
+import { productFormOptions } from "@/server/queries/products";
 import { ProductForm } from "../product-form";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -10,11 +11,11 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function NewProductPage() {
   await requirePagePermission("product:manage");
-  const t = await getTranslations("products");
+  const [t, options, locale] = await Promise.all([getTranslations("products"), productFormOptions(), getLocale()]);
   return (
     <>
       <PageHeader title={t("newTitle")} />
-      <ProductForm />
+      <ProductForm options={options} locale={locale} />
     </>
   );
 }

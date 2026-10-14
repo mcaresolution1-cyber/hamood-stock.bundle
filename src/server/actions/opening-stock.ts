@@ -23,7 +23,7 @@ async function prepare(formData: FormData): Promise<OpeningStockPreview> {
 
   const sheet = await readSheet(formData.get("file"));
   const products = await db.product.findMany({
-    select: { id: true, modelCode: true, nameEn: true, nameAr: true, active: true },
+    select: { id: true, modelCode: true, nameEn: true, nameAr: true, status: true },
   });
   const result = validateOpeningStock(sheet, new Map(products.map((p) => [p.modelCode, p])));
   const existing = await db.stockEntry.findMany({

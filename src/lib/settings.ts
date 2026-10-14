@@ -15,7 +15,7 @@ export type ApprovalRuleKey = (typeof APPROVAL_RULES)[number];
 export type ApprovalRule = { maxUnits: number; maxValue: string | null };
 export type ApprovalRules = Record<ApprovalRuleKey, ApprovalRule>;
 
-/** Decision A3: until an admin changes them, every non-admin request needs approval. */
+/** Decision PA3: until an admin changes them, every non-admin request needs approval. */
 export const DEFAULT_APPROVAL_RULES: ApprovalRules = {
   correction: { maxUnits: 0, maxValue: null },
   damaged: { maxUnits: 0, maxValue: null },

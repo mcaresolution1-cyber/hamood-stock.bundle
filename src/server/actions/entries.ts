@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import type { EntryReason } from "@/generated/prisma/enums";
 import { requirePermission } from "@/server/auth/dal";
@@ -19,7 +20,8 @@ export async function saveEntry(values: unknown): Promise<ActionResult<EntrySubm
     const v = entryFormSchema.parse(values);
     const reason = v.reason as EntryReason;
     const details = keepReasonFields(reason, {
-      supplierName: v.supplierName,
+      supplierId: v.supplierId || null,
+      supplierName: null as string | null,
       reference: v.reference,
       customerName: v.customerName,
       customerPhone: v.customerPhone,
@@ -27,6 +29,13 @@ export async function saveEntry(values: unknown): Promise<ActionResult<EntrySubm
       returnCondition: v.returnCondition || null,
       destinationWarehouseId: v.destinationWarehouseId || null,
     });
+
+    // The supplier must be an active one; its name is stored on the entry as it is today.
+    if (details.supplierId) {
+      const supplier = await db.supplier.findFirst({ where: { id: details.supplierId, active: true }, select: { nameEn: true } });
+      if (!supplier) throw new UserFacingError("products.errors.unknownSupplier");
+      details.supplierName = supplier.nameEn;
+    }
 
     // Photos only on stock in, and only ones that were actually uploaded.
     let photoUrl: string | null = null;
@@ -65,5 +74,23 @@ export async function voidEntryAction(values: unknown): Promise<ActionResult<Voi
     revalidatePath(`/entries/${entryId}`);
     revalidatePath("/");
     return result;
+  });
+}
+
+/**
+ * Duplicate invoice warning (Phase B): a non-voided supplier delivery with the same supplier and invoice
+ * number. Only a warning — the form can still be saved (decision PB3).
+ */
+export async function findDuplicateInvoice(values: unknown): Promise<ActionResult<{ id: string; number: string } | null>> {
+  return guarded(async () => {
+    await requirePermission("entry:create");
+    const { supplierId, reference } = z
+      .object({ supplierId: z.string().min(1).max(64), reference: z.string().trim().min(1).max(100) })
+      .parse(values);
+    return db.stockEntry.findFirst({
+      where: { supplierId, reference, reason: "SUPPLIER_DELIVERY", voidedAt: null },
+      orderBy: { entryDate: "desc" },
+      select: { id: true, number: true },
+    });
   });
 }

@@ -32,12 +32,14 @@ import type { EntryReason } from "@/generated/prisma/enums";
 import type { EntryFormData } from "@/server/queries/entry-form";
 import type { EntrySubmitResult } from "@/server/stock/approvals";
 import { newSubmitKey } from "@/lib/submit-key";
-import { saveEntry } from "@/server/actions/entries";
+import { findDuplicateInvoice, saveEntry } from "@/server/actions/entries";
+import type { SupplierOption } from "@/server/actions/suppliers";
+import { SupplierPicker, supplierLabel } from "./supplier-picker";
 import { runAction } from "@/lib/run-action";
 
 type Step = "form" | "review" | "done";
 
-const DETAIL_LABEL: Record<Exclude<DetailField, "returnCondition" | "destinationWarehouseId">, string> = {
+const DETAIL_LABEL: Record<Exclude<DetailField, "returnCondition" | "destinationWarehouseId" | "supplierId">, string> = {
   supplierName: "supplierName",
   reference: "reference",
   customerName: "customerName",
@@ -59,6 +61,8 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("form");
   const [saved, setSaved] = useState<EntrySubmitResult | null>(null);
+  const [suppliers, setSuppliers] = useState(data.suppliers);
+  const [duplicate, setDuplicate] = useState<{ id: string; number: string } | null>(null);
   const [lastValues, setLastValues] = useState<EntryFormValues | null>(null);
   const [pending, startTransition] = useTransition();
   // One key per review screen: retries of the same submit reuse it (the server returns the entry already
@@ -110,6 +114,13 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
       return;
     }
     setSubmitKey(newSubmitKey());
+    // Same supplier + invoice already received? Only a warning on the review screen (PB3).
+    setDuplicate(null);
+    const current = form.getValues();
+    if (current.reason === "SUPPLIER_DELIVERY" && current.supplierId && current.reference?.trim()) {
+      const found = await runAction(() => findDuplicateInvoice({ supplierId: current.supplierId, reference: current.reference }), { retry: true });
+      if (found.ok) setDuplicate(found.data);
+    }
     setStep("review");
     window.scrollTo({ top: 0 });
   }
@@ -189,6 +200,15 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
                       options={destinations.map((w) => ({ value: w.id, label: w.name }))}
                     />
                   )}
+                  {fieldsFor(reason).some((f) => f.field === "supplierId") && (
+                    <SupplierPicker
+                      suppliers={suppliers}
+                      value={values.supplierId ?? ""}
+                      onChange={(id) => form.setValue("supplierId", id, { shouldValidate: true, shouldDirty: true })}
+                      onAdded={(s) => setSuppliers((list) => (list.some((x) => x.id === s.id) ? list : [...list, s].sort((a, b) => a.nameEn.localeCompare(b.nameEn))))}
+                      error={form.formState.errors.supplierId?.message}
+                    />
+                  )}
                   {fieldsFor(reason)
                     .filter((f) => f.field in DETAIL_LABEL)
                     .map(({ field, required }) => (
@@ -230,7 +250,12 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
           </>
         ) : (
           <>
-            <Summary values={form.getValues()} data={data} productById={productById} />
+            <Summary values={form.getValues()} data={data} productById={productById} suppliers={suppliers} />
+            {duplicate && (
+              <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-50">
+                {t("entryForm.duplicateInvoice", { reference: form.getValues().reference ?? "", number: duplicate.number })}
+              </p>
+            )}
             <StickyBar>
               <div className="flex gap-2">
                 <Button type="button" variant="outline" className="h-12 flex-1 text-base" onClick={() => setStep("form")} disabled={pending}>
@@ -420,10 +445,12 @@ function Summary({
   values,
   data,
   productById,
+  suppliers,
 }: {
   values: EntryFormValues;
   data: EntryFormData;
   productById: Map<string, EntryFormData["products"][number]>;
+  suppliers: SupplierOption[];
 }) {
   const t = useTranslations();
   const locale = useLocale();
@@ -434,6 +461,9 @@ function Summary({
     [values.reason === "TRANSFER" ? t("entryForm.fromWarehouse") : t("entryForm.warehouse"), wh(values.warehouseId)],
   ];
   if (values.reason === "TRANSFER") rows.push([t("entryForm.toWarehouse"), wh(values.destinationWarehouseId)]);
+  if (values.supplierId && fieldsFor(values.reason as EntryReason).some((f) => f.field === "supplierId")) {
+    rows.push([t("entryForm.supplier"), <bdi key="supplier">{supplierLabel(suppliers.find((s) => s.id === values.supplierId), locale)}</bdi>]);
+  }
   if (values.reason === "CUSTOMER_RETURN" && values.returnCondition)
     rows.push([t("entryForm.returnCondition"), t(`entryForm.${values.returnCondition}`)]);
   for (const { field } of fieldsFor(values.reason as EntryReason)) {

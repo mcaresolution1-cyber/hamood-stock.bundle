@@ -15,10 +15,10 @@ const errors = (v: EntryFormValues) => {
 describe("entryFormSchema", () => {
   it("requires supplier and invoice for a supplier delivery", () => {
     expect(errors(base({ reason: "SUPPLIER_DELIVERY" }))).toEqual({
-      supplierName: "validation.required",
+      supplierId: "suppliers.errors.required",
       reference: "validation.required",
     });
-    expect(errors(base({ reason: "SUPPLIER_DELIVERY", supplierName: "Acme", reference: "INV-1" }))).toEqual({});
+    expect(errors(base({ reason: "SUPPLIER_DELIVERY", supplierId: "sup1", reference: "INV-1" }))).toEqual({});
   });
 
   it("needs order no. or customer name, and the condition, for a customer return", () => {
@@ -45,7 +45,7 @@ describe("entryFormSchema", () => {
     expect(errors(base({ direction: "OUT", reason: "TRANSFER", destinationWarehouseId: "w1" }))).toEqual({
       destinationWarehouseId: "stock.errors.sameWarehouse",
     });
-    expect(errors(base({ direction: "OUT", reason: "SUPPLIER_RETURN" }))).toEqual({ supplierName: "validation.required" });
+    expect(errors(base({ direction: "OUT", reason: "SUPPLIER_RETURN" }))).toEqual({ supplierId: "suppliers.errors.required" });
   });
 
   it("normalises Saudi phone numbers with Arabic digits and spaces", () => {

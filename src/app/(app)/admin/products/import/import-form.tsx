@@ -46,6 +46,25 @@ export function ImportForm() {
     });
   }
 
+  /** The rows with errors as .xlsx (same file posted again; the server re-validates it). */
+  async function downloadErrors() {
+    try {
+      const res = await fetch("/admin/products/import/errors", { method: "POST", body: formData() });
+      if (!res.ok) {
+        toast.error(res.status === 400 ? await res.text() : message("errors.generic"));
+        return;
+      }
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? "import-errors.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error(message("errors.network"));
+    }
+  }
+
   function apply() {
     setAction("apply");
     startTransition(async () => {
@@ -102,9 +121,15 @@ export function ImportForm() {
               </p>
             ))}
             {preview.counts.error > 0 && (
-              <p role="alert" className="text-sm text-destructive">
-                {t("fixAndRetry")}
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p role="alert" className="text-sm text-destructive">
+                  {t("fixAndRetry")}
+                </p>
+                <Button type="button" variant="outline" size="sm" onClick={downloadErrors}>
+                  <DownloadIcon className="size-4" aria-hidden />
+                  {t("downloadErrors")}
+                </Button>
+              </div>
             )}
             {preview.rows.length > 0 && (
               <div className="max-h-[60vh] overflow-auto rounded-md border">

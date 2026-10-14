@@ -11,7 +11,7 @@ export function riyadhToday(now = new Date()): string {
 export async function dashboardStats() {
   const todayStart = riyadhDayStart(riyadhToday());
   const [activeProducts, low, todayEntries, recent] = await Promise.all([
-    db.product.count({ where: { active: true } }),
+    db.product.count({ where: { status: "ACTIVE" } }),
     lowStock({}),
     // a transfer counts once (its OUT half); voids aren't new activity
     db.stockEntry.count({ where: { entryDate: { gte: todayStart }, type: { notIn: ["VOID", "TRANSFER_IN"] } } }),
@@ -38,8 +38,23 @@ export async function dashboardStats() {
 export async function productSearchList() {
   const [products, totals] = await Promise.all([
     db.product.findMany({
-      select: { id: true, modelCode: true, nameEn: true, nameAr: true, variant: true, imageUrl: true, active: true },
-      orderBy: [{ active: "desc" }, { modelCode: "asc" }],
+      where: { status: { not: "INACTIVE" } },
+      select: {
+        id: true,
+        modelCode: true,
+        sku: true,
+        barcode: true,
+        nameEn: true,
+        nameAr: true,
+        variant: true,
+        sizeRange: true,
+        colour: true,
+        vesa: true,
+        wooSku: true,
+        imageUrl: true,
+        status: true,
+      },
+      orderBy: [{ status: "asc" }, { modelCode: "asc" }],
     }),
     db.stockLevel.groupBy({
       by: ["productId"],

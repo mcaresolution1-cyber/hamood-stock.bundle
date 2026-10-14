@@ -6,6 +6,7 @@ import type { EntryReason, EntryType, WarehouseKind } from "@/generated/prisma/e
 import { can } from "@/lib/permissions";
 import type { CurrentUser } from "@/server/auth/dal";
 import { SIGNED_QTY } from "./reports";
+import { lowStockOf } from "@/lib/stock/low-stock";
 
 export const STOCK_CARD_LIMIT = 200;
 
@@ -29,11 +30,23 @@ export async function getProductStock(user: CurrentUser, productId: string, ware
       nameEn: true,
       nameAr: true,
       category: true,
+      sku: true,
+      barcode: true,
       variant: true,
+      sizeRange: true,
+      colour: true,
+      maxLoadKg: true,
+      vesa: true,
       imageUrl: true,
       lowStockLevel: true,
-      active: true,
+      sellingPrice: true,
+      status: true,
       cost: showCost,
+      defaultSupplier: { select: { nameEn: true, nameAr: true } },
+      reorder: { select: { warehouseId: true, reorderLevel: true, reorderQty: true } },
+      costs: showCost
+        ? { orderBy: { at: "desc" }, take: 20, select: { id: true, cost: true, source: true, at: true, changedBy: { select: { name: true } } } }
+        : false,
     },
   });
   if (!product) return null;
@@ -77,15 +90,32 @@ export async function getProductStock(user: CurrentUser, productId: string, ware
     ORDER BY e.entryDate DESC, e.createdAt DESC, e.id DESC
     LIMIT ${STOCK_CARD_LIMIT}`;
 
+  const { costs, sellingPrice, reorder, ...rest } = product;
+  const low = lowStockOf({
+    lowStockLevel: product.lowStockLevel,
+    qty: Object.fromEntries(perWarehouse.map((w) => [w.id, w.quantity])),
+    reorder,
+    sellableWarehouseIds: perWarehouse.filter((w) => w.kind === "SELLABLE" && w.active).map((w) => w.id),
+  });
   return {
     product: {
-      ...product,
-      ...(showCost ? { cost: (product as { cost?: Prisma.Decimal | null }).cost?.toFixed(2) ?? null } : {}),
+      ...rest,
+      sellingPrice: sellingPrice ? sellingPrice.toFixed(2) : null,
+      reorder,
+      ...(showCost
+        ? {
+            cost: (product as { cost?: Prisma.Decimal | null }).cost?.toFixed(2) ?? null,
+            costHistory: ((costs ?? []) as unknown as { id: string; cost: Prisma.Decimal | null; source: string; at: Date; changedBy: { name: string } }[]).map((c) => ({
+              ...c,
+              cost: c.cost ? c.cost.toFixed(2) : null,
+            })),
+          }
+        : {}),
     },
     perWarehouse: perWarehouse as (typeof perWarehouse[number] & { kind: WarehouseKind })[],
     sellable,
     total,
     card: card.map((r) => ({ ...r, voided: Boolean(Number(r.voided)), change: Number(r.change), balance: Number(r.balance) })),
-    lowStock: product.lowStockLevel > 0 && sellable <= product.lowStockLevel,
+    lowStock: product.status === "ACTIVE" && low.low,
   };
 }

@@ -1,10 +1,10 @@
 /**
  * Stock In / Stock Out form schema — the SAME schema validates the form in the browser and the input
  * in the server action. Required fields depend on the reason (spec Phase 2):
- *   Supplier delivery  supplier name + invoice no.      Customer return  order no. OR customer name, condition
+ *   Supplier delivery  supplier (from the list) + invoice no.      Customer return  order no. OR customer name, condition
  *   Correction ±       note                             Website order    WooCommerce order no.
  *   Direct sale        customer name + phone            Installation     technician + customer
- *   Transfer           destination warehouse            Return to supplier  supplier name
+ *   Transfer           destination warehouse            Return to supplier  supplier (from the list)
  *   Damaged/lost       note
  * Messages are translation keys.
  */
@@ -54,6 +54,8 @@ export const entryFormSchema = z
     returnCondition: z.enum(["", "RESELLABLE", "DAMAGED"]),
     reference: optionalText(100),
     supplierName: optionalText(100),
+    /** Supplier master record (Phase B); the server stores its name on the entry too. */
+    supplierId: z.string().max(64).default(""),
     customerName: optionalText(100),
     customerPhone: phone,
     technicianName: optionalText(100),
@@ -77,7 +79,7 @@ export const entryFormSchema = z
     }
     switch (v.reason) {
       case "SUPPLIER_DELIVERY":
-        need("supplierName", v.supplierName);
+        need("supplierId", v.supplierId, "suppliers.errors.required");
         need("reference", v.reference);
         break;
       case "CUSTOMER_RETURN":
@@ -106,7 +108,7 @@ export const entryFormSchema = z
         }
         break;
       case "SUPPLIER_RETURN":
-        need("supplierName", v.supplierName);
+        need("supplierId", v.supplierId, "suppliers.errors.required");
         break;
     }
   });
@@ -122,6 +124,7 @@ export const emptyEntryForm = (direction: "IN" | "OUT"): EntryFormValues => ({
   returnCondition: "",
   reference: "",
   supplierName: "",
+  supplierId: "",
   customerName: "",
   customerPhone: "",
   technicianName: "",
