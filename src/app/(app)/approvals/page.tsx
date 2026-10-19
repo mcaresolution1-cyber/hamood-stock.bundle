@@ -31,7 +31,7 @@ export default async function ApprovalsPage({ searchParams }: PageProps<"/approv
     requestCounts(user),
   ]);
   const views = can(user.role, "approval:decide") ? REQUEST_VIEWS : (["mine"] as const);
-  const when = (d: Date) => format.dateTime(d, { dateStyle: "medium", timeStyle: "short" });
+  const when = (d: Date) => format.dateTime(d, "dateTime");
   const warehouses = (r: (typeof result.rows)[number]) =>
     r.otherWarehouse ? `${r.warehouse.name} → ${r.otherWarehouse.name}` : r.warehouse.name;
   const badgeCount = { toDecide: counts.toDecide, mine: counts.minePending, decided: 0 } as const;
@@ -79,7 +79,7 @@ export default async function ApprovalsPage({ searchParams }: PageProps<"/approv
                   {when(r.requestedAt)} · {r.requestedBy.name}
                 </p>
                 <p className="mt-1 text-end text-sm tabular-nums">
-                  {t("units")}: {r.units}
+                  {t("units")}: {format.number(r.units, "qty")}
                 </p>
               </Link>
             </MobileCard>
@@ -115,7 +115,7 @@ export default async function ApprovalsPage({ searchParams }: PageProps<"/approv
                         {view === "decided" && r.decidedBy && <span className="text-sm">{r.decidedBy.name}</span>}
                       </span>
                     </TableCell>
-                    <TableCell className="text-end tabular-nums">{r.units}</TableCell>
+                    <TableCell className="text-end tabular-nums">{format.number(r.units, "qty")}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

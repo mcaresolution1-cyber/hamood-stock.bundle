@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { getRequestConfig } from "next-intl/server";
-import { defaultLocale, isLocale, LOCALE_COOKIE } from "./config";
+import { APP_FORMATS, defaultLocale, isLocale, LOCALE_COOKIE } from "./config";
 
 export default getRequestConfig(async ({ locale: requested }) => {
   // An explicit locale (e.g. getTranslations({ locale: "ar" }) on the bilingual delivery note) wins;
@@ -11,6 +11,9 @@ export default getRequestConfig(async ({ locale: requested }) => {
   return {
     locale,
     timeZone: "Asia/Riyadh",
+    // One date style everywhere — Entries, Reports, Dashboard, products (plan ux-dashboard-report):
+    // "Oct 19, 2026, 3:58 PM" / "19 أكتوبر 2026، 3:58 م". Use format.dateTime(d, "dateTime") or "date".
+    formats: APP_FORMATS,
     messages: (await import(`../../messages/${locale}.json`)).default,
   };
 });

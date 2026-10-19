@@ -24,7 +24,7 @@ export default async function RequestPage({ params }: PageProps<"/approvals/[id]
   const request = await getRequest(user, (await params).id);
   if (!request) notFound();
   const [t, tc, format, locale] = await Promise.all([getTranslations(), getTranslations("common"), getFormatter(), getLocale()]);
-  const when = (d: Date) => format.dateTime(d, { dateStyle: "medium", timeStyle: "short" });
+  const when = (d: Date) => format.dateTime(d, "dateTime");
 
   const pending = request.status === "PENDING";
   const own = request.requestedById === user.id;
@@ -137,7 +137,7 @@ export default async function RequestPage({ params }: PageProps<"/approvals/[id]
                     <span className="text-muted-foreground">{t("approvals.unknownProduct")}</span>
                   )}
                 </div>
-                <span className="text-lg font-semibold tabular-nums">× {l.quantity}</span>
+                <span className="text-lg font-semibold tabular-nums">× {format.number(l.quantity, "qty")}</span>
               </li>
             ))}
           </ul>

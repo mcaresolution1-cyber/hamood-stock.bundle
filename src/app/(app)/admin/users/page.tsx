@@ -35,7 +35,7 @@ export default async function UsersPage() {
         ? t("allWarehouses")
         : "—";
   const lastLogin = (u: UserRow) =>
-    u.lastLoginAt ? format.dateTime(u.lastLoginAt, { dateStyle: "medium", timeStyle: "short" }) : t("never");
+    u.lastLoginAt ? format.dateTime(u.lastLoginAt, "dateTime") : t("never");
   const warehouseOptions = warehouses.map((w) => ({ id: w.id, name: w.name }));
 
   return (

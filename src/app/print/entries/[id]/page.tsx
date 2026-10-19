@@ -8,7 +8,7 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getCurrentUser, requirePagePermission } from "@/server/auth/dal";
 import { getEntry, relatedEntries } from "@/server/queries/entries";
-import { PrintButton } from "./print-button";
+import { PrintButton } from "@/components/print-button";
 
 export async function generateMetadata({ params }: PageProps<"/print/entries/[id]">): Promise<Metadata> {
   // No DB read before the access check.

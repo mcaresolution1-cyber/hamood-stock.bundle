@@ -4,7 +4,7 @@ import { activeNavKey, navItemsFor } from "./nav";
 const keys = (role: Parameters<typeof navItemsFor>[0]) => navItemsFor(role).map((i) => i.key);
 
 describe("navItemsFor", () => {
-  it("gives ADMIN every page, products with add / import / categories in their own section", () => {
+  it("gives ADMIN every page; Add / Import product are buttons on the Products page, not menu items", () => {
     expect(keys("ADMIN")).toEqual([
       "dashboard",
       "stockIn",
@@ -13,8 +13,6 @@ describe("navItemsFor", () => {
       "reports",
       "approvals",
       "products",
-      "productsNew",
-      "productsImport",
       "categories",
       "suppliers",
       "openingStock",
@@ -25,8 +23,6 @@ describe("navItemsFor", () => {
     ]);
     expect(navItemsFor("ADMIN").filter((i) => i.section === "catalog").map((i) => i.key)).toEqual([
       "products",
-      "productsNew",
-      "productsImport",
       "categories",
       "suppliers",
     ]);
@@ -45,7 +41,7 @@ describe("navItemsFor", () => {
 
   it("highlights the most specific page", () => {
     const items = navItemsFor("ADMIN");
-    expect(activeNavKey(items, "/admin/products/new")).toBe("productsNew");
+    expect(activeNavKey(items, "/admin/products/new")).toBe("products");
     expect(activeNavKey(items, "/admin/products/abc/edit")).toBe("products");
     expect(activeNavKey(items, "/")).toBe("dashboard");
     expect(activeNavKey(items, "/entries/x")).toBe("entries");

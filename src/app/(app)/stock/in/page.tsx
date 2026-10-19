@@ -13,7 +13,7 @@ export default async function StockInPage() {
   const user = await requirePagePermission("entry:create");
   const [t, data] = await Promise.all([getTranslations("stockIn"), loadEntryForm(user, "IN")]);
   return (
-    <div className="mx-auto max-w-2xl">
+    <div className="mx-auto max-w-2xl lg:max-w-3xl">
       <PageHeader title={t("title")} description={t("subtitle")} />
       <EntryWizard key={data.direction} data={data} />
     </div>

@@ -23,6 +23,10 @@ const nextConfig = {
     // Imports (≤ 2 MB) and delivery-note photos (≤ 4 MB) go through server actions.
     // Photos are capped at 4 MB (decision Q10, MEDIUMBLOB); keep the body limit just above that.
     serverActions: { bodySizeLimit: "4mb" },
+    // Keep a visited page in the browser for 30 s, so going back and forth between pages is instant
+    // instead of a skeleton and a full server round trip each time (plan ux-dashboard-report, PX6).
+    // Saving anything (server actions call revalidatePath) and a page reload still show fresh data.
+    staleTimes: { dynamic: 30 },
   },
 };
 
