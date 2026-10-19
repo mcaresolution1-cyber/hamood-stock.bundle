@@ -38,3 +38,28 @@ export function parseMoney(value: string): string | null {
 export function normalizeModelCode(value: string): string {
   return toWesternDigits(value).trim().replace(/\s+/g, " ").toUpperCase();
 }
+
+/**
+ * A price as other software exports it → money text: currency signs and words are dropped
+ * ("﷼ 500.00", "SAR 1,250", "500 ر.س" → "500.00" / "1250" / "500"). Null when it isn't money.
+ */
+export function parseMoneyCell(value: string): string | null {
+  const stripped = value
+    .replace(/﷼|ر\.?\s?س\.?|ريال|sar|sr|\$|usd/gi, "")
+    .replace(/ /g, " ")
+    .trim();
+  return parseMoney(stripped);
+}
+
+/**
+ * A stock cell → whole units ≥ 0: thousands separators, trailing ".00" and a unit word are allowed
+ * ("1,943.00 Pieces", "12 pcs", "٥ قطع" → 1943 / 12 / 5). "fraction" for 1.5, null when it isn't a number.
+ */
+export function parseStockCell(value: string): number | "fraction" | "negative" | null {
+  const m = toWesternDigits(value.replace(/ /g, " ").trim()).match(/^(-?)([\d,٬]+)(?:[.٫](\d+))?\s*[\p{L}.]*$/u);
+  if (!m) return null;
+  if (m[1]) return "negative";
+  if (m[3] && /[1-9]/.test(m[3])) return "fraction";
+  const n = Number(m[2].replace(/[,٬]/g, ""));
+  return Number.isSafeInteger(n) ? n : null;
+}

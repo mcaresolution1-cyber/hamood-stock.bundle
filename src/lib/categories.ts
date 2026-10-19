@@ -51,3 +51,22 @@ export function splitCategoryCell(text: string): string[] {
 export function categoryKey(name: string): string {
   return name.normalize("NFD").replace(/\p{M}/gu, "").replace(/\s+/g, " ").trim().toLowerCase();
 }
+
+/**
+ * Looser key for matching a category written in another system (plan import-sku, PS5): also ignores a
+ * "TV" word and plural endings, so "WALL MOUNT" finds "TV wall mounts" and "FLOOR STAND" finds "Floor stands".
+ */
+export function categoryMatchKey(name: string): string {
+  return categoryKey(name)
+    .split(" ")
+    .filter((w) => w !== "tv" && w !== "تلفزيون")
+    .map((w) => (w.length > 3 && /[^s]s$/.test(w) ? w.slice(0, -1) : w))
+    .join(" ");
+}
+
+/** "WALL MOUNT" → "Wall Mount" for a new category taken from a file written in capitals. */
+export function tidyCategoryName(name: string): string {
+  const clean = name.replace(/\s+/g, " ").trim();
+  if (clean !== clean.toUpperCase() || !/[A-Z]/.test(clean)) return clean;
+  return clean.toLowerCase().replace(/(^|[\s-])([a-z])/g, (_, p: string, c: string) => p + c.toUpperCase()).replace(/\bTv\b/g, "TV");
+}

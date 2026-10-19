@@ -29,11 +29,10 @@ const reorderRow = z.object({
 
 export const productSchema = z.object({
   modelCode,
-  /** Empty → the model code (decision in docs/plans/v2.md, Phase B). */
-  sku: code(64),
   barcode: code(64),
   nameEn: requiredText(200),
-  nameAr: requiredText(200),
+  /** Optional (plan import-sku, PS2): empty → the English name is used. */
+  nameAr: optionalText(200),
   /** One or more categories, the main one first (PU2). */
   categoryIds: z
     .array(z.string().min(1).max(64))
@@ -72,7 +71,8 @@ export function productColumns(p: ProductInput) {
   const { reorder: _reorder, categoryIds: _categoryIds, ...columns } = p;
   void _reorder;
   void _categoryIds;
-  return { ...columns, sku: p.sku ?? p.modelCode, imageId: imageIdFrom(p.imageUrl) };
+  // The SKU is never set from the form: the app assigns it when the product is created (PS1).
+  return { ...columns, nameAr: p.nameAr ?? p.nameEn, imageId: imageIdFrom(p.imageUrl) };
 }
 
 /** "/api/product-images/<id>" → "<id>", anything else → null. */

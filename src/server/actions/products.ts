@@ -9,16 +9,20 @@ import { id as idSchema } from "@/lib/validation/common";
 import { requirePermission } from "@/server/auth/dal";
 import { audit, changedFields } from "@/server/audit";
 import { productColumns, productSchema, type ProductInput } from "@/lib/validation/products";
-import type { Tx } from "@/server/stock/createEntry";
+import { nextCounterValue, type Tx } from "@/server/stock/createEntry";
+import { formatSku } from "@/lib/products";
+import { SKU_COUNTER } from "@/lib/stock/numbering";
 import { guarded, isForeignKeyViolation, isUniqueViolation, UserFacingError, type ActionResult } from "./result";
 
 /** Which unique field a P2002 hit (model code, SKU or barcode), as a translation key. */
 function uniqueError(e: unknown): UserFacingError | null {
   if (isForeignKeyViolation(e)) return new UserFacingError("products.errors.unknownCategory");
   if (!isUniqueViolation(e)) return null;
+  // The index name says which field: "Product_modelCode_key", "Product_barcode_key", "Product_sku_key".
   const target = JSON.stringify((e as { meta?: unknown }).meta ?? "") + String((e as Error).message ?? "");
-  if (/sku/i.test(target)) return new UserFacingError("products.errors.skuTaken");
-  if (/barcode/i.test(target)) return new UserFacingError("products.errors.barcodeTaken");
+  const index = /Product_(\w+?)_key/.exec(target)?.[1] ?? "";
+  if (index === "barcode") return new UserFacingError("products.errors.barcodeTaken");
+  if (index === "sku") return new UserFacingError("products.errors.skuTaken");
   return new UserFacingError("products.errors.codeTaken");
 }
 
@@ -90,7 +94,7 @@ function forAudit(data: ProductInput, categories: string[]) {
   };
 }
 
-export async function createProduct(values: unknown): Promise<ActionResult<{ id: string }>> {
+export async function createProduct(values: unknown): Promise<ActionResult<{ id: string; sku: string }>> {
   return guarded(async () => {
     const actor = await requirePermission("product:manage");
     const data = productSchema.parse(values);
@@ -98,7 +102,9 @@ export async function createProduct(values: unknown): Promise<ActionResult<{ id:
     try {
       const p = await db.$transaction(async (tx) => {
         await checkReferences(tx, data);
-        const created = await tx.product.create({ data: productColumns(data), select: { id: true } });
+        // The next SKU in order (HMD00001, …), reserved inside this transaction (plan import-sku, PS1).
+        const sku = formatSku(await nextCounterValue(tx, SKU_COUNTER));
+        const created = await tx.product.create({ data: { ...productColumns(data), sku }, select: { id: true, sku: true } });
         await saveCategories(tx, created.id, data.categoryIds);
         await saveReorder(tx, created.id, data.reorder);
         if (data.cost !== null) {
@@ -109,7 +115,7 @@ export async function createProduct(values: unknown): Promise<ActionResult<{ id:
           subjectType: "product",
           subjectId: created.id,
           subjectLabel: data.modelCode,
-          after: forAudit(data, await categoryNamesOf(tx, data.categoryIds)),
+          after: { sku, ...forAudit(data, await categoryNamesOf(tx, data.categoryIds)) },
         });
         return created;
       });

@@ -20,7 +20,7 @@ export default async function EditProductPage({ params }: PageProps<"/admin/prod
   return (
     <>
       <PageHeader title={t("editTitle", { modelCode: product.values.modelCode })} />
-      <ProductForm product={{ id: product.id, values: product.values, reorder: product.reorder }} options={options} locale={locale} />
+      <ProductForm product={{ id: product.id, sku: product.sku, values: product.values, reorder: product.reorder }} options={options} locale={locale} />
     </>
   );
 }

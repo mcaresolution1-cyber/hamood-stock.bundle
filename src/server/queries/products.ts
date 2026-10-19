@@ -145,9 +145,9 @@ export async function getProductForEdit(id: string) {
   const text = (v: string | number | null) => (v === null ? "" : String(v));
   return {
     id: p.id,
+    sku: p.sku,
     values: {
       modelCode: p.modelCode,
-      sku: p.sku,
       barcode: text(p.barcode),
       nameEn: p.nameEn,
       nameAr: p.nameAr,
