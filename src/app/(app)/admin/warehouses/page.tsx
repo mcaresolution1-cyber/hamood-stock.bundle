@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getTranslations } from "next-intl/server";
+import { getFormatter, getTranslations } from "next-intl/server";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/page-header";
@@ -16,10 +16,11 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function WarehousesPage() {
   await requirePagePermission("warehouse:manage");
-  const [t, tc, tk] = await Promise.all([
+  const [t, tc, tk, format] = await Promise.all([
     getTranslations("warehouses"),
     getTranslations("common"),
     getTranslations("warehouseKinds"),
+    getFormatter(),
   ]);
   const warehouses = await listWarehouses();
 
@@ -42,7 +43,7 @@ export default async function WarehousesPage() {
                 <Badge variant={w.kind === "DAMAGED" ? "destructive" : "secondary"}>{tk(w.kind)}</Badge>
               </div>
               <p className="mt-1 text-sm">
-                {t("stock")}: <span className="tabular-nums">{w.units}</span>
+                {t("stock")}: <span className="tabular-nums">{format.number(w.units, "qty")}</span>
               </p>
               <div className="mt-2 flex justify-end gap-1 border-t pt-2">
                 <WarehouseDialog warehouse={{ id: w.id, name: w.name, city: w.city, kind: w.kind }} />
@@ -70,7 +71,7 @@ export default async function WarehousesPage() {
                       <TableCell>
                         <Badge variant={w.kind === "DAMAGED" ? "destructive" : "secondary"}>{tk(w.kind)}</Badge>
                       </TableCell>
-                      <TableCell className="text-end tabular-nums">{w.units}</TableCell>
+                      <TableCell className="text-end tabular-nums">{format.number(w.units, "qty")}</TableCell>
                       <TableCell>{w.active ? tc("active") : tc("inactive")}</TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-2">

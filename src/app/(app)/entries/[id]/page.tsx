@@ -27,7 +27,7 @@ export default async function EntryPage({ params }: PageProps<"/entries/[id]">) 
   if (!entry) notFound();
   const [t, tc, format, locale] = await Promise.all([getTranslations(), getTranslations("common"), getFormatter(), getLocale()]);
   const rel = relatedEntries(entry);
-  const when = (d: Date) => format.dateTime(d, { dateStyle: "medium", timeStyle: "short" });
+  const when = (d: Date) => format.dateTime(d, "dateTime");
   const units = entry.lines.reduce((s, l) => s + l.quantity, 0);
   const printable = (entry.type === "OUT" || entry.type === "TRANSFER_OUT") && !entry.voidedAt;
   // A manager voids only in his warehouses — both of them for a transfer (the server checks again).
@@ -261,7 +261,7 @@ export default async function EntryPage({ params }: PageProps<"/entries/[id]">) 
                     {l.product.variant ? ` · ${l.product.variant}` : ""}
                   </span>
                 </div>
-                <span className="text-lg font-semibold tabular-nums">× {l.quantity}</span>
+                <span className="text-lg font-semibold tabular-nums">× {format.number(l.quantity, "qty")}</span>
               </li>
             ))}
           </ul>

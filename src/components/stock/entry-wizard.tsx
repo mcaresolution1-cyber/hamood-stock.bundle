@@ -195,7 +195,8 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
 
             {reason && (
               <Card>
-                <CardContent className="space-y-4 pt-6">
+                {/* Two columns from lg up (warehouse / supplier / invoice side by side), one on phones. */}
+                <CardContent className="grid gap-4 pt-6 lg:grid-cols-2 lg:items-start">
                   <SelectField
                     name="warehouseId"
                     label={reason === "TRANSFER" ? t("entryForm.fromWarehouse") : t("entryForm.warehouse")}
@@ -256,9 +257,11 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
                       />
                       ),
                     )}
-                  <TextField name="note" label={t("entryForm.note")} optional={!noteRequired(reason)} />
+                  <div className="lg:col-span-2">
+                    <TextField name="note" label={t("entryForm.note")} optional={!noteRequired(reason)} />
+                  </div>
                   {photosAllowed(data.direction, reason as EntryReason) && (
-                    <div>
+                    <div className="lg:col-span-2">
                       <PhotosInput
                         value={values.photoUrls ?? []}
                         max={MAX_PHOTOS}
@@ -287,7 +290,13 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
             )}
 
             <StickyBar>
-              <Button type="button" className="h-12 w-full text-base" onClick={toReview} disabled={!reason}>
+              <Button
+                type="button"
+                // Disabled = a dashed, grey hint ("choose what happened first"), clearly not the Review button.
+                className="h-12 w-full text-base disabled:border disabled:border-dashed disabled:bg-muted disabled:font-normal disabled:text-muted-foreground disabled:opacity-100"
+                onClick={toReview}
+                disabled={!reason}
+              >
                 {reason ? t("entryForm.review") : t("entryForm.pickReasonFirst")}
               </Button>
             </StickyBar>
@@ -322,8 +331,9 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
 
 function StickyBar({ children }: { children: React.ReactNode }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="mx-auto max-w-2xl">{children}</div>
+    // From md up it starts after the sidebar (w-60), so it lines up with the form.
+    <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:start-60">
+      <div className="mx-auto max-w-2xl lg:max-w-3xl">{children}</div>
     </div>
   );
 }

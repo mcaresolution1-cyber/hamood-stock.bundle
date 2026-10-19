@@ -10,13 +10,11 @@ import {
   BarChart3Icon,
   ClipboardCheckIcon,
   ClipboardListIcon,
-  FileUpIcon,
   HistoryIcon,
   LayoutDashboardIcon,
   ListIcon,
   MenuIcon,
   PackageIcon,
-  PackagePlusIcon,
   SettingsIcon,
   TagsIcon,
   TruckIcon,
@@ -29,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { activeNavKey, type NavItem, type NavKey, type NavSection } from "@/lib/nav";
 import { cn } from "@/lib/utils";
+import { BrandLogo } from "@/components/brand-logo";
 
 const ICONS: Record<NavKey, LucideIcon> = {
   dashboard: LayoutDashboardIcon,
@@ -39,8 +38,6 @@ const ICONS: Record<NavKey, LucideIcon> = {
   reports: BarChart3Icon,
   approvals: ClipboardCheckIcon,
   products: PackageIcon,
-  productsNew: PackagePlusIcon,
-  productsImport: FileUpIcon,
   categories: TagsIcon,
   suppliers: TruckIcon,
   openingStock: ClipboardListIcon,
@@ -77,8 +74,11 @@ function NavLinks({ items, onNavigate }: { items: NavItem[]; onNavigate?: () => 
                   onClick={onNavigate}
                   aria-current={current ? "page" : undefined}
                   className={cn(
-                    "flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors hover:bg-accent md:min-h-9",
-                    current ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
+                    "relative flex min-h-11 items-center gap-3 rounded-md px-3 text-sm transition-colors md:min-h-9",
+                    // The current page: brand tint, brand text and a bar on the start edge (PX5).
+                    current
+                      ? "bg-brand/10 font-semibold text-brand before:absolute before:inset-y-1.5 before:start-0 before:w-1 before:rounded-full before:bg-brand"
+                      : "font-medium text-muted-foreground hover:bg-accent hover:text-foreground",
                   )}
                 >
                   <Icon className="size-4 shrink-0" aria-hidden />
@@ -98,8 +98,8 @@ export function Sidebar({ items }: { items: NavItem[] }) {
   const t = useTranslations("common");
   return (
     <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-e bg-muted/30 md:flex">
-      <Link href="/" className="flex h-14 shrink-0 items-center gap-2 border-b px-5 font-semibold">
-        <WarehouseIcon className="size-5 shrink-0" aria-hidden />
+      <Link href="/" className="flex h-14 shrink-0 items-center gap-2.5 border-b px-5 font-semibold">
+        <BrandLogo className="size-8" />
         <span className="truncate">{t("appName")}</span>
       </Link>
       <nav aria-label={t("menu")} className="flex-1 overflow-y-auto p-3">
@@ -125,7 +125,7 @@ export function MobileNav({ items }: { items: NavItem[] }) {
       <SheetContent side={locale === "ar" ? "right" : "left"} className="w-72 gap-0">
         <SheetHeader className="border-b">
           <SheetTitle className="flex items-center gap-2">
-            <WarehouseIcon className="size-5" aria-hidden />
+            <BrandLogo className="size-7" />
             {t("appName")}
           </SheetTitle>
         </SheetHeader>

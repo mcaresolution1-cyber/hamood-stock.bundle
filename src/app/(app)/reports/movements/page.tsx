@@ -35,7 +35,7 @@ export default async function MovementsPage({ searchParams }: PageProps<"/report
     { key: "user", header: t("entries.user") },
   ];
   const rows = r.rows.map((x) => ({
-    date: format.dateTime(x.date, { dateStyle: "short", timeStyle: "short" }),
+    date: format.dateTime(x.date, "dateTime"),
     at: x.date.getTime(),
     number: x.number,
     href: `/entries/${x.entryId}`,

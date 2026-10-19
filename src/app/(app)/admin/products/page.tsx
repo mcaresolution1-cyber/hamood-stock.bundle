@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getLocale, getTranslations } from "next-intl/server";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import { DownloadIcon, PlusIcon, UploadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { NativeSelect } from "@/components/native-select";
@@ -13,6 +12,7 @@ import { ProductThumb } from "@/components/product-thumb";
 import { ProductStatusBadge } from "@/components/product-status-badge";
 import { Ltr } from "@/components/ltr";
 import { MobileCard, ResponsiveList } from "@/components/mobile-list";
+import { cn } from "@/lib/utils";
 import { attributeLine, PRODUCT_STATUSES } from "@/lib/products";
 import { categoryName, categoryNames } from "@/lib/categories";
 import { categoryOptions } from "@/server/queries/categories";
@@ -27,12 +27,13 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function ProductsPage({ searchParams }: PageProps<"/admin/products">) {
   const user = await requirePagePermission("product:manage");
   const filters = parseProductFilters(await searchParams);
-  const [t, tc, locale, result, categories] = await Promise.all([
+  const [t, tc, locale, result, categories, format] = await Promise.all([
     getTranslations("products"),
     getTranslations("common"),
     getLocale(),
     listProducts(user, filters),
     categoryOptions(filters.category ? [filters.category] : []),
+    getFormatter(),
   ]);
   const filtered = Boolean(filters.q || filters.category || filters.status !== "current");
   const query = new URLSearchParams(
@@ -40,7 +41,10 @@ export default async function ProductsPage({ searchParams }: PageProps<"/admin/p
   ).toString();
   const details = (p: (typeof result.rows)[number]) =>
     [categoryNames(p.categories, locale), attributeLine(p, t("kg"))].filter(Boolean).join(" · ");
-  const sar = (v: string | null | undefined) => (v ? v : "—");
+  const money = (v: string | null | undefined) => (v ? format.number(Number(v), { minimumFractionDigits: 2, maximumFractionDigits: 2, numberingSystem: "latn" }) : "—");
+  /** Stock figure: thousands separators; 0 is grey so real stock stands out. */
+  const Qty = ({ value }: { value: number }) =>
+    value === 0 ? <span className="text-muted-foreground/60">0</span> : <>{format.number(value, "qty")}</>;
 
   return (
     <>
@@ -120,7 +124,7 @@ export default async function ProductsPage({ searchParams }: PageProps<"/admin/p
           cards={result.rows.map((p) => (
             <MobileCard key={p.id} muted={p.status !== "ACTIVE"}>
               <Link href={`/products/${p.id}`} className="flex gap-3">
-                <ProductThumb src={p.imageUrl} className="size-14" />
+                {p.imageUrl && <ProductThumb src={p.imageUrl} className="size-14" />}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <Ltr className="font-medium">{p.modelCode}</Ltr>
@@ -131,16 +135,16 @@ export default async function ProductsPage({ searchParams }: PageProps<"/admin/p
                   <dl className="mt-1 flex flex-wrap gap-x-4 text-xs">
                     <div>
                       <dt className="inline text-muted-foreground">{t("sellable")}: </dt>
-                      <dd className="inline font-medium tabular-nums">{p.sellable}</dd>
+                      <dd className="inline font-medium tabular-nums">{format.number(p.sellable, "qty")}</dd>
                     </div>
                     <div>
                       <dt className="inline text-muted-foreground">{t("damaged")}: </dt>
-                      <dd className="inline tabular-nums">{p.damaged}</dd>
+                      <dd className="inline tabular-nums">{format.number(p.damaged, "qty")}</dd>
                     </div>
                     {result.showCost && (
                       <div>
                         <dt className="inline text-muted-foreground">{t("value")}: </dt>
-                        <dd className="inline tabular-nums">{sar(p.value)}</dd>
+                        <dd className="inline tabular-nums">{money(p.value)}</dd>
                       </div>
                     )}
                   </dl>
@@ -155,60 +159,82 @@ export default async function ProductsPage({ searchParams }: PageProps<"/admin/p
             </MobileCard>
           ))}
           table={
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-14" />
-                    <TableHead>{t("modelCode")}</TableHead>
+            // One scroll box (both directions) so the header row and the product column can stay put (sticky).
+            <div className="max-h-[calc(100dvh-15rem)] min-h-64 overflow-auto">
+              <table className="w-full caption-bottom border-separate border-spacing-0 text-sm">
+                <thead className="sticky top-0 z-20 bg-background">
+                  <tr className="[&>th]:h-10 [&>th]:border-b [&>th]:px-2 [&>th]:font-medium [&>th]:whitespace-nowrap">
+                    <th className="sticky start-0 z-10 bg-background text-start">{t("product")}</th>
                     {result.warehouses.map((w) => (
-                      <TableHead key={w.id} className="text-end">
+                      <th key={w.id} className="text-end">
                         {w.name}
-                      </TableHead>
+                      </th>
                     ))}
-                    <TableHead className="text-end">{t("sellable")}</TableHead>
-                    <TableHead className="text-end">{t("damaged")}</TableHead>
-                    <TableHead className="text-end">{t("price")}</TableHead>
-                    {result.showCost && <TableHead className="text-end">{t("value")}</TableHead>}
-                    <TableHead className="text-end">{tc("actions")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {result.rows.map((p) => (
-                    <TableRow key={p.id} className={p.status === "ACTIVE" ? "" : "text-muted-foreground"}>
-                      <TableCell>
-                        <ProductThumb src={p.imageUrl} />
-                      </TableCell>
-                      <TableCell className="min-w-56 whitespace-normal">
-                        <Link href={`/products/${p.id}`} className="font-medium underline-offset-4 hover:underline">
-                          <Ltr>{p.modelCode}</Ltr>
-                        </Link>
-                        {p.sku !== p.modelCode && <Ltr className="ms-2 text-xs text-muted-foreground">{p.sku}</Ltr>}
-                        <div className="text-sm">{locale === "ar" ? p.nameAr : p.nameEn}</div>
-                        <div className="text-xs text-muted-foreground">{details(p)}</div>
-                        <ProductStatusBadge status={p.status} />
-                      </TableCell>
-                      {result.warehouses.map((w) => (
-                        <TableCell key={w.id} className="text-end tabular-nums">
-                          {p.qty[w.id] ?? 0}
-                        </TableCell>
-                      ))}
-                      <TableCell className="text-end font-medium tabular-nums">{p.sellable}</TableCell>
-                      <TableCell className="text-end tabular-nums">{p.damaged}</TableCell>
-                      <TableCell className="text-end tabular-nums">{sar(p.sellingPrice)}</TableCell>
-                      {result.showCost && <TableCell className="text-end tabular-nums">{sar(p.value)}</TableCell>}
-                      <TableCell>
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="sm" asChild>
-                            <Link href={`/admin/products/${p.id}/edit`}>{tc("edit")}</Link>
-                          </Button>
-                          <ProductStatusMenu id={p.id} modelCode={p.modelCode} status={p.status} />
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                    <th className="text-end">{t("sellable")}</th>
+                    {result.hasDamaged && <th className="text-end">{t("damaged")}</th>}
+                    <th className="text-end">{t("price")}</th>
+                    {result.showCost && <th className="text-end">{t("value")}</th>}
+                    <th className="text-end">
+                      <span className="sr-only">{tc("actions")}</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.rows.map((p) => {
+                    const name = locale === "ar" ? p.nameAr : p.nameEn;
+                    const second = [p.sku, name.trim().toUpperCase() === p.modelCode ? null : name, categoryNames(p.categories, locale)].filter(Boolean).join(" · ");
+                    return (
+                      <tr
+                        key={p.id}
+                        className={cn(
+                          "group [&>td]:border-b [&>td]:px-2 [&>td]:py-1.5 [&>td]:align-middle hover:[&>td]:bg-muted",
+                          p.status !== "ACTIVE" && "text-muted-foreground",
+                        )}
+                      >
+                        <td className="sticky start-0 z-10 max-w-80 bg-background">
+                          <div className="flex items-center gap-2">
+                            {p.imageUrl && <ProductThumb src={p.imageUrl} className="size-8 shrink-0" />}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <Link href={`/products/${p.id}`} title={name} className="truncate font-medium whitespace-nowrap underline-offset-4 hover:underline">
+                                  <Ltr>{p.modelCode}</Ltr>
+                                </Link>
+                                {p.status !== "ACTIVE" && <ProductStatusBadge status={p.status} />}
+                              </div>
+                              <p className="truncate text-xs text-muted-foreground" title={second}>
+                                <bdi>{second}</bdi>
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        {result.warehouses.map((w) => (
+                          <td key={w.id} className="text-end tabular-nums">
+                            <Qty value={p.qty[w.id] ?? 0} />
+                          </td>
+                        ))}
+                        <td className="text-end font-semibold tabular-nums">
+                          <Qty value={p.sellable} />
+                        </td>
+                        {result.hasDamaged && (
+                          <td className="text-end tabular-nums">
+                            <Qty value={p.damaged} />
+                          </td>
+                        )}
+                        <td className="text-end whitespace-nowrap tabular-nums">{money(p.sellingPrice)}</td>
+                        {result.showCost && <td className="text-end whitespace-nowrap tabular-nums">{money(p.value)}</td>}
+                        <td>
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="sm" asChild>
+                              <Link href={`/admin/products/${p.id}/edit`}>{tc("edit")}</Link>
+                            </Button>
+                            <ProductStatusMenu id={p.id} modelCode={p.modelCode} status={p.status} />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           }
         />

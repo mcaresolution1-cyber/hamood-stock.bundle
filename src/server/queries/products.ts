@@ -99,6 +99,11 @@ export async function listProducts(user: CurrentUser, filters: ProductFilters, o
     db.warehouse.findMany({ where: { active: true }, select: { id: true, name: true, kind: true }, orderBy: [{ kind: "asc" }, { name: "asc" }] }),
   ]);
   const kindOf = new Map(warehouses.map((w) => [w.id, w.kind]));
+  // Columns: active warehouses that hold stock — an empty test warehouse is just noise here (PX7).
+  const stocked = new Set(
+    (await db.stockLevel.groupBy({ by: ["warehouseId"], where: { quantity: { gt: 0 } } })).map((l) => l.warehouseId),
+  );
+  const columns = warehouses.filter((w) => stocked.has(w.id));
   // Stock value uses the weighted-average delivery cost where known, else the product's own cost (PC3).
   const costs = showCost
     ? await effectiveCosts(db, rows.map((r) => ({ id: r.id, cost: ((r as { cost?: Prisma.Decimal | null }).cost ?? null) })))
@@ -108,7 +113,11 @@ export async function listProducts(user: CurrentUser, filters: ProductFilters, o
     total,
     page,
     pageCount: Math.max(1, Math.ceil(total / PRODUCT_PAGE_SIZE)),
-    warehouses,
+    warehouses: columns,
+    /** Every active warehouse — the Excel export keeps fixed columns. */
+    allWarehouses: warehouses,
+    /** Any damaged-stock warehouse in use — else the Damaged column is left out. */
+    hasDamaged: columns.some((w) => w.kind === "DAMAGED"),
     showCost,
     rows: rows.map(({ cost, levels, sellingPrice, ...p }) => {
       const qty = Object.fromEntries(levels.filter((l) => kindOf.has(l.warehouseId)).map((l) => [l.warehouseId, l.quantity]));

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
-import { KeyRoundIcon, LogOutIcon, UserIcon, WarehouseIcon } from "lucide-react";
+import { KeyRoundIcon, LogOutIcon, UserIcon } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -28,7 +29,7 @@ export async function TopBar({ user }: { user: CurrentUser }) {
         <MobileNav items={nav} />
         {/* On a narrow phone the brand may shorten with "…". */}
         <Link href="/" className="flex min-h-11 min-w-0 items-center gap-2 md:hidden">
-          <WarehouseIcon className="size-5 shrink-0" aria-hidden />
+          <BrandLogo className="size-7" />
           <span className="truncate font-semibold">{t("common.appName")}</span>
         </Link>
 

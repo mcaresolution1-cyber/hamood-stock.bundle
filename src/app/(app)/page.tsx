@@ -14,6 +14,9 @@ import { requireUser } from "@/server/auth/dal";
 import { dashboardStats, productSearchList } from "@/server/queries/dashboard";
 import { canUseApprovals, requestCounts } from "@/server/queries/approvals";
 import { cn } from "@/lib/utils";
+import { GenerateReportDialog } from "@/components/reports/generate-report-dialog";
+import { StockMovementCard } from "@/components/dashboard/stock-movement-card";
+import { reportChoices, stockMovement } from "@/server/queries/inventory";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: (await getTranslations("dashboard"))("title") };
@@ -24,12 +27,14 @@ export default async function DashboardPage() {
   const user = await requireUser();
   // A technician has no stock pages: his start page is his jobs (keeps the "not allowed" notice).
   if (!can(user.role, "stock:view")) redirect(can(user.role, "job:own") ? "/jobs" : "/login");
-  const [t, format, stats, products, requests] = await Promise.all([
+  const [t, format, stats, products, requests, choices, movement] = await Promise.all([
     getTranslations(),
     getFormatter(),
     dashboardStats(),
     productSearchList(),
     canUseApprovals(user) ? requestCounts(user) : Promise.resolve({ toDecide: 0, minePending: 0 }),
+    reportChoices(),
+    stockMovement({ days: 30 }),
   ]);
   const requestLinks = [
     { count: requests.toDecide, label: t("dashboard.pendingApprovals"), href: "/approvals?view=toDecide" },
@@ -48,9 +53,12 @@ export default async function DashboardPage() {
       <Suspense>
         <DeniedToast />
       </Suspense>
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{t("dashboard.title")}</h1>
-        <p className="text-muted-foreground">{t("dashboard.welcome", { name: user.name })}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("dashboard.title")}</h1>
+          <p className="text-muted-foreground">{t("dashboard.welcome", { name: user.name })}</p>
+        </div>
+        <GenerateReportDialog {...choices} />
       </div>
 
       {canWrite && (
@@ -105,11 +113,13 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {cards.map((c) => (
           <Link key={c.label} href={c.href} className="rounded-lg border p-3 transition-colors hover:bg-accent sm:p-4">
-            <p className={cn("text-2xl font-bold tabular-nums sm:text-3xl", c.alert && "text-destructive")}>{c.value}</p>
+            <p className={cn("text-2xl font-bold tabular-nums sm:text-3xl", c.alert && "text-destructive")}>{format.number(c.value, "qty")}</p>
             <p className="text-xs text-muted-foreground sm:text-sm">{c.label}</p>
           </Link>
         ))}
       </div>
+
+      <StockMovementCard initial={movement} warehouses={choices.warehouses} />
 
       <Card>
         <CardHeader className="items-center">
@@ -132,7 +142,7 @@ export default async function DashboardPage() {
                     <div className="min-w-0">
                       <Ltr className="font-medium">{e.number}</Ltr>
                       <p className="truncate text-sm text-muted-foreground">
-                        {t(`reasons.${e.reason}`)} · {e.warehouse.name} · {format.relativeTime(e.entryDate)}
+                        {t(`reasons.${e.reason}`)} · {e.warehouse.name} · {format.dateTime(e.entryDate, "dateTime")}
                       </p>
                     </div>
                     <EntryTypeBadge type={e.type} voided={Boolean(e.voidedAt)} />

@@ -30,7 +30,7 @@ export default async function EntriesPage({ searchParams }: PageProps<"/entries"
     getFormatter(),
     listEntries(filters),
   ]);
-  const when = (d: Date) => format.dateTime(d, { dateStyle: "medium", timeStyle: "short" });
+  const when = (d: Date) => format.dateTime(d, "dateTime");
   /** Order/invoice number (always LTR) or, failing that, a person's name (any script). */
   const who = (e: (typeof result.rows)[number]) =>
     e.reference ? <Ltr>{e.reference}</Ltr> : <bdi>{e.customerName ?? e.supplierName ?? ""}</bdi>;
@@ -103,7 +103,7 @@ export default async function EntriesPage({ searchParams }: PageProps<"/entries"
                     <TableCell>{e.warehouse.name}</TableCell>
                     <TableCell className="max-w-48 truncate">{who(e)}</TableCell>
                     <TableCell>{e.createdBy.name}</TableCell>
-                    <TableCell className="text-end tabular-nums">{e.units}</TableCell>
+                    <TableCell className="text-end tabular-nums">{format.number(e.units, "qty")}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

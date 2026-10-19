@@ -6,6 +6,7 @@
  */
 import Link from "next/link";
 import { useMemo } from "react";
+import { useFormatter } from "next-intl";
 import {
   createSortedRowModel,
   rowSortingFeature,
@@ -51,10 +52,30 @@ const features = tableFeatures({
   sortFns: { alphanumeric: sortFn_alphanumeric, basic: sortFn_basic },
 });
 
-function render(col: ReportColumn, row: ReportRow) {
+type NumberFormat = (v: number, opts?: { minimumFractionDigits?: number; maximumFractionDigits?: number }) => string;
+
+/**
+ * Numbers with the locale's thousands separators (17,068). Money arrives as text ("1250.50") and keeps
+ * its decimals; whole quantities get none.
+ */
+function numberText(v: Cell, fmt: NumberFormat): string {
+  if (typeof v === "number") return fmt(v);
+  const s = String(v);
+  const m = /^-?\d+(?:\.(\d+))?$/.exec(s);
+  if (!m) return s;
+  const decimals = m[1]?.length ?? 0;
+  return fmt(Number(s), { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function render(col: ReportColumn, row: ReportRow, fmt: NumberFormat) {
   const v = row[col.key];
+  const numeric = col.kind === "number" || col.kind === "signed";
   let content: React.ReactNode =
-    v === null || v === undefined || v === "" ? "—" : col.kind === "signed" && typeof v === "number" && v > 0 ? `+${v}` : String(v);
+    v === null || v === undefined || v === ""
+      ? "—"
+      : numeric
+        ? `${col.kind === "signed" && Number(v) > 0 ? "+" : ""}${numberText(v, fmt)}`
+        : String(v);
   if (col.kind === "code") content = <Ltr>{content}</Ltr>;
   if (col.kind === "signed" || col.kind === "number") content = <span dir="ltr">{content}</span>;
   if (col.hrefKey && row[col.hrefKey]) {
@@ -97,6 +118,8 @@ export function ReportTable({
     [columns],
   );
   const table = useTable({ features, columns: defs, data: rows });
+  const format = useFormatter();
+  const fmt: NumberFormat = (v, opts) => format.number(v, { maximumFractionDigits: 2, numberingSystem: "latn", ...opts });
 
   if (rows.length === 0) return <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">{emptyMessage}</p>;
 
@@ -135,7 +158,7 @@ export function ReportTable({
             <TableRow key={row.id} className={cn(mutedKey && row.original[mutedKey] && "text-muted-foreground line-through decoration-muted-foreground/50")}>
               {columns.map((c) => (
                 <TableCell key={c.key} className={cn("whitespace-nowrap", numeric(c) && "text-end tabular-nums", c.kind === "signed" && Number(row.original[c.key]) < 0 && "text-amber-700 dark:text-amber-400", c.kind === "signed" && Number(row.original[c.key]) > 0 && "text-emerald-700 dark:text-emerald-400")}>
-                  {render(c, row.original)}
+                  {render(c, row.original, fmt)}
                 </TableCell>
               ))}
             </TableRow>
@@ -146,7 +169,7 @@ export function ReportTable({
             <TableRow>
               {columns.map((c) => (
                 <TableCell key={c.key} className={cn("font-semibold", numeric(c) && "text-end tabular-nums")}>
-                  {footer[c.key] === undefined ? "" : render(c, footer)}
+                  {footer[c.key] === undefined ? "" : render(c, footer, fmt)}
                 </TableCell>
               ))}
             </TableRow>

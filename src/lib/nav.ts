@@ -11,8 +11,6 @@ export type NavKey =
   | "reports"
   | "approvals"
   | "products"
-  | "productsNew"
-  | "productsImport"
   | "categories"
   | "suppliers"
   | "warehouses"
@@ -38,8 +36,6 @@ const ITEMS: (NavItem & { show: (role: Role) => boolean })[] = [
     show: (r) => can(r, "approval:decide") || can(r, "entry:correct") || can(r, "entry:void"),
   },
   { key: "products", href: "/admin/products", section: "catalog", show: (r) => can(r, "product:manage") },
-  { key: "productsNew", href: "/admin/products/new", section: "catalog", show: (r) => can(r, "product:manage") },
-  { key: "productsImport", href: "/admin/products/import", section: "catalog", show: (r) => can(r, "product:manage") },
   { key: "categories", href: "/admin/categories", section: "catalog", show: (r) => can(r, "product:manage") },
   { key: "suppliers", href: "/admin/suppliers", section: "catalog", show: (r) => can(r, "supplier:manage") },
   { key: "openingStock", href: "/admin/opening-stock", section: "admin", show: (r) => can(r, "openingStock:import") },

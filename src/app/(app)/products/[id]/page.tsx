@@ -42,7 +42,7 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
     { key: "balance", header: t("productPage.balance"), kind: "number" },
   ];
   const rows = data.card.map((r) => ({
-    date: format.dateTime(r.entryDate, { dateStyle: "short", timeStyle: "short" }),
+    date: format.dateTime(r.entryDate, "dateTime"),
     at: new Date(r.entryDate).getTime(),
     number: r.number,
     href: `/entries/${r.entryId}`,
@@ -143,7 +143,7 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
                     </Badge>
                   )}
                 </span>
-                <span className="text-lg font-semibold tabular-nums">{w.quantity}</span>
+                <span className="text-lg font-semibold tabular-nums">{format.number(w.quantity, "qty")}</span>
               </li>
             ))}
           </ul>
@@ -163,7 +163,7 @@ export default async function ProductPage({ params, searchParams }: PageProps<"/
                 {product.costHistory.map((c) => (
                   <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                     <span className="text-muted-foreground">
-                      {format.dateTime(c.at, { dateStyle: "medium", timeStyle: "short" })} · {c.changedBy.name} ·{" "}
+                      {format.dateTime(c.at, "dateTime")} · {c.changedBy.name} ·{" "}
                       {t.has(`products.costSource.${c.source}` as "products.costSource.MANUAL") ? t(`products.costSource.${c.source}` as "products.costSource.MANUAL") : c.source}
                     </span>
                     <Ltr className="font-medium tabular-nums">{c.cost ?? "—"}</Ltr>

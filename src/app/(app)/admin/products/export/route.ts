@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     { key: "category", header: t("products.category"), width: 18 },
     { key: "details", header: t("products.sections.details"), width: 30 },
     { key: "status", header: t("products.status"), width: 14 },
-    ...r.warehouses.map((w) => ({ key: `w_${w.id}`, header: w.name, number: true })),
+    ...r.allWarehouses.map((w) => ({ key: `w_${w.id}`, header: w.name, number: true })),
     { key: "sellable", header: t("products.sellable"), number: true },
     { key: "damaged", header: t("products.damaged"), number: true },
     { key: "price", header: t("products.sellingPrice"), money: true, width: 16 },
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
     category: p.categories.map((c) => categoryName(c.category, locale)).join(", "),
     details: attributeLine(p, t("products.kg")).replace(/[\u2066\u2069]/g, ""), // no invisible marks in Excel
     status: t(`products.statuses.${p.status}`),
-    ...Object.fromEntries(r.warehouses.map((w) => [`w_${w.id}`, p.qty[w.id] ?? 0])),
+    ...Object.fromEntries(r.allWarehouses.map((w) => [`w_${w.id}`, p.qty[w.id] ?? 0])),
     sellable: p.sellable,
     damaged: p.damaged,
     price: p.sellingPrice,

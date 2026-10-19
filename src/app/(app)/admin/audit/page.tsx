@@ -22,7 +22,7 @@ export default async function AuditPage({ searchParams }: PageProps<"/admin/audi
   await requirePagePermission("audit:view");
   const filters = parseAuditFilters(await searchParams);
   const [t, tc, format, locale, result] = await Promise.all([getTranslations(), getTranslations("common"), getFormatter(), getLocale(), listAudit(filters)]);
-  const when = (d: Date) => format.dateTime(d, { dateStyle: "medium", timeStyle: "short" });
+  const when = (d: Date) => format.dateTime(d, "dateTime");
 
   // Message keys are built from stored values; anything unknown is shown as stored.
   const has = (k: string) => t.has(k as Parameters<typeof t.has>[0]);
