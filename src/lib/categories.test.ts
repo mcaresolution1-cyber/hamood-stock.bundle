@@ -19,3 +19,15 @@ describe("categories", () => {
     expect(categoryNames([{ category: c }, { category: { nameEn: "Stands", nameAr: "ستاندات" } }], "en")).toBe("TV tables · Stands");
   });
 });
+
+describe("loose category matching (plan import-sku, PS5)", () => {
+  it("ignores case, accents, a TV word and plurals; tidies capitals", async () => {
+    const { categoryMatchKey, tidyCategoryName, categoryKey } = await import("./categories");
+    expect(categoryMatchKey("WALL MOUNT")).toBe(categoryMatchKey("TV wall mounts"));
+    expect(categoryMatchKey("FLOOR STAND")).toBe(categoryMatchKey("Floor stands"));
+    expect(categoryMatchKey("glass")).toBe("glass");
+    expect(categoryKey("Café")).toBe(categoryKey("cafe"));
+    expect(tidyCategoryName("TABLETOP TV MOUNT")).toBe("Tabletop TV Mount");
+    expect(tidyCategoryName("Monitor arms")).toBe("Monitor arms");
+  });
+});

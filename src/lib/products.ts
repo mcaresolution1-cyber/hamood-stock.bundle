@@ -1,3 +1,12 @@
+/**
+ * The SKU of the n-th product (plan import-sku, PS1): "HMD00" + the number with at least 3 digits —
+ * HMD00001 … HMD00999, HMD001000. Must match the migration that numbered the existing products.
+ */
+export function formatSku(n: number): string {
+  if (!Number.isInteger(n) || n < 1) throw new Error(`Invalid SKU number ${n}`);
+  return `HMD00${String(n).padStart(3, "0")}`;
+}
+
 /** Product status (decision PB1). */
 export const PRODUCT_STATUSES = ["ACTIVE", "DISCONTINUED", "INACTIVE"] as const;
 export type ProductStatusName = (typeof PRODUCT_STATUSES)[number];

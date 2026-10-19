@@ -168,7 +168,7 @@ describe("import with column matching (PU3, PU4)", () => {
     });
     expect(await testDb.category.count()).toBe(4); // the preview writes nothing
 
-    expect(await applyProductImport(await upload(rows, mapping))).toEqual({ ok: true, data: { created: 1, updated: 1, categories: 1 } });
+    expect(await applyProductImport(await upload(rows, mapping))).toEqual({ ok: true, data: { created: 1, updated: 1, categories: 1, warehouses: 0, entries: [] } });
     const ceiling = await testDb.category.findUniqueOrThrow({ where: { nameEn: "Ceiling mounts" } });
     expect(ceiling).toMatchObject({ nameAr: "Ceiling mounts", active: true });
     expect(await categoriesOf("HMD-900")).toEqual(["cat-floor-stand", ceiling.id]);

@@ -30,17 +30,24 @@ describe("column matching (PU3)", () => {
     expect(suggestMapping(["Price", "Selling price"])).toEqual({ "0": "", "1": "sellingprice" });
   });
 
-  it("uses the cells: an Arabic 'Name' column is the Arabic name; a WooCommerce SKU is the model code", () => {
+  it("uses the cells: an Arabic 'Name' column is the Arabic name", () => {
     expect(suggestMapping(["SKU", "Name", "Regular price", "Categories"], [["HMD-1"], ["حامل جداري"], ["199"], ["Mounts"]])).toEqual({
-      "0": "modelcode",
+      "0": "sku",
       "1": "namear",
       "2": "sellingprice",
       "3": "category",
     });
   });
 
-  it("reports duplicate and missing required fields", () => {
-    expect(mappingProblems({ "0": "modelcode", "1": "modelcode", "2": "" })).toEqual({ duplicates: ["modelcode"], missing: ["nameen", "namear", "category"] });
+  it("recognises the old POS export's headers (plan import-sku)", () => {
+    expect(
+      suggestMapping(["", " ", "Action", "Product", "Business Location", "Unit Purchase Price", "Selling Price", "Current stock", "Product Type", "Category", "Brand", "Tax", "SKU"]),
+    ).toMatchObject({ "3": "nameen", "4": "warehouse", "5": "cost", "6": "sellingprice", "7": "stock", "9": "category", "12": "sku", "2": "", "8": "", "10": "" });
+  });
+
+  it("reports duplicate fields and missing identity / name", () => {
+    expect(mappingProblems({ "0": "modelcode", "1": "modelcode", "2": "" })).toEqual({ duplicates: ["modelcode"], noIdentity: false, noName: true });
+    expect(mappingProblems({ "0": "colour" })).toEqual({ duplicates: [], noIdentity: true, noName: true });
   });
 
   it("maps cells by column position and skips a title line above the table", () => {

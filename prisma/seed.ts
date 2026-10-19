@@ -11,6 +11,7 @@ import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 import { PrismaClient, Prisma } from "../src/generated/prisma/client";
 import { ensureBaseData, firstAdminFromEnv } from "../src/server/db/base-data";
 import { mariadbConfig } from "../src/lib/db-config";
+import { formatSku } from "../src/lib/products";
 
 const prisma = new PrismaClient({ adapter: new PrismaMariaDb(mariadbConfig(process.env.DATABASE_URL)) });
 
@@ -94,7 +95,14 @@ async function main() {
 
   if (SAMPLE_PRODUCTS) {
     for (const p of products) {
-      await prisma.product.upsert({ where: { modelCode: p.modelCode }, create: { ...p, sku: p.modelCode }, update: {} });
+      if (await prisma.product.count({ where: { modelCode: p.modelCode } })) continue;
+      // The next HMD00 SKU from the same counter the app uses (plan import-sku, PS1).
+      await prisma.$transaction(async (tx) => {
+        const [row] = await tx.$queryRaw<{ value: number }[]>`SELECT value FROM \`Counter\` WHERE \`key\` = 'SKU' FOR UPDATE`;
+        const n = Number(row.value) + 1;
+        await tx.counter.update({ where: { key: "SKU" }, data: { value: n } });
+        await tx.product.create({ data: { ...p, sku: formatSku(n) } });
+      });
     }
     console.log(`✓ sample products: ${products.length}`);
   } else {

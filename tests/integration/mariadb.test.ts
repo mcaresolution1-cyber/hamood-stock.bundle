@@ -122,7 +122,7 @@ describe("start-up base data", () => {
     await testDb.counter.deleteMany(); // fresh-database fixture: counters only
     const r = await ensureBaseData(testDb, admin);
     expect(r.adminCreated).toBe(true);
-    expect(await testDb.counter.count()).toBe(6);
+    expect(await testDb.counter.count()).toBe(7);
     expect((await testDb.warehouse.findMany()).map((w) => w.name).sort()).toEqual(["Damaged Stock", "Riyadh Main"]);
     expect((await testDb.user.findFirstOrThrow()).email).toBe("owner@hamoodtv.com");
   });

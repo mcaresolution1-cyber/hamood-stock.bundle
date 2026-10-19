@@ -78,7 +78,7 @@ describe("product import", () => {
     expect(preview).toMatchObject({ ok: true, data: { counts: { create: 1, update: 1, error: 0 } } });
 
     const applied = await applyProductImport(form(file));
-    expect(applied).toEqual({ ok: true, data: { created: 1, updated: 1, categories: 0 } });
+    expect(applied).toEqual({ ok: true, data: { created: 1, updated: 1, categories: 0, warehouses: 0, entries: [] } });
 
     const created = await testDb.product.findUniqueOrThrow({ where: { modelCode: "HMD-900" }, include: { categories: true } });
     expect(created).toMatchObject({ lowStockLevel: 3, status: "ACTIVE", categories: [{ categoryId: "cat-floor-stand", position: 0 }] });
@@ -90,7 +90,7 @@ describe("product import", () => {
   });
 
   it("saves nothing when any row has an error", async () => {
-    const file = await xlsxFile([HEAD, ["OK-1", "a", "ب", "wall-mount, Chairs"], ["BAD-1", "", "ب", "chairs"]]);
+    const file = await xlsxFile([HEAD, ["OK-1", "a", "ب", "wall-mount, Chairs"], ["BAD-1", "a", "ب", "chairs", "", "", "lots"]]);
     expect(await applyProductImport(form(file))).toMatchObject({ ok: false, error: "import.errors.fixFirst" });
     expect(await testDb.product.count()).toBe(0);
     expect(await testDb.category.count()).toBe(4); // no category created either

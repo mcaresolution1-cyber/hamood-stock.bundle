@@ -29,7 +29,6 @@ type Reorder = { warehouseId: string; reorderLevel: number; reorderQty: number }
 
 const EMPTY: Omit<ProductFormValues, "reorder"> = {
   modelCode: "",
-  sku: "",
   barcode: "",
   nameEn: "",
   nameAr: "",
@@ -99,7 +98,7 @@ export function ProductForm({
   options,
   locale,
 }: {
-  product?: { id: string; values: Omit<ProductFormValues, "reorder">; reorder: Reorder[] };
+  product?: { id: string; sku: string; values: Omit<ProductFormValues, "reorder">; reorder: Reorder[] };
   options: ProductFormOptions;
   locale: string;
 }) {
@@ -142,9 +141,16 @@ export function ProductForm({
       <form onSubmit={form.handleSubmit(onSubmit)} className="grid max-w-3xl gap-6" noValidate>
         <Section title={t("products.sections.identity")}>
           <TextField name="modelCode" label={t("products.modelCode")} hint={t("products.modelCodeHint")} dir="ltr" autoCapitalize="characters" />
-          <TextField name="sku" label={t("products.sku")} hint={t("products.skuHint")} dir="ltr" autoCapitalize="characters" optional />
+          {/* The SKU is given by the app (HMD00001, …) when the product is first saved — plan import-sku, PS1. */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium">{t("products.sku")}</p>
+            <p className="flex h-11 items-center rounded-md border bg-muted/40 px-3 text-sm md:h-10" dir="ltr">
+              {product?.sku ?? <span className="text-muted-foreground">{t("products.skuAuto")}</span>}
+            </p>
+            <p className="text-sm text-muted-foreground">{t("products.skuHint")}</p>
+          </div>
           <TextField name="nameEn" label={t("products.nameEn")} dir="ltr" />
-          <TextField name="nameAr" label={t("products.nameAr")} dir="rtl" lang="ar" />
+          <TextField name="nameAr" label={t("products.nameAr")} hint={t("products.nameArHint")} dir="rtl" lang="ar" optional />
           <CategoriesField options={options.categories} />
           <SelectField
             name="status"

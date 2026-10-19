@@ -1,5 +1,5 @@
 /**
- * Column matching for the product import (plan ui-menu-import-categories, PU3). Pure.
+ * Column matching for the product import (plans ui-menu-import-categories PU3, import-sku). Pure.
  * A file's header row → a suggested product field per column (English and Arabic names, common
  * synonyms, WooCommerce export headers); the user may change any of them; `applyMapping` then turns the
  * sheet into the canonical keys the validator reads.
@@ -11,24 +11,25 @@ export type ImportField = (typeof PRODUCT_IMPORT_COLUMNS)[number];
 /** Column position (as text, JSON-friendly) → field, or "" to skip the column. */
 export type ColumnMapping = Record<string, ImportField | "">;
 
-/** Needed for every row / for new products only. */
-export const REQUIRED_FIELDS: Partial<Record<ImportField, "always" | "new">> = {
-  modelcode: "always",
-  nameen: "new",
-  namear: "new",
-  category: "new",
-};
+/**
+ * What the owner listed as the details that matter (plan import-sku): shown first and marked in the
+ * column picker. Only a name is really needed — the SKU is given by the app, a missing category falls
+ * back to the one chosen for the import, and the rest is optional.
+ */
+export const KEY_FIELDS: readonly ImportField[] = ["nameen", "sku", "category", "sellingprice", "stock", "imageurl"];
+/** Columns that identify a product (a row needs one of them). */
+export const IDENTITY_FIELDS: readonly ImportField[] = ["modelcode", "nameen", "namear", "sku"];
 
 /**
  * Header names per field, strongest first (compared after `normalizeHeader`). Order matters between
  * fields too: the best-ranked match wins, each field takes one column.
  */
 const SYNONYMS: Record<ImportField, string[]> = {
-  modelcode: ["modelcode", "model", "modelno", "modelnumber", "itemcode", "productcode", "partno", "partnumber", "code", "item", "itemno", "ref",
+  modelcode: ["modelcode", "model", "modelno", "modelnumber", "itemcode", "productcode", "partno", "partnumber", "code", "itemno", "ref",
     "رقمالموديل", "الموديل", "موديل", "كودالمنتج", "رمزالمنتج", "رقمالصنف", "الكود", "كود"],
   sku: ["sku", "skucode", "stockcode", "internalcode", "رمزالتخزين"],
   barcode: ["barcode", "ean", "ean13", "upc", "gtin", "الباركود", "باركود"],
-  nameen: ["nameen", "englishname", "nameenglish", "productnameen", "name", "productname", "itemname", "title",
+  nameen: ["nameen", "englishname", "nameenglish", "productnameen", "name", "productname", "product", "itemname", "item", "title",
     "الاسمبالانجليزي", "الاسمالانجليزي", "اسمانجليزي", "الاسمبالإنجليزي", "الاسمالإنجليزي"],
   namear: ["namear", "arabicname", "namearabic", "productnamear", "الاسمبالعربي", "الاسمالعربي", "اسمعربي", "اسمالمنتج", "الاسم", "اسم", "اسمالصنف"],
   category: ["category", "categories", "productcategory", "cat", "group", "الفئة", "الفئات", "فئة", "التصنيف", "تصنيف", "القسم"],
@@ -37,9 +38,14 @@ const SYNONYMS: Record<ImportField, string[]> = {
   maxloadkg: ["maxloadkg", "maxload", "load", "maxweight", "weightcapacity", "capacity", "الحمولة", "الحمولةالقصوى", "أقصىوزن", "اقصىوزن"],
   vesa: ["vesa", "فيزا"],
   variant: ["variant", "otherdetails", "details", "option", "التفاصيل", "تفاصيل"],
-  imageurl: ["imageurl", "image", "images", "imagelink", "photo", "picture", "img", "الصورة", "رابطالصورة", "صورة"],
-  cost: ["cost", "costprice", "unitcost", "purchaseprice", "buyprice", "التكلفة", "سعرالتكلفة", "سعرالشراء", "تكلفة"],
-  sellingprice: ["sellingprice", "price", "saleprice", "retailprice", "regularprice", "سعرالبيع", "السعر", "سعر"],
+  imageurl: ["imageurl", "image", "images", "imageurls", "imagelink", "productimage", "productimages", "photo", "photos", "picture", "pictures", "img",
+    "الصورة", "الصور", "رابطالصورة", "صورة"],
+  cost: ["cost", "costprice", "unitcost", "purchaseprice", "unitpurchaseprice", "defaultpurchaseprice", "buyprice", "التكلفة", "سعرالتكلفة", "سعرالشراء", "تكلفة"],
+  sellingprice: ["sellingprice", "price", "unitsellingprice", "defaultsellingprice", "saleprice", "retailprice", "regularprice", "productprice",
+    "سعرالبيع", "السعر", "سعر"],
+  stock: ["stock", "currentstock", "stockavailable", "availablestock", "available", "qty", "quantity", "onhand", "quantityonhand", "stockqty",
+    "stockquantity", "inventory", "openingstock", "المخزون", "الكمية", "الرصيد", "المتوفر", "الكميةالمتوفرة"],
+  warehouse: ["warehouse", "businesslocation", "location", "store", "branch", "المستودع", "المخزن", "الموقع", "الفرع"],
   lowstocklevel: ["lowstocklevel", "lowstock", "reorderlevel", "minstock", "minimumstock", "min", "حدالطلب", "الحدالأدنى", "الحدالادنى"],
   leadtimedays: ["leadtimedays", "leadtime", "deliverydays", "مدةالتوريد"],
   wooproductid: ["wooproductid", "woocommerceid", "wooid", "id"],
@@ -98,21 +104,20 @@ export function suggestMapping(labels: readonly string[], samples: readonly (rea
       taken.add("namear");
     }
   }
-  // No model code column but a SKU one (WooCommerce exports): the SKU is the model code.
-  if (!taken.has("modelcode")) {
-    const skuCol = Object.keys(mapping).find((k) => mapping[k] === "sku");
-    if (skuCol !== undefined) mapping[skuCol] = "modelcode";
-  }
   return mapping;
 }
 
-/** Problems with a mapping the user chose: a field picked twice, a required field missing. */
-export function mappingProblems(mapping: ColumnMapping): { duplicates: ImportField[]; missing: ImportField[] } {
+/**
+ * Problems with a mapping the user chose: a field picked twice; no column that identifies a product
+ * (blocks); no name column (new products can't be created — a warning, updates still work).
+ */
+export function mappingProblems(mapping: ColumnMapping): { duplicates: ImportField[]; noIdentity: boolean; noName: boolean } {
   const count = new Map<ImportField, number>();
   for (const f of Object.values(mapping)) if (f) count.set(f, (count.get(f) ?? 0) + 1);
   return {
     duplicates: [...count].filter(([, n]) => n > 1).map(([f]) => f),
-    missing: (Object.keys(REQUIRED_FIELDS) as ImportField[]).filter((f) => !count.has(f)),
+    noIdentity: !IDENTITY_FIELDS.some((f) => count.has(f)),
+    noName: !count.has("nameen") && !count.has("namear"),
   };
 }
 

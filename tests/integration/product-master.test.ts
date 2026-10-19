@@ -95,22 +95,28 @@ beforeEach(async () => {
 afterAll(() => testDb.$disconnect());
 
 describe("products", () => {
-  it("creates a product with attributes, levels and a first cost record; SKU defaults to the model code", async () => {
+  it("creates a product with attributes, levels and a first cost record; the app gives the next HMD00 SKU (PS1)", async () => {
     const result = await createProduct(productForm({ reorder: [{ warehouseId: main, reorderLevel: "3", reorderQty: "10" }, { warehouseId: jeddah, reorderLevel: "", reorderQty: "" }] }));
     expect(result.ok).toBe(true);
     const p = await testDb.product.findUniqueOrThrow({ where: { modelCode: "HMD-900" }, include: { reorder: true, costs: true } });
-    expect(p).toMatchObject({ sku: "HMD-900", sizeRange: "32–70″", colour: "Black", maxLoadKg: 45, vesa: "600×400", leadTimeDays: 14, status: "ACTIVE" });
+    expect(result).toMatchObject({ ok: true, data: { sku: "HMD00001" } });
+    expect(p).toMatchObject({ sku: "HMD00001", nameAr: "حامل", sizeRange: "32–70″", colour: "Black", maxLoadKg: 45, vesa: "600×400", leadTimeDays: 14, status: "ACTIVE" });
     expect(p.sellingPrice?.toFixed(2)).toBe("199.00");
     expect(p.reorder).toEqual([{ productId: p.id, warehouseId: main, reorderLevel: 3, reorderQty: 10 }]);
     expect(p.costs).toHaveLength(1);
     expect(p.costs[0]).toMatchObject({ source: "MANUAL", changedById: admin.id });
   });
 
-  it("keeps SKU and barcode unique", async () => {
-    await createProduct(productForm({ sku: "sku-1", barcode: "628100" }));
-    expect(await createProduct(productForm({ modelCode: "HMD-901", sku: "SKU-1" }))).toMatchObject({ ok: false, error: "products.errors.skuTaken" });
-    expect(await createProduct(productForm({ modelCode: "HMD-901", barcode: "628100" }))).toMatchObject({ ok: false, error: "products.errors.barcodeTaken" });
-    expect(await createProduct(productForm({ modelCode: "HMD-901", barcode: "62 81" }))).toMatchObject({ ok: false, fieldErrors: { barcode: "validation.code" } });
+  it("gives SKUs in order that the form can't change, keeps barcodes unique; the Arabic name may be left empty (PS2)", async () => {
+    await createProduct(productForm({ sku: "MINE-1", barcode: "628100" }));
+    expect(await createProduct(productForm({ modelCode: "HMD-901", nameAr: "", sku: "MINE-1" }))).toMatchObject({ ok: true, data: { sku: "HMD00002" } });
+    const second = await testDb.product.findUniqueOrThrow({ where: { modelCode: "HMD-901" } });
+    expect(second).toMatchObject({ sku: "HMD00002", nameAr: "Mount" });
+    expect(await updateProduct(second.id, productForm({ modelCode: "HMD-901", sku: "CHANGED" }))).toMatchObject({ ok: true });
+    expect((await testDb.product.findUniqueOrThrow({ where: { id: second.id } })).sku).toBe("HMD00002");
+    expect(await createProduct(productForm({ modelCode: "HMD-901" }))).toMatchObject({ ok: false, error: "products.errors.codeTaken" });
+    expect(await createProduct(productForm({ modelCode: "HMD-902", barcode: "628100" }))).toMatchObject({ ok: false, error: "products.errors.barcodeTaken" });
+    expect(await createProduct(productForm({ modelCode: "HMD-902", barcode: "62 81" }))).toMatchObject({ ok: false, fieldErrors: { barcode: "validation.code" } });
   });
 
   it("adds to the cost history only when the cost changes", async () => {
@@ -312,7 +318,7 @@ describe("product import (Phase B columns)", () => {
     expect(await previewProductImport(fd)).toMatchObject({ ok: true, data: { counts: { create: 1, error: 0 } } });
     expect(await applyProductImport(await file([head, ["IMP-1", "", "6281", "Mount", "حامل", "wall-mount", "150", "acme", "70"]]))).toMatchObject({ ok: true });
     const p = await testDb.product.findUniqueOrThrow({ where: { modelCode: "IMP-1" }, include: { costs: true } });
-    expect(p).toMatchObject({ sku: "IMP-1", barcode: "6281", status: "ACTIVE" });
+    expect(p).toMatchObject({ sku: "HMD00001", barcode: "6281", status: "ACTIVE" });
     expect(p.sellingPrice?.toFixed(2)).toBe("150.00");
     expect(p.costs.map((c) => c.source)).toEqual(["IMPORT"]);
   });
@@ -328,7 +334,7 @@ describe("product import (Phase B columns)", () => {
     expect(ws.getCell("B2").value).toBe("BAD-1");
     // the file's own columns come back, plus the errors (fields named as on screen)
     expect(ws.getCell("B1").value).toBe("modelCode");
-    expect(String(ws.getRow(2).getCell(ws.columnCount).value)).toContain("Name (English)");
+    expect(String(ws.getRow(2).getCell(ws.columnCount).value)).toContain("Product name");
     const cross = await importErrors(new Request("http://x/admin/products/import/errors", { method: "POST", body: fd, headers: { "sec-fetch-site": "cross-site" } }));
     expect(cross.status).toBe(403);
   });
