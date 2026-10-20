@@ -26,4 +26,7 @@ reason, also the product condition: resellable, broken, trashed".
   - **Broken** → into a damaged-stock warehouse (was "damaged"; same rule, Q2: any damaged warehouse).
   - **Trashed** → the return is recorded into a damaged-stock warehouse and, in the same transaction, written
     off with a linked damaged/lost entry ("returned trashed"), so stock does not change but both movements are
-    on record. The write-off is part of the return: no separate approval. Voiding either one voids both.
+    on record. The write-off is part of the return: no separate approval (and, like a damaged return, no
+    assignment to the damaged-stock warehouse needed). Voiding either one voids both.
+  - Returns saved earlier get their condition filled in once by the migration (from the warehouse kind:
+    damaged → broken, else resellable). It fills a new column; nothing recorded is changed.

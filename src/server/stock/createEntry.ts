@@ -265,6 +265,7 @@ export async function createEntryInTx(
         ...fields,
         reason: "DAMAGED_LOST",
         reasonCode: RETURNED_TRASHED,
+        photoUrl: null, // the photos belong to the return
         number: formatEntryNumber("OUT", await nextCounterValue(tx, "OUT"), "OUT"),
         type: "OUT",
         warehouseId: warehouse.id,

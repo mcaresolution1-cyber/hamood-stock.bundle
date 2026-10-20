@@ -291,6 +291,9 @@ The table is `ROLE_ACTIONS` in `src/lib/permissions.ts` (decisions PA1–PA3 in 
   - a **transfer** needs only the *source* warehouse assigned; the destination may be any active warehouse;
   - a **damaged customer return** (`CUSTOMER_RETURN` marked damaged) may go into any active `DAMAGED`
     warehouse without assignment — this reason only.
+  A customer return marked **trashed** goes into a `DAMAGED` warehouse the same way and is written off at
+  once by a linked damaged/lost entry (`RETURNED_TRASHED`) without approval — it can't exceed what was sold,
+  and voiding either entry voids both (docs/plans/channels-returns.md).
   Cannot see `cost`, cannot void, cannot use return-to-supplier.
 - **TECHNICIAN:** only his own installation jobs (`/jobs`).
 - **ACCOUNTANT:** read-only, plus cost and the audit log.
