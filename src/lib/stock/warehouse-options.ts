@@ -3,6 +3,7 @@
  * only see valid choices; the entry service still enforces everything. Pure.
  */
 import type { EntryReason, WarehouseKind } from "@/generated/prisma/enums";
+import { conditionWarehouseKind, type ReturnCondition } from "./details";
 import { reasonAllowedForKind } from "./policy";
 
 export type WarehouseOption = { id: string; name: string; kind: WarehouseKind; writable: boolean };
@@ -10,11 +11,11 @@ export type WarehouseOption = { id: string; name: string; kind: WarehouseKind; w
 export function sourceWarehouses<T extends WarehouseOption>(
   warehouses: readonly T[],
   reason: EntryReason | "",
-  returnCondition: "" | "RESELLABLE" | "DAMAGED",
+  returnCondition: "" | ReturnCondition,
 ): T[] {
   if (reason === "CUSTOMER_RETURN") {
-    // Q2: damaged returns may go into any DAMAGED warehouse; resellable ones into your sellable ones.
-    return returnCondition === "DAMAGED"
+    // Q2: broken / trashed returns may go into any DAMAGED warehouse; resellable ones into your sellable ones.
+    return conditionWarehouseKind(returnCondition) === "DAMAGED"
       ? warehouses.filter((w) => w.kind === "DAMAGED")
       : warehouses.filter((w) => w.writable && w.kind === "SELLABLE");
   }

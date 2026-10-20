@@ -6,12 +6,14 @@
  *   1. lock the original (and its transfer partner) FOR UPDATE, re-check they aren't voided
  *   2. one VOID entry per original (VOID-000001, …), reason text in its `note` (decision Q12c)
  *   3. reverse the stock through applyLevelChanges — refused if it would go negative (Q12b)
- * Voiding either half of a transfer voids both halves (two VOID numbers, Q12a).
+ * Voiding either half of a transfer voids both halves (two VOID numbers, Q12a). Likewise a trashed customer
+ * return and its automatic write-off are voided together (plan channels-returns).
  */
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import type { EntryType } from "@/generated/prisma/enums";
 import { can, canWriteToWarehouse } from "@/lib/permissions";
 import { directionOf } from "@/lib/stock/lines";
+import { RETURNED_TRASHED } from "@/lib/stock/details";
 import { formatEntryNumber } from "@/lib/stock/numbering";
 import type { EntryActor } from "@/lib/stock/policy";
 import {
@@ -49,7 +51,7 @@ export async function voidEntryInTx(
 
   const first = await tx.stockEntry.findUnique({
     where: { id: input.entryId },
-    select: { id: true, type: true, linkedEntryId: true },
+    select: { id: true, type: true, reason: true, reasonCode: true, itemCondition: true, linkedEntryId: true, originalEntryId: true },
   });
   if (!first) throw new EntryRuleError("errors.notFound");
   if (first.type === "VOID") throw new EntryRuleError("void.errors.cannotVoidVoid");
@@ -64,6 +66,15 @@ export async function voidEntryInTx(
     });
     if (inHalf) ids.push(inHalf.id);
   }
+  // A trashed return is voided with its write-off, and the other way round.
+  if (first.reason === "DAMAGED_LOST" && first.reasonCode === RETURNED_TRASHED && first.originalEntryId) ids.push(first.originalEntryId);
+  if (first.reason === "CUSTOMER_RETURN" && first.itemCondition === "TRASHED") {
+    const writeOff = await tx.stockEntry.findFirst({
+      where: { originalEntryId: first.id, reason: "DAMAGED_LOST", reasonCode: RETURNED_TRASHED },
+      select: { id: true },
+    });
+    if (writeOff) ids.push(writeOff.id);
+  }
 
   // Lock in id order so two admins voiding the two halves at once can't deadlock; the loser then sees
   // voidedAt set below and gets "already voided".
@@ -71,7 +82,7 @@ export async function voidEntryInTx(
   await tx.$queryRaw`SELECT id FROM \`StockEntry\` WHERE id IN (${Prisma.join(sorted)}) ORDER BY id FOR UPDATE`;
   const originals = await tx.stockEntry.findMany({
     where: { id: { in: sorted } },
-    select: { id: true, type: true, warehouseId: true, voidedAt: true, lines: { select: { productId: true, quantity: true } } },
+    select: { id: true, type: true, reason: true, warehouseId: true, voidedAt: true, lines: { select: { productId: true, quantity: true } } },
     orderBy: { id: "asc" },
   });
   if (originals.some((e) => e.voidedAt)) throw new EntryRuleError("void.errors.alreadyVoided");
@@ -81,8 +92,8 @@ export async function voidEntryInTx(
   }
 
   if (!options.approvedBy) {
-    // Units of the movement once (a transfer's two halves carry the same lines).
-    const primary = originals.find((e) => e.type === "TRANSFER_OUT") ?? originals[0];
+    // Units of the movement once (a transfer's two halves, or a trashed return and its write-off, carry the same lines).
+    const primary = originals.find((e) => e.type === "TRANSFER_OUT" || e.reason === "CUSTOMER_RETURN") ?? originals[0];
     const need = await approvalNeeded(tx, actor, "void", primary.lines);
     if (need) {
       const other = originals.find((e) => e.id !== primary.id);
@@ -99,9 +110,17 @@ export async function voidEntryInTx(
   // stock back onto an INACTIVE product — it must stay empty (decision PB1). Voids that remove stock are fine.
   const productIds = [...new Set(originals.flatMap((e) => e.lines.map((l) => l.productId)))].sort();
   await tx.$queryRaw`SELECT id FROM \`Product\` WHERE id IN (${Prisma.join(productIds)}) LOCK IN SHARE MODE`;
-  const restocked = new Set(
-    originals.filter((e) => directionOf(e.type as Exclude<EntryType, "VOID">) === -1).flatMap((e) => e.lines.map((l) => l.productId)),
-  );
+  // Net per product + warehouse: a trashed return voided with its write-off puts nothing back.
+  const netBack = new Map<string, { productId: string; qty: number }>();
+  for (const e of originals) {
+    for (const l of e.lines) {
+      const key = `${l.productId}|${e.warehouseId}`;
+      const prev = netBack.get(key)?.qty ?? 0;
+      netBack.set(key, { productId: l.productId, qty: prev - directionOf(e.type as Exclude<EntryType, "VOID">) * l.quantity });
+    }
+  }
+  const restocked = new Set([...netBack.values()].filter((v) => v.qty > 0).map((v) => v.productId));
+  const restockedWarehouses = new Set([...netBack.entries()].filter(([, v]) => v.qty > 0).map(([k]) => k.split("|")[1]));
   if (restocked.size) {
     const retired = await tx.product.findFirst({ where: { id: { in: [...restocked] }, status: "INACTIVE" }, select: { modelCode: true } });
     if (retired) throw new EntryRuleError("void.errors.productRetired", { modelCode: retired.modelCode });
@@ -113,7 +132,7 @@ export async function voidEntryInTx(
 
   for (const original of originals) {
     // A void that puts stock back needs an active warehouse (an inactive one must stay empty).
-    if (directionOf(original.type as Exclude<EntryType, "VOID">) === -1) {
+    if (restockedWarehouses.has(original.warehouseId)) {
       await lockActiveWarehouse(tx, original.warehouseId).catch(() => {
         throw new EntryRuleError("void.errors.warehouseInactive");
       });

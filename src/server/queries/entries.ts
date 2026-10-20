@@ -11,6 +11,8 @@ export const ENTRY_REASONS: EntryReason[] = [
   "CUSTOMER_RETURN",
   "OPENING_STOCK",
   "WEBSITE_ORDER",
+  "NOON_ORDER",
+  "AMAZON_ORDER",
   "DIRECT_SALE",
   "INSTALLATION",
   "TRANSFER",
@@ -125,6 +127,13 @@ export async function entryFilterOptions() {
 }
 
 export async function getEntry(id: string) {
+  const entry = await readEntry(id);
+  if (!entry) return null;
+  const pick = (reason: "CUSTOMER_RETURN" | "DAMAGED_LOST") => entry.returns.filter((r) => r.reason === reason).map(({ id, number }) => ({ id, number }));
+  return { ...entry, returns: pick("CUSTOMER_RETURN"), writeOffs: pick("DAMAGED_LOST") };
+}
+
+function readEntry(id: string) {
   return db.stockEntry.findUnique({
     where: { id },
     select: {
@@ -142,11 +151,17 @@ export async function getEntry(id: string) {
       note: true,
       photoUrl: true,
       reasonCode: true,
+      itemCondition: true,
       paymentMethod: true,
       salesperson: true,
       voidedAt: true,
       originalEntry: { select: { id: true, number: true } },
-      returns: { where: { voidedAt: null }, select: { id: true, number: true }, orderBy: { createdAt: "asc" } },
+      // Returns of a sale (not voided), and a trashed return's automatic write-off (plan channels-returns).
+      returns: {
+        where: { OR: [{ reason: "CUSTOMER_RETURN", voidedAt: null }, { reason: "DAMAGED_LOST" }] },
+        select: { id: true, number: true, reason: true },
+        orderBy: { createdAt: "asc" },
+      },
       attachments: { select: { attachmentId: true }, orderBy: { position: "asc" } },
       warehouse: { select: { id: true, name: true, city: true, kind: true } },
       createdBy: { select: { name: true } },

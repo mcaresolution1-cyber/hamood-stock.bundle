@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { looksLikeEntryNumber, normalizeWebsiteOrder, photoRequired, reasonCodesFor } from "./details";
+import {
+  conditionWarehouseKind,
+  isOrderReason,
+  looksLikeEntryNumber,
+  normalizeMarketplaceOrder,
+  normalizeOrder,
+  normalizeWebsiteOrder,
+  photoRequired,
+  reasonCodesFor,
+} from "./details";
 
 describe("entry details", () => {
   it("normalises website order numbers", () => {
@@ -21,5 +30,23 @@ describe("entry details", () => {
   it("recognises entry numbers", () => {
     expect(looksLikeEntryNumber("out-000123")).toBe(true);
     expect(looksLikeEntryNumber("12345")).toBe(false);
+  });
+});
+
+describe("channels and return conditions (plan channels-returns)", () => {
+  it("normalises Noon / Amazon order numbers", () => {
+    expect(normalizeMarketplaceOrder(" nae 123٤٥ ")).toBe("NAE12345");
+    expect(normalizeMarketplaceOrder("#171-1234567-1234567")).toBe("171-1234567-1234567");
+    expect(normalizeMarketplaceOrder("ABC")).toBeNull(); // no digit
+    expect(normalizeMarketplaceOrder("x!")).toBeNull();
+    expect(normalizeOrder("WEBSITE_ORDER", "NAE123")).toBeNull();
+    expect(normalizeOrder("NOON_ORDER", "nae123")).toBe("NAE123");
+    expect(conditionWarehouseKind("RESELLABLE")).toBe("SELLABLE");
+    expect(conditionWarehouseKind("BROKEN")).toBe("DAMAGED");
+    expect(conditionWarehouseKind("TRASHED")).toBe("DAMAGED");
+    expect(isOrderReason("AMAZON_ORDER")).toBe(true);
+    expect(isOrderReason("DIRECT_SALE")).toBe(false);
+    expect(reasonCodesFor("SUPPLIER_RETURN")).toContain("WRONG_ITEM");
+    expect(reasonCodesFor("DAMAGED_LOST")).not.toContain("RETURNED_TRASHED"); // system-only
   });
 });

@@ -4,15 +4,18 @@
  *   Supplier delivery  supplier (from the list) + invoice no.      Customer return  order no. OR customer name, condition
  *   Correction ±       note                             Website order    WooCommerce order no.
  *   Direct sale        customer name + phone            Installation     technician + customer
- *   Transfer           destination warehouse            Return to supplier  supplier (from the list)
- *   Damaged/lost       note
+ *   Transfer           destination warehouse            Return to supplier  supplier (from the list) + reason
+ *   Damaged/lost       note                             Noon / Amazon order  order no.
+ *   A return (either way) with the reason "other" needs a note.
  * Messages are translation keys.
  */
 import { z } from "zod";
 import { IN_REASONS, OUT_REASONS } from "@/lib/stock/policy";
 import { normalizeNumberText, toWesternDigits } from "@/lib/import/normalize";
 import { id, moneyText, optionalText } from "./common";
-import { MAX_PHOTOS, PAYMENT_METHODS, normalizeWebsiteOrder, photoRequired, reasonCodesFor } from "@/lib/stock/details";
+import { MAX_PHOTOS, PAYMENT_METHODS, RETURN_CONDITIONS, isOrderReason, normalizeOrder, photoRequired, reasonCodesFor, type OrderReason } from "@/lib/stock/details";
+import type { EntryReason } from "@/generated/prisma/enums";
+import { noteRequired } from "@/lib/stock/fields";
 
 export const MAX_FORM_LINES = 50;
 
@@ -53,7 +56,7 @@ export const entryFormSchema = z
     }),
     warehouseId: z.string().min(1, "entryForm.errors.warehouseRequired").max(64),
     destinationWarehouseId: z.string().max(64),
-    returnCondition: z.enum(["", "RESELLABLE", "DAMAGED"]),
+    returnCondition: z.enum(["", ...RETURN_CONDITIONS]),
     reference: optionalText(100),
     supplierName: optionalText(100),
     /** Supplier master record (Phase B); the server stores its name on the entry too. */
@@ -94,6 +97,13 @@ export const entryFormSchema = z
       need("reason", false, "entryForm.errors.reasonRequired");
       return;
     }
+    if (isOrderReason(v.reason as EntryReason)) {
+      need("reference", v.reference);
+      const message = v.reason === "WEBSITE_ORDER" ? "entryForm.errors.websiteOrder" : "entryForm.errors.marketplaceOrder";
+      if (v.reference) need("reference", normalizeOrder(v.reason as OrderReason, v.reference), message);
+      return;
+    }
+    if (noteRequired(v.reason as EntryReason, v.reasonCode)) need("note", v.note);
     switch (v.reason) {
       case "SUPPLIER_DELIVERY":
         need("supplierId", v.supplierId, "suppliers.errors.required");
@@ -104,17 +114,9 @@ export const entryFormSchema = z
         need("returnCondition", v.returnCondition);
         need("reasonCode", reasonCodesFor(v.reason).includes(v.reasonCode));
         break;
-      case "CORRECTION":
-        need("note", v.note);
-        break;
       case "DAMAGED_LOST":
-        need("note", v.note);
         need("reasonCode", reasonCodesFor(v.reason).includes(v.reasonCode));
         if (photoRequired(v.reason, v.reasonCode)) need("photoUrls", v.photoUrls.length > 0 || v.photoUrl, "entryForm.errors.photoRequired");
-        break;
-      case "WEBSITE_ORDER":
-        need("reference", v.reference);
-        if (v.reference) need("reference", normalizeWebsiteOrder(v.reference), "entryForm.errors.websiteOrder");
         break;
       case "DIRECT_SALE":
         need("customerName", v.customerName);
@@ -133,7 +135,7 @@ export const entryFormSchema = z
         break;
       case "SUPPLIER_RETURN":
         need("supplierId", v.supplierId, "suppliers.errors.required");
-        need("note", v.note);
+        need("reasonCode", reasonCodesFor(v.reason).includes(v.reasonCode));
         break;
     }
   });

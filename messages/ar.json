@@ -512,6 +512,8 @@
     "OPENING_STOCK": "مخزون افتتاحي",
     "CORRECTION": "تصحيح",
     "WEBSITE_ORDER": "طلب من الموقع",
+    "NOON_ORDER": "طلب نون",
+    "AMAZON_ORDER": "طلب أمازون",
     "DIRECT_SALE": "بيع مباشر",
     "INSTALLATION": "تركيب",
     "TRANSFER": "تحويل",
@@ -524,6 +526,8 @@
     "CUSTOMER_RETURN": "عميل أعاد قطعًا.",
     "CORRECTION_IN": "وُجدت كمية أكثر مما في النظام.",
     "WEBSITE_ORDER": "طلب من موقع hamoodtv.com.",
+    "NOON_ORDER": "طلب بيع عبر نون.",
+    "AMAZON_ORDER": "طلب بيع عبر أمازون.",
     "DIRECT_SALE": "بيع في المعرض أو بالهاتف.",
     "INSTALLATION": "أخذها فني لعملية تركيب.",
     "TRANSFER": "نُقلت إلى مستودع آخر.",
@@ -567,9 +571,7 @@
     "reference": "المرجع",
     "returnCondition": "الحالة",
     "RESELLABLE": "قابل لإعادة البيع",
-    "DAMAGED": "تالف",
     "RESELLABLEHelp": "يعود إلى مستودع قابل للبيع.",
-    "DAMAGEDHelp": "يذهب إلى مستودع المخزون التالف.",
     "note": "ملاحظة",
     "products": "المنتجات",
     "noProducts": "لم تُضف منتجات بعد.",
@@ -604,7 +606,8 @@
       "photoRequired": "أضف صورة للقطعة المكسورة.",
       "tooManyPhotos": "حتى 5 صور.",
       "websiteOrder": "استخدم رقم طلب الموقع (أرقام فقط، مثل 12345).",
-      "twoCosts": "للمنتج نفسه تكلفتان مختلفتان."
+      "twoCosts": "للمنتج نفسه تكلفتان مختلفتان.",
+      "marketplaceOrder": "استخدم رقم الطلب كما يظهر في المتجر الإلكتروني (حروف وأرقام وشرطات)."
     },
     "sentForApproval": "أُرسل للموافقة",
     "approvalHint": "لن يتغير المخزون إلا بعد موافقة مدير المستودع أو مسؤول النظام.",
@@ -635,12 +638,22 @@
       "BROKEN_WAREHOUSE": "انكسر في المستودع",
       "BROKEN_DELIVERY": "انكسر أثناء التوصيل",
       "MISSING": "مفقود",
-      "OBSOLETE": "منتهي / قديم"
+      "OBSOLETE": "منتهي / قديم",
+      "WRONG_ITEM": "صنف خاطئ",
+      "EXCESS_STOCK": "مخزون زائد",
+      "RETURNED_TRASHED": "مرتجع تالف للإتلاف"
     },
     "unitCost": "تكلفة الوحدة (ريال)",
     "unitCostHint": "اتركها فارغة إن لم تكن تعرفها بعد — يكملها مدير المستودع لاحقًا.",
     "atCost": "بسعر {cost} ريال",
-    "duplicateWebsiteOrder": "طلب الموقع {reference} شُحن من قبل في {number}. احفظ فقط إن كان هذا جزءًا ثانيًا من الطلب نفسه."
+    "noonOrderNo": "رقم طلب نون",
+    "amazonOrderNo": "رقم طلب أمازون",
+    "BROKEN": "مكسور",
+    "TRASHED": "تالف للإتلاف",
+    "BROKENHelp": "تالف لكن يُحتفظ به — يذهب إلى مستودع المخزون التالف.",
+    "TRASHEDHelp": "غير صالح للاستخدام — يُسجَّل ويُشطب فورًا.",
+    "writtenOffAs": "شُطب في القيد",
+    "duplicateOrder": "{channel} {reference} شُحن من قبل في {number}. احفظ فقط إن كان هذا جزءًا ثانيًا من الطلب نفسه."
   },
   "productPicker": {
     "add": "إضافة منتج",
@@ -681,7 +694,8 @@
       "warehouseInactive": "هذا المستودع لم يعد نشطًا، فلا يمكن إعادة المخزون إليه.",
       "productRetired": "{modelCode} غير نشط، فلا يمكن إعادة المخزون إليه. غيّر حالته إلى نشط أو متوقف أولًا."
     },
-    "sentForApproval": "أُرسل للموافقة: {number}"
+    "sentForApproval": "أُرسل للموافقة: {number}",
+    "trashedNote": "سيُلغى المرتجع التالف وقيد شطبه معًا."
   },
   "entries": {
     "title": "القيود",
@@ -747,7 +761,9 @@
     "errors": {
       "notCostable": "لا تُدخل التكاليف إلا على توريد من مورد غير ملغى.",
       "voidedEntry": "تم إلغاء هذا القيد، ولا يمكن تعديله."
-    }
+    },
+    "writeOffOf": "شطب المرتجع",
+    "writtenOffIn": "شُطب في"
   },
   "deliveryNote": {
     "title": "إذن تسليم",

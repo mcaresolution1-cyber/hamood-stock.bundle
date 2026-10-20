@@ -4,7 +4,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
-import { findRepeatedWebsiteOrder, saveEntry, voidEntryAction } from "@/server/actions/entries";
+import { findRepeatedOrder, saveEntry, voidEntryAction } from "@/server/actions/entries";
 import { setLineCosts, setSupplierReturnCredit } from "@/server/actions/entry-details";
 import { uploadAttachment } from "@/server/actions/attachments";
 import { emptyEntryForm } from "@/lib/validation/entries";
@@ -178,8 +178,8 @@ describe("sales and other details", () => {
     signInAs(admin);
     await saveEntry(delivery());
     const s = saved(await saveEntry(sale("10070", "1")));
-    expect(await findRepeatedWebsiteOrder({ reference: "# 10070" })).toEqual({ ok: true, data: { id: s.id, number: s.number } });
-    expect(await findRepeatedWebsiteOrder({ reference: "10071" })).toEqual({ ok: true, data: null });
+    expect(await findRepeatedOrder({ reason: "WEBSITE_ORDER", reference: "# 10070" })).toEqual({ ok: true, data: { id: s.id, number: s.number } });
+    expect(await findRepeatedOrder({ reason: "WEBSITE_ORDER", reference: "10071" })).toEqual({ ok: true, data: null });
     expect(await saveEntry(sale("WC-1", "1"))).toMatchObject({ ok: false, fieldErrors: { reference: "entryForm.errors.websiteOrder" } });
   });
 
@@ -237,8 +237,10 @@ describe("sales and other details", () => {
     signInAs(admin);
     await saveEntry(delivery());
     const base = { ...emptyEntryForm("OUT"), reason: "SUPPLIER_RETURN", warehouseId: main, supplierId: acme, reference: "RMA-7", lines: [{ productId: p1, quantity: "2" }] };
-    expect(await saveEntry({ ...base, expectedCredit: "300" })).toMatchObject({ ok: false, fieldErrors: { note: expect.any(String) } });
-    const e = saved(await saveEntry({ ...base, expectedCredit: "300", note: "wrong colour" }));
+    expect(await saveEntry({ ...base, expectedCredit: "300" })).toMatchObject({ ok: false, fieldErrors: { reasonCode: expect.any(String) } });
+    expect(await saveEntry({ ...base, expectedCredit: "300", reasonCode: "OTHER" })).toMatchObject({ ok: false, fieldErrors: { note: expect.any(String) } });
+    const e = saved(await saveEntry({ ...base, expectedCredit: "300", reasonCode: "DEFECTIVE" }));
+    expect(await testDb.stockEntry.findUniqueOrThrow({ where: { id: e.id } })).toMatchObject({ reasonCode: "DEFECTIVE", note: null });
     expect((await getEntryMoney(e.id))?.supplierReturn).toMatchObject({ status: "SENT", expectedCredit: "300.00", creditAmount: null });
 
     signInAs(staff);

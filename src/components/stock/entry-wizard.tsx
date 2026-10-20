@@ -23,7 +23,7 @@ import { Ltr } from "@/components/ltr";
 import { ProductPicker } from "./product-picker";
 import { QuantityStepper } from "./quantity-stepper";
 import { PhotosInput } from "./photo-input";
-import { MAX_PHOTOS, PAYMENT_METHODS, photoRequired, photosAllowed, reasonCodesFor } from "@/lib/stock/details";
+import { MAX_PHOTOS, PAYMENT_METHODS, RETURN_CONDITIONS, isOrderReason, photoRequired, photosAllowed, reasonCodesFor } from "@/lib/stock/details";
 import { cn } from "@/lib/utils";
 import { normalizeNumberText } from "@/lib/import/normalize";
 import { fieldsFor, noteRequired, type DetailField } from "@/lib/stock/fields";
@@ -33,7 +33,7 @@ import type { EntryReason } from "@/generated/prisma/enums";
 import type { EntryFormData } from "@/server/queries/entry-form";
 import type { EntrySubmitResult } from "@/server/stock/approvals";
 import { newSubmitKey } from "@/lib/submit-key";
-import { findDuplicateInvoice, findRepeatedWebsiteOrder, saveEntry } from "@/server/actions/entries";
+import { findDuplicateInvoice, findRepeatedOrder, saveEntry } from "@/server/actions/entries";
 import type { SupplierOption } from "@/server/actions/suppliers";
 import { SupplierPicker, supplierLabel } from "./supplier-picker";
 import { runAction } from "@/lib/run-action";
@@ -56,6 +56,8 @@ const DETAIL_LABEL: Record<Exclude<DetailField, "returnCondition" | "destination
 function referenceLabel(reason: string) {
   if (reason === "SUPPLIER_DELIVERY") return "invoiceNo";
   if (reason === "WEBSITE_ORDER") return "wooOrderNo";
+  if (reason === "NOON_ORDER") return "noonOrderNo";
+  if (reason === "AMAZON_ORDER") return "amazonOrderNo";
   if (reason === "CUSTOMER_RETURN") return "returnOrderNo";
   if (reason === "DIRECT_SALE") return "receiptNo";
   if (reason === "SUPPLIER_RETURN") return "rmaNo";
@@ -70,7 +72,7 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
   const [step, setStep] = useState<Step>("form");
   const [saved, setSaved] = useState<EntrySubmitResult | null>(null);
   const [suppliers, setSuppliers] = useState(data.suppliers);
-  const [duplicate, setDuplicate] = useState<{ id: string; number: string; kind: "invoice" | "websiteOrder" } | null>(null);
+  const [duplicate, setDuplicate] = useState<{ id: string; number: string; kind: "invoice" | "order" } | null>(null);
   const [lastValues, setLastValues] = useState<EntryFormValues | null>(null);
   const [pending, startTransition] = useTransition();
   // One key per review screen: retries of the same submit reuse it (the server returns the entry already
@@ -129,10 +131,11 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
       const found = await runAction(() => findDuplicateInvoice({ supplierId: current.supplierId, reference: current.reference }), { retry: true });
       if (found.ok) setDuplicate(found.data && { ...found.data, kind: "invoice" });
     }
-    // Same website order already shipped? Also only a warning (PC2: one order can ship from two warehouses).
-    if (current.reason === "WEBSITE_ORDER" && current.reference?.trim()) {
-      const found = await runAction(() => findRepeatedWebsiteOrder({ reference: current.reference }), { retry: true });
-      if (found.ok) setDuplicate(found.data && { ...found.data, kind: "websiteOrder" });
+    // Same website / Noon / Amazon order already shipped? Also only a warning (PC2: one order can ship from two warehouses).
+    const orderReason = current.reason as EntryReason;
+    if (isOrderReason(orderReason) && current.reference?.trim()) {
+      const found = await runAction(() => findRepeatedOrder({ reason: orderReason, reference: current.reference }), { retry: true });
+      if (found.ok) setDuplicate(found.data && { ...found.data, kind: "order" });
     }
     setStep("review");
     window.scrollTo({ top: 0 });
@@ -258,7 +261,7 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
                       ),
                     )}
                   <div className="lg:col-span-2">
-                    <TextField name="note" label={t("entryForm.note")} optional={!noteRequired(reason)} />
+                    <TextField name="note" label={t("entryForm.note")} optional={!noteRequired(reason, values.reasonCode)} />
                   </div>
                   {photosAllowed(data.direction, reason as EntryReason) && (
                     <div className="lg:col-span-2">
@@ -306,9 +309,10 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
             <Summary values={form.getValues()} data={data} productById={productById} suppliers={suppliers} />
             {duplicate && (
               <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-50">
-                {t(duplicate.kind === "invoice" ? "entryForm.duplicateInvoice" : "entryForm.duplicateWebsiteOrder", {
+                {t(duplicate.kind === "invoice" ? "entryForm.duplicateInvoice" : "entryForm.duplicateOrder", {
                   reference: form.getValues().reference ?? "",
                   number: duplicate.number,
+                  channel: reason ? t(`reasons.${reason}`) : "",
                 })}
               </p>
             )}
@@ -394,8 +398,8 @@ function ConditionPicker({ form }: { form: UseFormReturn<EntryFormValues> }) {
   return (
     <fieldset>
       <legend className="mb-2 text-sm font-medium">{t("returnCondition")}</legend>
-      <div className="grid grid-cols-2 gap-2">
-        {(["RESELLABLE", "DAMAGED"] as const).map((c) => (
+      <div className="grid gap-2 sm:grid-cols-3">
+        {RETURN_CONDITIONS.map((c) => (
           <button
             key={c}
             type="button"
@@ -657,6 +661,11 @@ function DoneStep({
           {entry.linked && (
             <p className="mt-1 text-lg font-semibold text-muted-foreground" dir="ltr">
               {entry.linked.number}
+            </p>
+          )}
+          {entry.writeOff && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t("writtenOffAs")} <bdi dir="ltr" className="font-semibold">{entry.writeOff.number}</bdi>
             </p>
           )}
         </div>

@@ -18,7 +18,7 @@ describe("sourceWarehouses", () => {
 
   it("routes customer returns by condition (Q2)", () => {
     expect(ids(sourceWarehouses(W, "CUSTOMER_RETURN", "RESELLABLE"))).toEqual(["main"]);
-    expect(ids(sourceWarehouses(W, "CUSTOMER_RETURN", "DAMAGED"))).toEqual(["dmg", "dmg2"]);
+    expect(ids(sourceWarehouses(W, "CUSTOMER_RETURN", "BROKEN"))).toEqual(["dmg", "dmg2"]);
   });
 
   it("allows any other warehouse as a transfer destination (Q1)", () => {

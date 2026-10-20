@@ -35,6 +35,14 @@ const SPEC: Partial<Record<EntryReason, FieldSpec[]>> = {
     { field: "reference", required: true },
     { field: "customerName", required: false },
   ],
+  NOON_ORDER: [
+    { field: "reference", required: true },
+    { field: "customerName", required: false },
+  ],
+  AMAZON_ORDER: [
+    { field: "reference", required: true },
+    { field: "customerName", required: false },
+  ],
   DIRECT_SALE: [
     { field: "customerName", required: true },
     { field: "customerPhone", required: true },
@@ -51,6 +59,7 @@ const SPEC: Partial<Record<EntryReason, FieldSpec[]>> = {
   TRANSFER: [{ field: "destinationWarehouseId", required: true }],
   SUPPLIER_RETURN: [
     { field: "supplierId", required: true },
+    { field: "reasonCode", required: true },
     { field: "reference", required: false },
     { field: "expectedCredit", required: false },
   ],
@@ -61,9 +70,10 @@ export function fieldsFor(reason: EntryReason | "" | undefined): FieldSpec[] {
   return reason ? (SPEC[reason] ?? []) : [];
 }
 
-/** Note is required for corrections, damaged/lost and returns to supplier (the reason sent back). */
-export function noteRequired(reason: EntryReason | "" | undefined): boolean {
-  return reason === "CORRECTION" || reason === "DAMAGED_LOST" || reason === "SUPPLIER_RETURN";
+/** Note is required for corrections and damaged/lost, and for a return (either way) whose reason is "other". */
+export function noteRequired(reason: EntryReason | "" | undefined, reasonCode?: string | null): boolean {
+  if (reason === "CUSTOMER_RETURN" || reason === "SUPPLIER_RETURN") return reasonCode === "OTHER";
+  return reason === "CORRECTION" || reason === "DAMAGED_LOST";
 }
 
 /** Keep only the fields this reason uses; everything else becomes null. */

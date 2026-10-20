@@ -512,6 +512,8 @@
     "OPENING_STOCK": "Opening stock",
     "CORRECTION": "Correction",
     "WEBSITE_ORDER": "Website order",
+    "NOON_ORDER": "Noon order",
+    "AMAZON_ORDER": "Amazon order",
     "DIRECT_SALE": "Direct sale",
     "INSTALLATION": "Installation",
     "TRANSFER": "Transfer",
@@ -524,6 +526,8 @@
     "CUSTOMER_RETURN": "A customer brought items back.",
     "CORRECTION_IN": "Found more than the system shows.",
     "WEBSITE_ORDER": "An order from hamoodtv.com.",
+    "NOON_ORDER": "An order sold on Noon.",
+    "AMAZON_ORDER": "An order sold on Amazon.",
     "DIRECT_SALE": "Sold in the shop or by phone.",
     "INSTALLATION": "Taken by a technician for an installation.",
     "TRANSFER": "Moved to another warehouse.",
@@ -567,9 +571,7 @@
     "reference": "Reference",
     "returnCondition": "Condition",
     "RESELLABLE": "Resellable",
-    "DAMAGED": "Damaged",
     "RESELLABLEHelp": "Goes back into a sellable warehouse.",
-    "DAMAGEDHelp": "Goes into a damaged-stock warehouse.",
     "note": "Note",
     "products": "Products",
     "noProducts": "No products added yet.",
@@ -604,7 +606,8 @@
       "photoRequired": "Add a photo of the broken item.",
       "tooManyPhotos": "Up to 5 photos.",
       "websiteOrder": "Use the website order number (digits only, e.g. 12345).",
-      "twoCosts": "The same product has two different unit costs."
+      "twoCosts": "The same product has two different unit costs.",
+      "marketplaceOrder": "Use the order number as shown on the marketplace (letters, digits and dashes)."
     },
     "sentForApproval": "Sent for approval",
     "approvalHint": "Stock changes only when a manager or admin approves it.",
@@ -635,12 +638,22 @@
       "BROKEN_WAREHOUSE": "Broken in the warehouse",
       "BROKEN_DELIVERY": "Broken in delivery",
       "MISSING": "Missing",
-      "OBSOLETE": "Expired / obsolete"
+      "OBSOLETE": "Expired / obsolete",
+      "WRONG_ITEM": "Wrong item",
+      "EXCESS_STOCK": "Excess stock",
+      "RETURNED_TRASHED": "Returned trashed"
     },
     "unitCost": "Unit cost (SAR)",
     "unitCostHint": "Leave empty if you don't know it yet — a manager fills it in later.",
     "atCost": "at {cost} SAR",
-    "duplicateWebsiteOrder": "Website order {reference} was already shipped in {number}. Save only if this is a second part of the same order."
+    "noonOrderNo": "Noon order no.",
+    "amazonOrderNo": "Amazon order no.",
+    "BROKEN": "Broken",
+    "TRASHED": "Trashed",
+    "BROKENHelp": "Damaged but kept — goes into a damaged-stock warehouse.",
+    "TRASHEDHelp": "Not usable — recorded and written off at once.",
+    "writtenOffAs": "Written off as",
+    "duplicateOrder": "{channel} {reference} was already shipped in {number}. Save only if this is a second part of the same order."
   },
   "productPicker": {
     "add": "Add product",
@@ -681,7 +694,8 @@
       "warehouseInactive": "That warehouse is no longer active, so stock can't be put back into it.",
       "productRetired": "{modelCode} is inactive, so stock can't be put back. Set it to Active or Discontinued first."
     },
-    "sentForApproval": "Sent for approval: {number}"
+    "sentForApproval": "Sent for approval: {number}",
+    "trashedNote": "The trashed return and its write-off will both be voided."
   },
   "entries": {
     "title": "Entries",
@@ -747,7 +761,9 @@
     "errors": {
       "notCostable": "Costs can only be entered on a supplier delivery that isn't voided.",
       "voidedEntry": "This entry was voided; it can no longer be changed."
-    }
+    },
+    "writeOffOf": "Write-off of return",
+    "writtenOffIn": "Written off in"
   },
   "deliveryNote": {
     "title": "Delivery note",

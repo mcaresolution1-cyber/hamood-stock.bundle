@@ -27,7 +27,7 @@ describe("entryFormSchema", () => {
       returnCondition: "validation.required",
       reasonCode: "validation.required",
     });
-    expect(errors(base({ reason: "CUSTOMER_RETURN", reference: "12345", returnCondition: "DAMAGED", reasonCode: "DEFECTIVE" }))).toEqual({});
+    expect(errors(base({ reason: "CUSTOMER_RETURN", reference: "12345", returnCondition: "BROKEN", reasonCode: "DEFECTIVE" }))).toEqual({});
   });
 
   it("checks website order numbers, direct-sale payment and the photo for broken items", () => {
@@ -58,7 +58,24 @@ describe("entryFormSchema", () => {
     expect(errors(base({ direction: "OUT", reason: "TRANSFER", destinationWarehouseId: "w1" }))).toEqual({
       destinationWarehouseId: "stock.errors.sameWarehouse",
     });
-    expect(errors(base({ direction: "OUT", reason: "SUPPLIER_RETURN" }))).toEqual({ supplierId: "suppliers.errors.required", note: "validation.required" });
+    expect(errors(base({ direction: "OUT", reason: "SUPPLIER_RETURN" }))).toEqual({ supplierId: "suppliers.errors.required", reasonCode: "validation.required" });
+    expect(errors(base({ direction: "OUT", reason: "SUPPLIER_RETURN", supplierId: "s1", reasonCode: "DEFECTIVE" }))).toEqual({});
+    expect(errors(base({ direction: "OUT", reason: "SUPPLIER_RETURN", supplierId: "s1", reasonCode: "WRONG_SIZE" }))).toEqual({ reasonCode: "validation.required" });
+  });
+
+  it("Noon and Amazon orders need an order number that looks like one (plan channels-returns)", () => {
+    expect(errors(base({ direction: "OUT", reason: "NOON_ORDER" }))).toEqual({ reference: "validation.required" });
+    expect(errors(base({ direction: "OUT", reason: "AMAZON_ORDER", reference: "x!" }))).toEqual({ reference: "entryForm.errors.marketplaceOrder" });
+    expect(errors(base({ direction: "OUT", reason: "NOON_ORDER", reference: "nae 1234567" }))).toEqual({});
+    expect(errors(base({ direction: "OUT", reason: "AMAZON_ORDER", reference: "171-1234567-1234567" }))).toEqual({});
+  });
+
+  it("a return whose reason is 'other' needs a note; conditions are resellable / broken / trashed", () => {
+    const ret = { reason: "CUSTOMER_RETURN", reference: "12345", returnCondition: "TRASHED" as const };
+    expect(errors(base({ ...ret, reasonCode: "OTHER" }))).toEqual({ note: "validation.required" });
+    expect(errors(base({ ...ret, reasonCode: "OTHER", note: "scratched box" }))).toEqual({});
+    expect(errors(base({ direction: "OUT", reason: "SUPPLIER_RETURN", supplierId: "s1", reasonCode: "OTHER" }))).toEqual({ note: "validation.required" });
+    expect(errors(base({ ...ret, returnCondition: "DAMAGED" as never, reasonCode: "DEFECTIVE" }))).toHaveProperty("returnCondition");
   });
 
   it("normalises Saudi phone numbers with Arabic digits and spaces", () => {

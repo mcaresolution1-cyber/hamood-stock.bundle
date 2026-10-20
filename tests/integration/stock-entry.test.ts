@@ -163,7 +163,7 @@ describe("rules", () => {
     const damaged = (await makeWarehouse("DAMAGED")).id;
     await stockIn([{ productId: p1, quantity: 1 }]);
     await stockOut([{ productId: p1, quantity: 1 }], { reason: "WEBSITE_ORDER", reference: "30001" });
-    await createEntry(testDb, admin, { direction: "IN", reason: "CUSTOMER_RETURN", returnCondition: "DAMAGED", warehouseId: damaged, reference: "30001", reasonCode: "DEFECTIVE", lines: [{ productId: p1, quantity: 1 }] });
+    await createEntry(testDb, admin, { direction: "IN", reason: "CUSTOMER_RETURN", returnCondition: "BROKEN", warehouseId: damaged, reference: "30001", reasonCode: "DEFECTIVE", lines: [{ productId: p1, quantity: 1 }] });
     await expect(stockOut([{ productId: p1, quantity: 1 }], { warehouseId: damaged })).rejects.toMatchObject({
       key: "stock.errors.reasonNotForWarehouse",
     });
