@@ -295,6 +295,8 @@ model StockEntry {
   /// Customer return: RESELLABLE | BROKEN | TRASHED (plan channels-returns). TRASHED returns are written off
   /// at once by a DAMAGED_LOST entry whose originalEntryId is the return.
   itemCondition  String?     @db.VarChar(16)
+  /// Customer return: where it was sold — WEBSITE | SHOWROOM | NOON | AMAZON (src/lib/stock/details.ts)
+  salesChannel   String?     @db.VarChar(16)
   /// Direct sale: CASH | CARD | TRANSFER
   paymentMethod  String?     @db.VarChar(16)
   /// Direct sale: who sold it (defaults to the user saving the entry)

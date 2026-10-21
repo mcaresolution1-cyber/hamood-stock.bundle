@@ -152,6 +152,7 @@ function readEntry(id: string) {
       photoUrl: true,
       reasonCode: true,
       itemCondition: true,
+      salesChannel: true,
       paymentMethod: true,
       salesperson: true,
       voidedAt: true,

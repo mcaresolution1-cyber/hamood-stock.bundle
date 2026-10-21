@@ -23,7 +23,7 @@ import { Ltr } from "@/components/ltr";
 import { ProductPicker } from "./product-picker";
 import { QuantityStepper } from "./quantity-stepper";
 import { PhotosInput } from "./photo-input";
-import { MAX_PHOTOS, PAYMENT_METHODS, RETURN_CONDITIONS, isOrderReason, photoRequired, photosAllowed, reasonCodesFor } from "@/lib/stock/details";
+import { MAX_PHOTOS, PAYMENT_METHODS, RETURN_CONDITIONS, SALES_CHANNELS, isOrderReason, photoRequired, photosAllowed, reasonCodesFor } from "@/lib/stock/details";
 import { cn } from "@/lib/utils";
 import { normalizeNumberText } from "@/lib/import/normalize";
 import { fieldsFor, noteRequired, type DetailField } from "@/lib/stock/fields";
@@ -40,7 +40,7 @@ import { runAction } from "@/lib/run-action";
 
 type Step = "form" | "review" | "done";
 
-const DETAIL_LABEL: Record<Exclude<DetailField, "returnCondition" | "destinationWarehouseId" | "supplierId">, string> = {
+const DETAIL_LABEL: Record<Exclude<DetailField, "returnCondition" | "salesChannel" | "destinationWarehouseId" | "supplierId">, string> = {
   reasonCode: "reasonCode",
   paymentMethod: "paymentMethod",
   salesperson: "salesperson",
@@ -52,8 +52,9 @@ const DETAIL_LABEL: Record<Exclude<DetailField, "returnCondition" | "destination
   technicianName: "technicianName",
 };
 
-/** The reference field means different things per reason. */
-function referenceLabel(reason: string) {
+/** The reference field means different things per reason (and, for a customer return, per sales channel). */
+function referenceLabel(reason: string, channel?: string) {
+  if (reason === "CUSTOMER_RETURN" && channel) return `returnRef.${channel}`;
   if (reason === "SUPPLIER_DELIVERY") return "invoiceNo";
   if (reason === "WEBSITE_ORDER") return "wooOrderNo";
   if (reason === "NOON_ORDER") return "noonOrderNo";
@@ -194,7 +195,12 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
           <>
             <ReasonPicker form={form} reasons={data.reasons} direction={data.direction} />
 
-            {reason === "CUSTOMER_RETURN" && <ConditionPicker form={form} />}
+            {reason === "CUSTOMER_RETURN" && (
+              <>
+                <CardPicker form={form} name="returnCondition" legend="returnCondition" options={RETURN_CONDITIONS} columns="sm:grid-cols-3" />
+                <CardPicker form={form} name="salesChannel" legend="salesChannel" options={SALES_CHANNELS} prefix="channels." columns="grid-cols-2 sm:grid-cols-4" />
+              </>
+            )}
 
             {reason && (
               <Card>
@@ -254,7 +260,7 @@ export function EntryWizard({ data }: { data: EntryFormData }) {
                         key={field}
                         name={field}
                         optional={!required && !(reason === "CUSTOMER_RETURN" && (field === "reference" || field === "customerName"))}
-                        label={t(`entryForm.${field === "reference" ? referenceLabel(reason) : DETAIL_LABEL[field as keyof typeof DETAIL_LABEL]}` as never)}
+                        label={t(`entryForm.${field === "reference" ? referenceLabel(reason, values.salesChannel) : DETAIL_LABEL[field as keyof typeof DETAIL_LABEL]}` as never)}
                         {...(field === "customerPhone" ? { inputMode: "tel" as const, dir: "ltr", autoComplete: "tel" } : {})}
                         {...(field === "reference" ? { dir: "ltr" } : {})}
                       />
@@ -390,29 +396,44 @@ function ReasonPicker({
   );
 }
 
-function ConditionPicker({ form }: { form: UseFormReturn<EntryFormValues> }) {
+/** One-tap choice cards (a customer return's condition and sales channel). Labels: entryForm.<prefix><option>[Help]. */
+function CardPicker({
+  form,
+  name,
+  legend,
+  options,
+  prefix = "",
+  columns,
+}: {
+  form: UseFormReturn<EntryFormValues>;
+  name: "returnCondition" | "salesChannel";
+  legend: string;
+  options: readonly string[];
+  prefix?: string;
+  columns: string;
+}) {
   const t = useTranslations("entryForm");
   const message = useMessage();
-  const value = useWatch({ control: form.control, name: "returnCondition" });
-  const error = form.formState.errors.returnCondition?.message;
+  const value = useWatch({ control: form.control, name });
+  const error = form.formState.errors[name]?.message;
   return (
-    <fieldset>
-      <legend className="mb-2 text-sm font-medium">{t("returnCondition")}</legend>
-      <div className="grid gap-2 sm:grid-cols-3">
-        {RETURN_CONDITIONS.map((c) => (
+    <fieldset role="radiogroup" aria-label={t(legend as never)}>
+      <legend className="mb-2 text-sm font-medium">{t(legend as never)}</legend>
+      <div className={cn("grid gap-2", columns)}>
+        {options.map((c) => (
           <button
             key={c}
             type="button"
             role="radio"
             aria-checked={value === c}
-            onClick={() => form.setValue("returnCondition", c, { shouldValidate: true })}
+            onClick={() => form.setValue(name, c as never, { shouldValidate: true })}
             className={cn(
               "flex min-h-16 flex-col items-start gap-1 rounded-lg border p-3 text-start",
               value === c ? "border-primary bg-primary/5 ring-2 ring-primary" : "hover:bg-accent",
             )}
           >
-            <span className="text-sm font-semibold">{t(c)}</span>
-            <span className="text-xs text-muted-foreground">{t(`${c}Help`)}</span>
+            <span className="text-sm font-semibold">{t(`${prefix}${c}` as never)}</span>
+            <span className="text-xs text-muted-foreground">{t(`${prefix}${c}Help` as never)}</span>
           </button>
         ))}
       </div>
@@ -541,6 +562,8 @@ function Summary({
   }
   if (values.reason === "CUSTOMER_RETURN" && values.returnCondition)
     rows.push([t("entryForm.returnCondition"), t(`entryForm.${values.returnCondition}`)]);
+  if (values.reason === "CUSTOMER_RETURN" && values.salesChannel)
+    rows.push([t("entryForm.salesChannel"), t(`entryForm.channels.${values.salesChannel}`)]);
   for (const { field } of fieldsFor(values.reason as EntryReason)) {
     if (!(field in DETAIL_LABEL)) continue;
     const v = values[field as keyof EntryFormValues] as string;
@@ -555,7 +578,7 @@ function Summary({
     }
     const ltr = field === "reference" || field === "customerPhone" || field === "expectedCredit";
     const shown = ltr ? <Ltr key={field}>{v}</Ltr> : <bdi key={field}>{v}</bdi>;
-    rows.push([t(`entryForm.${field === "reference" ? referenceLabel(values.reason) : field}` as never), shown]);
+    rows.push([t(`entryForm.${field === "reference" ? referenceLabel(values.reason, values.salesChannel) : field}` as never), shown]);
   }
   if (values.note) rows.push([t("entryForm.note"), values.note]);
 

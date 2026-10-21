@@ -34,6 +34,8 @@ const customerReturn = (reference: string, returnCondition: string, warehouseId:
   ...emptyEntryForm("IN"),
   reason: "CUSTOMER_RETURN",
   returnCondition,
+  // Noon numbers here start with letters, Amazon ones with digits
+  salesChannel: /^\d/.test(reference) ? "AMAZON" : "NOON",
   warehouseId,
   reference,
   reasonCode: "DEFECTIVE",
@@ -41,7 +43,7 @@ const customerReturn = (reference: string, returnCondition: string, warehouseId:
 });
 type Saved = { id: string; number: string; writeOff?: { id: string; number: string } };
 const saved = (r: unknown) => {
-  expect(r).toMatchObject({ ok: true, data: { status: "saved" } });
+  expect(r, JSON.stringify(r)).toMatchObject({ ok: true, data: { status: "saved" } });
   return (r as { data: { entry: Saved } }).data.entry;
 };
 
@@ -152,5 +154,41 @@ describe("returned item condition", () => {
     const today = riyadhDay(new Date());
     const [row] = await movementByProduct({ from: today, to: today, warehouseId: damaged, includeOpening: false });
     expect(row).toMatchObject({ in: 1, out: 1, closing: 0 });
+  });
+});
+
+describe("sold through (website / showroom / Noon / Amazon)", () => {
+  it("a return is matched only against sales of the chosen channel, and the channel is stored", async () => {
+    signInAs(admin);
+    const web = saved(await saveEntry({ ...order("NOON_ORDER", "x"), reason: "WEBSITE_ORDER", reference: "12345", lines: [{ productId: p1, quantity: "2" }] }));
+    const amazon = saved(await saveEntry(order("AMAZON_ORDER", "12345", "1"))); // same number, other channel
+    const shop = saved(
+      await saveEntry({
+        ...emptyEntryForm("OUT"),
+        reason: "DIRECT_SALE",
+        warehouseId: main,
+        customerName: "Walk-in",
+        customerPhone: "0501234567",
+        paymentMethod: "CASH",
+        reference: "R-77",
+        lines: [{ productId: p1, quantity: "1" }],
+      }),
+    );
+    const ret = (channel: string, reference: string, qty = "1") => ({ ...customerReturn(reference, "RESELLABLE", main, qty), salesChannel: channel });
+
+    // Website: only the website order is found, so the return is linked to it and limited to its 2 units
+    const r1 = saved(await saveEntry(ret("WEBSITE", "#12 345", "2")));
+    expect(await testDb.stockEntry.findUniqueOrThrow({ where: { id: r1.id } })).toMatchObject({ salesChannel: "WEBSITE", originalEntryId: web.id, reference: "12345" });
+    // Amazon: the Amazon sale with the same number is separate
+    const r2 = saved(await saveEntry(ret("AMAZON", "12345")));
+    expect(await testDb.stockEntry.findUniqueOrThrow({ where: { id: r2.id } })).toMatchObject({ salesChannel: "AMAZON", originalEntryId: amazon.id });
+    // Showroom: by receipt no. or the sale's entry no.; not found on another channel
+    expect(await saveEntry(ret("NOON", "R-77"))).toMatchObject({ ok: false, error: "returns.errors.noSale" });
+    const r3 = saved(await saveEntry(ret("SHOWROOM", "r-77")));
+    expect(await testDb.stockEntry.findUniqueOrThrow({ where: { id: r3.id } })).toMatchObject({ salesChannel: "SHOWROOM", originalEntryId: shop.id });
+    expect(await saveEntry(ret("SHOWROOM", shop.number))).toMatchObject({ ok: false, error: "returns.errors.tooMany" });
+    expect(await saveEntry(ret("WEBSITE", shop.number))).toMatchObject({ ok: false, error: "returns.errors.noSale" });
+    expect((await getEntry(r3.id))?.salesChannel).toBe("SHOWROOM");
+    await expectLedgerMatchesLevels();
   });
 });

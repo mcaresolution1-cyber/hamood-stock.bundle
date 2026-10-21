@@ -22,6 +22,22 @@ export function conditionWarehouseKind(condition: ReturnCondition | "" | null | 
   return condition === "BROKEN" || condition === "TRASHED" ? "DAMAGED" : "SELLABLE";
 }
 
+/**
+ * Where a returned item was sold (plan channels-returns follow-up). A return is matched only against that
+ * channel's sales; the showroom covers direct sales and installations.
+ */
+export const SALES_CHANNELS = ["WEBSITE", "SHOWROOM", "NOON", "AMAZON"] as const;
+export type SalesChannel = (typeof SALES_CHANNELS)[number];
+const CHANNEL_SALES: Record<SalesChannel, readonly EntryReason[]> = {
+  WEBSITE: ["WEBSITE_ORDER"],
+  SHOWROOM: ["DIRECT_SALE", "INSTALLATION"],
+  NOON: ["NOON_ORDER"],
+  AMAZON: ["AMAZON_ORDER"],
+};
+export function channelSaleReasons(channel: SalesChannel): readonly EntryReason[] {
+  return CHANNEL_SALES[channel];
+}
+
 /** Sales recorded against an order number from a sales channel (website, Noon, Amazon). */
 export const ORDER_REASONS = ["WEBSITE_ORDER", "NOON_ORDER", "AMAZON_ORDER"] as const satisfies readonly EntryReason[];
 export type OrderReason = (typeof ORDER_REASONS)[number];
@@ -75,6 +91,15 @@ export function normalizeMarketplaceOrder(value: string | null | undefined): str
 /** The stored form of a channel order number, or null when it isn't valid for that channel. */
 export function normalizeOrder(reason: OrderReason, value: string | null | undefined): string | null {
   return reason === "WEBSITE_ORDER" ? normalizeWebsiteOrder(value) : normalizeMarketplaceOrder(value);
+}
+
+/** How a return's order no. is stored for its channel (like the sale's), or null for an entry no. / unknown format. */
+export function normalizeReturnReference(channel: SalesChannel | null | undefined, value: string | null | undefined): string | null {
+  if (looksLikeEntryNumber(value ?? "")) return null;
+  if (channel === "WEBSITE") return normalizeWebsiteOrder(value);
+  if (channel === "NOON" || channel === "AMAZON") return normalizeMarketplaceOrder(value);
+  if (channel === "SHOWROOM") return null;
+  return normalizeWebsiteOrder(value) ?? normalizeMarketplaceOrder(value);
 }
 
 /** "OUT-000123" → it's an entry number (a customer return pointing at the exact sale). */

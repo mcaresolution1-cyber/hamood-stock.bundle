@@ -44,6 +44,7 @@ const customerReturn = (reference: string, qty = "1", extra: Record<string, unkn
   ...emptyEntryForm("IN"),
   reason: "CUSTOMER_RETURN",
   returnCondition: "RESELLABLE",
+  salesChannel: "WEBSITE",
   warehouseId: main,
   reference,
   reasonCode: "CHANGED_MIND",

@@ -28,6 +28,7 @@ export async function saveEntry(values: unknown): Promise<ActionResult<EntrySubm
       customerPhone: v.customerPhone,
       technicianName: v.technicianName,
       returnCondition: v.returnCondition || null,
+      salesChannel: v.salesChannel || null,
       destinationWarehouseId: v.destinationWarehouseId || null,
       reasonCode: v.reasonCode || null,
       paymentMethod: v.paymentMethod || null,

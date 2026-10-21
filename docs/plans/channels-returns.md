@@ -30,3 +30,13 @@ reason, also the product condition: resellable, broken, trashed".
     assignment to the damaged-stock warehouse needed). Voiding either one voids both.
   - Returns saved earlier get their condition filled in once by the migration (from the warehouse kind:
     damaged → broken, else resellable). It fills a new column; nothing recorded is changed.
+
+## Follow-up (2026-10-21) — where a returned item was sold
+Owner: "along these there should be an option of website, showroom, noon, amazon" (on the customer return form,
+next to the condition).
+- A customer return records **Sold through**: Website, Showroom, Noon or Amazon (required, stored on the entry).
+- The return is matched only against sales of that channel: Website → website orders; Showroom → direct sales
+  and installations (both handled by the store); Noon → Noon orders; Amazon → Amazon orders. This also removes
+  the "same number on two channels" ambiguity.
+- The order no. label follows the channel. Returns saved earlier get their channel from the sale they were
+  linked to (one-time fill of the new column).

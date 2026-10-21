@@ -67,6 +67,10 @@ export default async function EntryPage({ params }: PageProps<"/entries/[id]">) 
     const c = entry.itemCondition;
     details.push([t("entryForm.returnCondition"), t.has(`entryForm.${c}` as "entryForm.BROKEN") ? t(`entryForm.${c}` as "entryForm.BROKEN") : c]);
   }
+  if (entry.salesChannel) {
+    const c = entry.salesChannel;
+    details.push([t("entryForm.salesChannel"), t.has(`entryForm.channels.${c}` as "entryForm.channels.WEBSITE") ? t(`entryForm.channels.${c}` as "entryForm.channels.WEBSITE") : c]);
+  }
   if (entry.reasonCode) {
     details.push([
       t(entry.reason === "DAMAGED_LOST" ? "entryForm.damageReason" : "entryForm.returnReason"),

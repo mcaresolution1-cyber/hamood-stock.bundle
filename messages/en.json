@@ -653,7 +653,24 @@
     "BROKENHelp": "Damaged but kept — goes into a damaged-stock warehouse.",
     "TRASHEDHelp": "Not usable — recorded and written off at once.",
     "writtenOffAs": "Written off as",
-    "duplicateOrder": "{channel} {reference} was already shipped in {number}. Save only if this is a second part of the same order."
+    "duplicateOrder": "{channel} {reference} was already shipped in {number}. Save only if this is a second part of the same order.",
+    "salesChannel": "Sold through",
+    "channels": {
+      "WEBSITE": "Website",
+      "WEBSITEHelp": "Ordered on hamoodtv.com.",
+      "SHOWROOM": "Showroom",
+      "SHOWROOMHelp": "Bought in the shop or installed by us.",
+      "NOON": "Noon",
+      "NOONHelp": "Ordered on Noon.",
+      "AMAZON": "Amazon",
+      "AMAZONHelp": "Ordered on Amazon."
+    },
+    "returnRef": {
+      "WEBSITE": "Website order no. or sale entry no.",
+      "SHOWROOM": "Receipt no. or sale entry no.",
+      "NOON": "Noon order no. or sale entry no.",
+      "AMAZON": "Amazon order no. or sale entry no."
+    }
   },
   "productPicker": {
     "add": "Add product",
