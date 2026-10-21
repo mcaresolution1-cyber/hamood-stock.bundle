@@ -7,7 +7,7 @@ import type { EntryReason } from "@/generated/prisma/enums";
 import { requirePermission } from "@/server/auth/dal";
 import { entryFormSchema, voidSchema } from "@/lib/validation/entries";
 import { keepReasonFields } from "@/lib/stock/fields";
-import { MAX_PHOTOS, normalizeWebsiteOrder, photosAllowed } from "@/lib/stock/details";
+import { MAX_PHOTOS, ORDER_REASONS, isOrderReason, normalizeOrder, photosAllowed } from "@/lib/stock/details";
 import { submitEntry, submitVoid, type EntrySubmitResult, type VoidSubmitResult } from "@/server/stock/approvals";
 import { guarded, UserFacingError, type ActionResult } from "./result";
 
@@ -35,7 +35,7 @@ export async function saveEntry(values: unknown): Promise<ActionResult<EntrySubm
       salesperson: v.salesperson ?? (reason === "DIRECT_SALE" ? user.name : null),
       expectedCredit: v.expectedCredit,
     });
-    if (reason === "WEBSITE_ORDER") details.reference = normalizeWebsiteOrder(details.reference);
+    if (isOrderReason(reason)) details.reference = normalizeOrder(reason, details.reference);
 
     // The supplier must be an active one; its name is stored on the entry as it is today.
     if (details.supplierId) {
@@ -113,15 +113,18 @@ export async function findDuplicateInvoice(values: unknown): Promise<ActionResul
   });
 }
 
-/** Website order warning (PC2): a non-voided website order with the same number. Only a warning. */
-export async function findRepeatedWebsiteOrder(values: unknown): Promise<ActionResult<{ id: string; number: string } | null>> {
+/**
+ * Repeated order warning (PC2): a non-voided sale on the same channel (website, Noon, Amazon) with the same
+ * order number. Only a warning.
+ */
+export async function findRepeatedOrder(values: unknown): Promise<ActionResult<{ id: string; number: string } | null>> {
   return guarded(async () => {
     await requirePermission("entry:create");
-    const { reference } = z.object({ reference: z.string().max(100) }).parse(values);
-    const order = normalizeWebsiteOrder(reference);
+    const { reason, reference } = z.object({ reason: z.enum(ORDER_REASONS), reference: z.string().max(100) }).parse(values);
+    const order = normalizeOrder(reason, reference);
     if (!order) return null;
     return db.stockEntry.findFirst({
-      where: { reason: "WEBSITE_ORDER", reference: order, voidedAt: null },
+      where: { reason, reference: order, voidedAt: null },
       orderBy: { entryDate: "desc" },
       select: { id: true, number: true },
     });

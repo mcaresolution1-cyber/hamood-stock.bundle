@@ -32,7 +32,11 @@ const storedEntrySchema = z.object({
   reason: z.enum(["CORRECTION", "DAMAGED_LOST"]),
   warehouseId: z.string(),
   destinationWarehouseId: z.string().nullish(),
-  returnCondition: z.enum(["RESELLABLE", "DAMAGED"]).nullish(),
+  // "DAMAGED" was the old name of BROKEN (plan channels-returns); requests saved before keep working.
+  returnCondition: z
+    .enum(["RESELLABLE", "BROKEN", "TRASHED", "DAMAGED"])
+    .nullish()
+    .transform((v) => (v === "DAMAGED" ? "BROKEN" : v)),
   lines: z.array(z.object({ productId: z.string(), quantity: z.number().int() })).min(1),
   reference: z.string().nullish(),
   customerName: z.string().nullish(),

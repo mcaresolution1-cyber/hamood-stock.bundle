@@ -16,7 +16,16 @@ import { directionOf, mergeLines, type LineInput } from "@/lib/stock/lines";
 import { canMove, canReceive } from "@/lib/products";
 import { can } from "@/lib/permissions";
 import { checkReturnAgainstSale } from "./returns";
-import { normalizeWebsiteOrder, reasonCodesFor } from "@/lib/stock/details";
+import {
+  RETURNED_TRASHED,
+  conditionWarehouseKind,
+  isOrderReason,
+  normalizeMarketplaceOrder,
+  normalizeOrder,
+  normalizeWebsiteOrder,
+  reasonCodesFor,
+  type ReturnCondition,
+} from "@/lib/stock/details";
 import { entryPermissionError, entryTypeFor, type Direction, type EntryActor } from "@/lib/stock/policy";
 import { ApprovalRequiredError, EntryRuleError, InsufficientStockError } from "./errors";
 import { approvalNeeded, approvalRuleFor } from "./approval-rules";
@@ -31,8 +40,11 @@ export type EntryInput = {
   warehouseId: string;
   /** Transfers only: where the stock goes. */
   destinationWarehouseId?: string | null;
-  /** Customer returns: decides whether the goods may go to a SELLABLE or a DAMAGED warehouse. */
-  returnCondition?: "RESELLABLE" | "DAMAGED" | null;
+  /**
+   * Customer returns: RESELLABLE → a SELLABLE warehouse; BROKEN or TRASHED → a DAMAGED one. TRASHED is also
+   * written off at once (plan channels-returns). Stored on the entry as itemCondition.
+   */
+  returnCondition?: ReturnCondition | null;
   lines: LineInput[];
   reference?: string | null;
   customerName?: string | null;
@@ -60,8 +72,8 @@ export type EntryInput = {
 /** Set when an approved request is being carried out: the approval rule is then already satisfied. */
 export type EntryOptions = { approvedBy?: { id: string } };
 
-/** For a transfer this is the OUT half; `linked` is the IN half. */
-export type SavedEntry = { id: string; number: string; linked?: { id: string; number: string } };
+/** For a transfer this is the OUT half; `linked` is the IN half. `writeOff`: the write-off of a trashed return. */
+export type SavedEntry = { id: string; number: string; linked?: { id: string; number: string }; writeOff?: { id: string; number: string } };
 
 export const MAX_QUANTITY = 100_000;
 const TX_OPTIONS = { maxWait: 10_000, timeout: 30_000 };
@@ -128,11 +140,9 @@ export async function createEntryInTx(
   const denied = entryPermissionError(actor, { direction: input.direction, reason: input.reason, warehouse });
   if (denied) throw new EntryRuleError(denied);
 
-  // Customer returns: resellable goods go to a SELLABLE warehouse, damaged ones to a DAMAGED one (Q2).
-  if (input.reason === "CUSTOMER_RETURN") {
-    const expected = input.returnCondition === "DAMAGED" ? "DAMAGED" : "SELLABLE";
-    if (warehouse.kind !== expected) throw new EntryRuleError("stock.errors.returnWarehouseKind");
-  }
+  // Customer returns: resellable goods go to a SELLABLE warehouse, broken / trashed ones to a DAMAGED one (Q2).
+  const condition = input.reason === "CUSTOMER_RETURN" ? (input.returnCondition ?? "RESELLABLE") : null;
+  if (condition && warehouse.kind !== conditionWarehouseKind(condition)) throw new EntryRuleError("stock.errors.returnWarehouseKind");
 
   let destination: Awaited<ReturnType<typeof lockActiveWarehouse>> | null = null;
   if (type === "TRANSFER_OUT") {
@@ -192,8 +202,9 @@ export async function createEntryInTx(
   const value = await nextCounterValue(tx, prefix);
   const fields = {
     reason: input.reason,
-    // A return by order no. is stored like the sale's ("#12 345" → "12345"), so later returns find it.
-    reference: input.reason === "CUSTOMER_RETURN" ? (normalizeWebsiteOrder(input.reference) ?? clean(input.reference)) : clean(input.reference),
+    // Channel order numbers are stored normalised ("#12 345" → "12345", "nae 123" → "NAE123"), and a return
+    // by order no. is stored like the sale's, so later returns find it.
+    reference: storedReference(input.reason, input.reference),
     customerName: clean(input.customerName),
     customerPhone: clean(input.customerPhone),
     technicianName: clean(input.technicianName),
@@ -215,6 +226,7 @@ export async function createEntryInTx(
       type,
       warehouseId: warehouse.id,
       originalEntryId,
+      itemCondition: condition,
       lines: { create: lines },
     },
     select: { id: true, number: true, lines: { select: { id: true, productId: true } } },
@@ -243,9 +255,38 @@ export async function createEntryInTx(
     for (const l of lines) changes.push({ productId: l.productId, warehouseId: destination.id, delta: l.quantity });
   }
 
+  // A trashed return is written off straight away: a damaged/lost OUT of the same goods from the same
+  // warehouse, pointing at the return. Part of the return itself, so no approval of its own; voiding
+  // either one voids both (voidEntry.ts).
+  let writeOff: SavedEntry["writeOff"];
+  if (condition === "TRASHED") {
+    writeOff = await tx.stockEntry.create({
+      data: {
+        ...fields,
+        reason: "DAMAGED_LOST",
+        reasonCode: RETURNED_TRASHED,
+        photoUrl: null, // the photos belong to the return
+        number: formatEntryNumber("OUT", await nextCounterValue(tx, "OUT"), "OUT"),
+        type: "OUT",
+        warehouseId: warehouse.id,
+        originalEntryId: entry.id,
+        lines: { create: lines },
+      },
+      select: { id: true, number: true },
+    });
+    for (const l of lines) changes.push({ productId: l.productId, warehouseId: warehouse.id, delta: -l.quantity });
+  }
+
   await applyLevelChanges(tx, changes);
   const saved = { id: entry.id, number: entry.number };
-  return linked ? { ...saved, linked } : saved;
+  return { ...saved, ...(linked ? { linked } : {}), ...(writeOff ? { writeOff } : {}) };
+}
+
+/** How a reference is stored: channel orders normalised; a customer return like the sale it points at. */
+function storedReference(reason: EntryReason, reference: string | null | undefined): string | null {
+  if (isOrderReason(reason)) return normalizeOrder(reason, reference) ?? clean(reference);
+  if (reason === "CUSTOMER_RETURN") return normalizeWebsiteOrder(reference) ?? normalizeMarketplaceOrder(reference) ?? clean(reference);
+  return clean(reference);
 }
 
 /** Photos, delivery line costs (+ the product's cost history) and the return-to-supplier follow-up. */
@@ -305,11 +346,18 @@ export type LevelChange = { productId: string; warehouseId: string; delta: numbe
 
 /**
  * Apply stock changes in a fixed order (product, then warehouse) so concurrent transactions lock
- * StockLevel rows in the same order. Decrements are conditional: if any would go negative, throw
+ * StockLevel rows in the same order. Changes to the same product + warehouse are added up first (a trashed
+ * return and its write-off cancel out). Decrements are conditional: if any would go negative, throw
  * InsufficientStockError and the caller's transaction rolls back completely.
  */
 export async function applyLevelChanges(tx: Tx, changes: LevelChange[]): Promise<void> {
-  const sorted = [...changes]
+  const net = new Map<string, LevelChange>();
+  for (const c of changes) {
+    const key = `${c.productId}|${c.warehouseId}`;
+    const prev = net.get(key);
+    net.set(key, prev ? { ...prev, delta: prev.delta + c.delta } : { ...c });
+  }
+  const sorted = [...net.values()]
     .filter((c) => c.delta !== 0)
     .sort((a, b) =>
       a.productId === b.productId

@@ -154,6 +154,6 @@ describe("entry form data", () => {
       ["Jeddah", false],
       ["Riyadh Main", true],
     ]);
-    expect(data.reasons).toEqual(["WEBSITE_ORDER", "DIRECT_SALE", "INSTALLATION", "TRANSFER", "DAMAGED_LOST", "CORRECTION"]);
+    expect(data.reasons).toEqual(["WEBSITE_ORDER", "NOON_ORDER", "AMAZON_ORDER", "DIRECT_SALE", "INSTALLATION", "TRANSFER", "DAMAGED_LOST", "CORRECTION"]);
   });
 });

@@ -7,6 +7,9 @@ describe("reason fields", () => {
     expect(fieldsFor("")).toEqual([]);
     expect(noteRequired("CORRECTION")).toBe(true);
     expect(noteRequired("WEBSITE_ORDER")).toBe(false);
+    expect(noteRequired("SUPPLIER_RETURN", "DEFECTIVE")).toBe(false);
+    expect(noteRequired("SUPPLIER_RETURN", "OTHER")).toBe(true);
+    expect(noteRequired("CUSTOMER_RETURN", "OTHER")).toBe(true);
   });
 
   it("drops fields the reason doesn't use", () => {

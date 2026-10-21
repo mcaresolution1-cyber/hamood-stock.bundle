@@ -14,6 +14,7 @@ import { getEntry, getEntryMoney, relatedEntries } from "@/server/queries/entrie
 import { LineCostsForm } from "./line-costs-form";
 import { SupplierCreditForm } from "./supplier-credit-form";
 import { VoidDialog } from "./void-dialog";
+import { RETURNED_TRASHED } from "@/lib/stock/details";
 
 export async function generateMetadata({ params }: PageProps<"/entries/[id]">): Promise<Metadata> {
   if (!(await getCurrentUser())) return { title: "—" }; // no DB read before the access check
@@ -62,6 +63,10 @@ export default async function EntryPage({ params }: PageProps<"/entries/[id]">) 
   if (entry.customerName) details.push([t("entries.customer"), <bdi key="c">{entry.customerName}</bdi>]);
   if (entry.customerPhone) details.push([t("entries.phone"), <Ltr key="p">{entry.customerPhone}</Ltr>]);
   if (entry.technicianName) details.push([t("entries.technician"), entry.technicianName]);
+  if (entry.itemCondition) {
+    const c = entry.itemCondition;
+    details.push([t("entryForm.returnCondition"), t.has(`entryForm.${c}` as "entryForm.BROKEN") ? t(`entryForm.${c}` as "entryForm.BROKEN") : c]);
+  }
   if (entry.reasonCode) {
     details.push([
       t(entry.reason === "DAMAGED_LOST" ? "entryForm.damageReason" : "entryForm.returnReason"),
@@ -113,6 +118,7 @@ export default async function EntryPage({ params }: PageProps<"/entries/[id]">) 
               entryId={entry.id}
               number={entry.number}
               isTransfer={entry.type === "TRANSFER_OUT" || entry.type === "TRANSFER_IN"}
+              isTrashedPair={entry.itemCondition === "TRASHED" || entry.reasonCode === RETURNED_TRASHED}
             />
           )}
         </div>
@@ -155,7 +161,18 @@ export default async function EntryPage({ params }: PageProps<"/entries/[id]">) 
           )}
           {entry.originalEntry && (
             <p>
-              {t("entries.returnOf")}: {linkTo(entry.originalEntry)}
+              {t(entry.reason === "DAMAGED_LOST" ? "entries.writeOffOf" : "entries.returnOf")}: {linkTo(entry.originalEntry)}
+            </p>
+          )}
+          {entry.writeOffs.length > 0 && (
+            <p>
+              {t("entries.writtenOffIn")}:{" "}
+              {entry.writeOffs.map((r, i) => (
+                <span key={r.id}>
+                  {i > 0 && ", "}
+                  {linkTo(r)}
+                </span>
+              ))}
             </p>
           )}
           {entry.returns.length > 0 && (

@@ -57,6 +57,8 @@ describe("isReasonAllowed / formReasons", () => {
     expect(formReasons("ADMIN", "IN")).toEqual(["SUPPLIER_DELIVERY", "CUSTOMER_RETURN", "CORRECTION"]);
     expect(formReasons("STAFF", "OUT")).toEqual([
       "WEBSITE_ORDER",
+      "NOON_ORDER",
+      "AMAZON_ORDER",
       "DIRECT_SALE",
       "INSTALLATION",
       "TRANSFER",
@@ -65,6 +67,8 @@ describe("isReasonAllowed / formReasons", () => {
     ]);
     expect(formReasons("MANAGER", "OUT")).toEqual([
       "WEBSITE_ORDER",
+      "NOON_ORDER",
+      "AMAZON_ORDER",
       "DIRECT_SALE",
       "INSTALLATION",
       "TRANSFER",

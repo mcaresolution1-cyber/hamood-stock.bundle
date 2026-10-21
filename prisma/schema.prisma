@@ -59,6 +59,9 @@ enum EntryReason {
   CUSTOMER_RETURN
   OPENING_STOCK
   WEBSITE_ORDER
+  /// Plan channels-returns: marketplace orders (order number required, sales like WEBSITE_ORDER)
+  NOON_ORDER
+  AMAZON_ORDER
   DIRECT_SALE
   INSTALLATION
   TRANSFER
@@ -289,6 +292,9 @@ model StockEntry {
   photoUrl       String?
   /// Phase C1 — return reason (customer return) or damage category (damaged/lost), see src/lib/stock/details.ts
   reasonCode     String?     @db.VarChar(32)
+  /// Customer return: RESELLABLE | BROKEN | TRASHED (plan channels-returns). TRASHED returns are written off
+  /// at once by a DAMAGED_LOST entry whose originalEntryId is the return.
+  itemCondition  String?     @db.VarChar(16)
   /// Direct sale: CASH | CARD | TRANSFER
   paymentMethod  String?     @db.VarChar(16)
   /// Direct sale: who sold it (defaults to the user saving the entry)

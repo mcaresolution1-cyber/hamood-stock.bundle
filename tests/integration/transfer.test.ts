@@ -92,7 +92,7 @@ describe("customer returns", () => {
     const input: EntryInput = {
       direction: "IN",
       reason: "CUSTOMER_RETURN",
-      returnCondition: "DAMAGED",
+      returnCondition: "BROKEN",
       warehouseId: damaged,
       customerName: "Khalid",
       reference: "40001",

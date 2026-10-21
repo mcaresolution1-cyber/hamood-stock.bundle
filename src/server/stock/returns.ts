@@ -6,12 +6,12 @@
  */
 import { Prisma } from "@/generated/prisma/client";
 import type { EntryReason } from "@/generated/prisma/enums";
-import { looksLikeEntryNumber, normalizeWebsiteOrder } from "@/lib/stock/details";
+import { ORDER_REASONS, looksLikeEntryNumber, normalizeMarketplaceOrder, normalizeWebsiteOrder } from "@/lib/stock/details";
 import type { LineInput } from "@/lib/stock/lines";
 import type { Tx } from "./createEntry";
 import { EntryRuleError } from "./errors";
 
-const SALES: EntryReason[] = ["WEBSITE_ORDER", "DIRECT_SALE", "INSTALLATION"];
+const SALES: EntryReason[] = [...ORDER_REASONS, "DIRECT_SALE", "INSTALLATION"];
 
 /** Returns the id of the single original sale (stored on the return), or null when the order had several. */
 export async function checkReturnAgainstSale(tx: Tx, reference: string | null | undefined, lines: readonly LineInput[]): Promise<string | null> {
@@ -19,7 +19,8 @@ export async function checkReturnAgainstSale(tx: Tx, reference: string | null | 
   if (!ref) throw new EntryRuleError("entryForm.errors.orderRequired");
 
   const byNumber = looksLikeEntryNumber(ref);
-  const refs = [...new Set([ref, normalizeWebsiteOrder(ref)].filter((r): r is string => Boolean(r)))];
+  // As typed, and as a website / Noon / Amazon order number is stored.
+  const refs = [...new Set([ref, normalizeWebsiteOrder(ref), normalizeMarketplaceOrder(ref)].filter((r): r is string => Boolean(r)))];
   const where: Prisma.StockEntryWhereInput = byNumber
     ? { number: ref.toUpperCase(), type: "OUT", reason: { in: SALES } }
     : { reference: { in: refs }, type: "OUT", reason: { in: SALES } };

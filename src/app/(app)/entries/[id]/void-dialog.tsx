@@ -21,7 +21,18 @@ import { runAction } from "@/lib/run-action";
 import { newSubmitKey } from "@/lib/submit-key";
 
 /** ADMIN / MANAGER: confirm + required reason. Above the approval limit it becomes a request. The server re-checks everything. */
-export function VoidDialog({ entryId, number, isTransfer }: { entryId: string; number: string; isTransfer: boolean }) {
+export function VoidDialog({
+  entryId,
+  number,
+  isTransfer,
+  isTrashedPair = false,
+}: {
+  entryId: string;
+  number: string;
+  isTransfer: boolean;
+  /** A trashed return or its write-off: both are voided together. */
+  isTrashedPair?: boolean;
+}) {
   const t = useTranslations("void");
   const tc = useTranslations("common");
   const message = useMessage();
@@ -67,6 +78,7 @@ export function VoidDialog({ entryId, number, isTransfer }: { entryId: string; n
           <DialogDescription>
             {t("description")}
             {isTransfer && <> {t("transferNote")}</>}
+            {isTrashedPair && <> {t("trashedNote")}</>}
           </DialogDescription>
         </DialogHeader>
         <label className="grid gap-2 text-sm font-medium">

@@ -11,6 +11,8 @@ export type Direction = "IN" | "OUT";
 export const IN_REASONS = ["SUPPLIER_DELIVERY", "CUSTOMER_RETURN", "OPENING_STOCK", "CORRECTION"] as const;
 export const OUT_REASONS = [
   "WEBSITE_ORDER",
+  "NOON_ORDER",
+  "AMAZON_ORDER",
   "DIRECT_SALE",
   "INSTALLATION",
   "TRANSFER",
@@ -28,6 +30,8 @@ export const MANAGER_REASONS: ReadonlySet<EntryReason> = new Set<EntryReason>(["
 /** Selling reasons — only allowed from SELLABLE warehouses (Q4). */
 export const SALES_REASONS: ReadonlySet<EntryReason> = new Set<EntryReason>([
   "WEBSITE_ORDER",
+  "NOON_ORDER",
+  "AMAZON_ORDER",
   "DIRECT_SALE",
   "INSTALLATION",
 ]);
