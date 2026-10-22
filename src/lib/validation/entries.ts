@@ -13,7 +13,7 @@ import { z } from "zod";
 import { IN_REASONS, OUT_REASONS } from "@/lib/stock/policy";
 import { normalizeNumberText, toWesternDigits } from "@/lib/import/normalize";
 import { id, moneyText, optionalText } from "./common";
-import { MAX_PHOTOS, PAYMENT_METHODS, RETURN_CONDITIONS, isOrderReason, normalizeOrder, photoRequired, reasonCodesFor, type OrderReason } from "@/lib/stock/details";
+import { MAX_PHOTOS, PAYMENT_METHODS, RETURN_CONDITIONS, SALES_CHANNELS, isOrderReason, normalizeOrder, photoRequired, reasonCodesFor, type OrderReason } from "@/lib/stock/details";
 import type { EntryReason } from "@/generated/prisma/enums";
 import { noteRequired } from "@/lib/stock/fields";
 
@@ -57,6 +57,8 @@ export const entryFormSchema = z
     warehouseId: z.string().min(1, "entryForm.errors.warehouseRequired").max(64),
     destinationWarehouseId: z.string().max(64),
     returnCondition: z.enum(["", ...RETURN_CONDITIONS]),
+    /** Customer return: where it was sold */
+    salesChannel: z.enum(["", ...SALES_CHANNELS]).default(""),
     reference: optionalText(100),
     supplierName: optionalText(100),
     /** Supplier master record (Phase B); the server stores its name on the entry too. */
@@ -112,6 +114,7 @@ export const entryFormSchema = z
       case "CUSTOMER_RETURN":
         need("reference", v.reference, "entryForm.errors.orderRequired");
         need("returnCondition", v.returnCondition);
+        need("salesChannel", v.salesChannel);
         need("reasonCode", reasonCodesFor(v.reason).includes(v.reasonCode));
         break;
       case "DAMAGED_LOST":
@@ -149,6 +152,7 @@ export const emptyEntryForm = (direction: "IN" | "OUT"): EntryFormValues => ({
   warehouseId: "",
   destinationWarehouseId: "",
   returnCondition: "",
+  salesChannel: "",
   reference: "",
   supplierName: "",
   supplierId: "",

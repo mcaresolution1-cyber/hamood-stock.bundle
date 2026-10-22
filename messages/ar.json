@@ -653,7 +653,24 @@
     "BROKENHelp": "تالف لكن يُحتفظ به — يذهب إلى مستودع المخزون التالف.",
     "TRASHEDHelp": "غير صالح للاستخدام — يُسجَّل ويُشطب فورًا.",
     "writtenOffAs": "شُطب في القيد",
-    "duplicateOrder": "{channel} {reference} شُحن من قبل في {number}. احفظ فقط إن كان هذا جزءًا ثانيًا من الطلب نفسه."
+    "duplicateOrder": "{channel} {reference} شُحن من قبل في {number}. احفظ فقط إن كان هذا جزءًا ثانيًا من الطلب نفسه.",
+    "salesChannel": "جهة البيع",
+    "channels": {
+      "WEBSITE": "الموقع",
+      "WEBSITEHelp": "طُلب من hamoodtv.com.",
+      "SHOWROOM": "المعرض",
+      "SHOWROOMHelp": "اشتُري من المعرض أو ركّبناه.",
+      "NOON": "نون",
+      "NOONHelp": "طُلب عبر نون.",
+      "AMAZON": "أمازون",
+      "AMAZONHelp": "طُلب عبر أمازون."
+    },
+    "returnRef": {
+      "WEBSITE": "رقم طلب الموقع أو رقم قيد البيع",
+      "SHOWROOM": "رقم الإيصال أو رقم قيد البيع",
+      "NOON": "رقم طلب نون أو رقم قيد البيع",
+      "AMAZON": "رقم طلب أمازون أو رقم قيد البيع"
+    }
   },
   "productPicker": {
     "add": "إضافة منتج",

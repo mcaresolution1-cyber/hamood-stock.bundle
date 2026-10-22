@@ -12,6 +12,7 @@ export type DetailField =
   | "customerPhone"
   | "technicianName"
   | "returnCondition"
+  | "salesChannel"
   | "destinationWarehouseId"
   | "reasonCode"
   | "paymentMethod"
@@ -27,6 +28,7 @@ const SPEC: Partial<Record<EntryReason, FieldSpec[]>> = {
   ],
   CUSTOMER_RETURN: [
     { field: "returnCondition", required: true },
+    { field: "salesChannel", required: true },
     { field: "reference", required: true },
     { field: "reasonCode", required: true },
     { field: "customerName", required: false },
@@ -88,6 +90,7 @@ export function keepReasonFields<T extends Partial<Record<DetailField, unknown>>
     "customerPhone",
     "technicianName",
     "returnCondition",
+    "salesChannel",
     "destinationWarehouseId",
     "reasonCode",
     "paymentMethod",

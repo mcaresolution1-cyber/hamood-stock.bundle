@@ -25,9 +25,11 @@ describe("entryFormSchema", () => {
     expect(errors(base({ reason: "CUSTOMER_RETURN" }))).toEqual({
       reference: "entryForm.errors.orderRequired",
       returnCondition: "validation.required",
+      salesChannel: "validation.required",
       reasonCode: "validation.required",
     });
-    expect(errors(base({ reason: "CUSTOMER_RETURN", reference: "12345", returnCondition: "BROKEN", reasonCode: "DEFECTIVE" }))).toEqual({});
+    expect(errors(base({ reason: "CUSTOMER_RETURN", reference: "12345", returnCondition: "BROKEN", salesChannel: "WEBSITE", reasonCode: "DEFECTIVE" }))).toEqual({});
+    expect(errors(base({ reason: "CUSTOMER_RETURN", reference: "12345", returnCondition: "BROKEN", salesChannel: "EBAY" as never, reasonCode: "DEFECTIVE" }))).toHaveProperty("salesChannel");
   });
 
   it("checks website order numbers, direct-sale payment and the photo for broken items", () => {
@@ -71,7 +73,7 @@ describe("entryFormSchema", () => {
   });
 
   it("a return whose reason is 'other' needs a note; conditions are resellable / broken / trashed", () => {
-    const ret = { reason: "CUSTOMER_RETURN", reference: "12345", returnCondition: "TRASHED" as const };
+    const ret = { reason: "CUSTOMER_RETURN", reference: "12345", returnCondition: "TRASHED" as const, salesChannel: "SHOWROOM" as const };
     expect(errors(base({ ...ret, reasonCode: "OTHER" }))).toEqual({ note: "validation.required" });
     expect(errors(base({ ...ret, reasonCode: "OTHER", note: "scratched box" }))).toEqual({});
     expect(errors(base({ direction: "OUT", reason: "SUPPLIER_RETURN", supplierId: "s1", reasonCode: "OTHER" }))).toEqual({ note: "validation.required" });

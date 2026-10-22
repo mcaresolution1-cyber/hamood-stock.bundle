@@ -37,6 +37,7 @@ const storedEntrySchema = z.object({
     .enum(["RESELLABLE", "BROKEN", "TRASHED", "DAMAGED"])
     .nullish()
     .transform((v) => (v === "DAMAGED" ? "BROKEN" : v)),
+  salesChannel: z.enum(["WEBSITE", "SHOWROOM", "NOON", "AMAZON"]).nullish(),
   lines: z.array(z.object({ productId: z.string(), quantity: z.number().int() })).min(1),
   reference: z.string().nullish(),
   customerName: z.string().nullish(),

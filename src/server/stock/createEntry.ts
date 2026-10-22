@@ -20,11 +20,11 @@ import {
   RETURNED_TRASHED,
   conditionWarehouseKind,
   isOrderReason,
-  normalizeMarketplaceOrder,
   normalizeOrder,
-  normalizeWebsiteOrder,
+  normalizeReturnReference,
   reasonCodesFor,
   type ReturnCondition,
+  type SalesChannel,
 } from "@/lib/stock/details";
 import { entryPermissionError, entryTypeFor, type Direction, type EntryActor } from "@/lib/stock/policy";
 import { ApprovalRequiredError, EntryRuleError, InsufficientStockError } from "./errors";
@@ -45,6 +45,8 @@ export type EntryInput = {
    * written off at once (plan channels-returns). Stored on the entry as itemCondition.
    */
   returnCondition?: ReturnCondition | null;
+  /** Customer returns: where it was sold; the sale is searched only on that channel. Stored as salesChannel. */
+  salesChannel?: SalesChannel | null;
   lines: LineInput[];
   reference?: string | null;
   customerName?: string | null;
@@ -134,7 +136,7 @@ export async function createEntryInTx(
 
   // Customer returns must match a recorded sale and can't exceed it (PC1). Checked first: it locks the sale
   // rows, and a void locks its entry row before the warehouse, so both take the locks in the same order.
-  const originalEntryId = input.reason === "CUSTOMER_RETURN" ? await checkReturnAgainstSale(tx, input.reference, mergeLines(input.lines)) : null;
+  const originalEntryId = input.reason === "CUSTOMER_RETURN" ? await checkReturnAgainstSale(tx, input.reference, mergeLines(input.lines), input.salesChannel) : null;
 
   const warehouse = await lockActiveWarehouse(tx, input.warehouseId);
   const denied = entryPermissionError(actor, { direction: input.direction, reason: input.reason, warehouse });
@@ -204,7 +206,7 @@ export async function createEntryInTx(
     reason: input.reason,
     // Channel order numbers are stored normalised ("#12 345" → "12345", "nae 123" → "NAE123"), and a return
     // by order no. is stored like the sale's, so later returns find it.
-    reference: storedReference(input.reason, input.reference),
+    reference: storedReference(input.reason, input.reference, input.salesChannel),
     customerName: clean(input.customerName),
     customerPhone: clean(input.customerPhone),
     technicianName: clean(input.technicianName),
@@ -227,6 +229,7 @@ export async function createEntryInTx(
       warehouseId: warehouse.id,
       originalEntryId,
       itemCondition: condition,
+      salesChannel: input.reason === "CUSTOMER_RETURN" ? (input.salesChannel ?? null) : null,
       lines: { create: lines },
     },
     select: { id: true, number: true, lines: { select: { id: true, productId: true } } },
@@ -283,9 +286,9 @@ export async function createEntryInTx(
 }
 
 /** How a reference is stored: channel orders normalised; a customer return like the sale it points at. */
-function storedReference(reason: EntryReason, reference: string | null | undefined): string | null {
+function storedReference(reason: EntryReason, reference: string | null | undefined, channel?: SalesChannel | null): string | null {
   if (isOrderReason(reason)) return normalizeOrder(reason, reference) ?? clean(reference);
-  if (reason === "CUSTOMER_RETURN") return normalizeWebsiteOrder(reference) ?? normalizeMarketplaceOrder(reference) ?? clean(reference);
+  if (reason === "CUSTOMER_RETURN") return normalizeReturnReference(channel, reference) ?? clean(reference);
   return clean(reference);
 }
 
