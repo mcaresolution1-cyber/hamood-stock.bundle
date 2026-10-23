@@ -99,16 +99,19 @@ describe("Noon and Amazon orders", () => {
 });
 
 describe("returned item condition", () => {
-  it("resellable goes to a sellable warehouse, broken and trashed to a damaged one", async () => {
+  it("resellable goes to a sellable warehouse, broken to any warehouse, trashed to a damaged one", async () => {
     signInAs(admin);
     saved(await saveEntry({ ...order("NOON_ORDER", "NAE1"), reference: "NAE100", lines: [{ productId: p1, quantity: "5" }] }));
     expect(await saveEntry(customerReturn("NAE100", "RESELLABLE", damaged))).toMatchObject({ ok: false, error: "stock.errors.returnWarehouseKind" });
-    expect(await saveEntry(customerReturn("NAE100", "BROKEN", main))).toMatchObject({ ok: false, error: "stock.errors.returnWarehouseKind" });
     expect(await saveEntry(customerReturn("NAE100", "TRASHED", main))).toMatchObject({ ok: false, error: "stock.errors.returnWarehouseKind" });
     const broken = saved(await saveEntry(customerReturn("NAE100", "BROKEN", damaged)));
     expect(await level(p1, damaged)).toBe(1);
     expect(await testDb.stockEntry.findUniqueOrThrow({ where: { id: broken.id } })).toMatchObject({ itemCondition: "BROKEN" });
     expect(broken.writeOff).toBeUndefined();
+    // Broken may also go back into a sellable warehouse (owner, 2026-10-23)
+    const intoMain = saved(await saveEntry(customerReturn("NAE100", "BROKEN", main)));
+    expect(await testDb.stockEntry.findUniqueOrThrow({ where: { id: intoMain.id } })).toMatchObject({ itemCondition: "BROKEN", warehouseId: main });
+    await expectLedgerMatchesLevels();
   });
 
   it("trashed: the return is written off at once (even by staff, without approval), and voiding either voids both", async () => {

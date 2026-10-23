@@ -100,12 +100,17 @@ describe("customer returns", () => {
       lines: [{ productId: p1, quantity: 1 }],
     };
     await expect(createEntry(testDb, staff, input)).resolves.toMatchObject({ number: "IN-000002" });
-    // …but resellable goods can't be put into a damaged warehouse, nor damaged ones into a sellable one
+    // …but resellable goods can't be put into a damaged warehouse, nor trashed ones into a sellable one;
+    // broken ones may also go into their own sellable warehouse (owner, 2026-10-23)
     await expect(createEntry(testDb, staff, { ...input, returnCondition: "RESELLABLE" })).rejects.toMatchObject({
       key: "stock.errors.returnWarehouseKind",
     });
-    await expect(createEntry(testDb, staff, { ...input, warehouseId: riyadh })).rejects.toMatchObject({
+    await expect(createEntry(testDb, staff, { ...input, returnCondition: "TRASHED", warehouseId: riyadh })).rejects.toMatchObject({
       key: "stock.errors.returnWarehouseKind",
     });
+    await expect(createEntry(testDb, staff, { ...input, warehouseId: riyadh })).resolves.toMatchObject({ number: "IN-000003" });
+    // …and only into sellable warehouses they are assigned to
+    const other = (await makeWarehouse("SELLABLE")).id;
+    await expect(createEntry(testDb, staff, { ...input, warehouseId: other })).rejects.toMatchObject({ key: "stock.errors.warehouseNotAssigned" });
   });
 });

@@ -650,7 +650,7 @@
     "amazonOrderNo": "Amazon order no.",
     "BROKEN": "Broken",
     "TRASHED": "Trashed",
-    "BROKENHelp": "Damaged but kept — goes into a damaged-stock warehouse.",
+    "BROKENHelp": "Damaged but kept — goes into any warehouse.",
     "TRASHEDHelp": "Not usable — recorded and written off at once.",
     "writtenOffAs": "Written off as",
     "duplicateOrder": "{channel} {reference} was already shipped in {number}. Save only if this is a second part of the same order.",

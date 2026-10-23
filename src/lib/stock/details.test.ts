@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  conditionWarehouseKind,
+  conditionAllowsKind,
   isOrderReason,
   looksLikeEntryNumber,
   normalizeMarketplaceOrder,
@@ -41,9 +41,9 @@ describe("channels and return conditions (plan channels-returns)", () => {
     expect(normalizeMarketplaceOrder("x!")).toBeNull();
     expect(normalizeOrder("WEBSITE_ORDER", "NAE123")).toBeNull();
     expect(normalizeOrder("NOON_ORDER", "nae123")).toBe("NAE123");
-    expect(conditionWarehouseKind("RESELLABLE")).toBe("SELLABLE");
-    expect(conditionWarehouseKind("BROKEN")).toBe("DAMAGED");
-    expect(conditionWarehouseKind("TRASHED")).toBe("DAMAGED");
+    expect([conditionAllowsKind("RESELLABLE", "SELLABLE"), conditionAllowsKind("RESELLABLE", "DAMAGED")]).toEqual([true, false]);
+    expect([conditionAllowsKind("BROKEN", "SELLABLE"), conditionAllowsKind("BROKEN", "DAMAGED")]).toEqual([true, true]);
+    expect([conditionAllowsKind("TRASHED", "SELLABLE"), conditionAllowsKind("TRASHED", "DAMAGED")]).toEqual([false, true]);
     expect(isOrderReason("AMAZON_ORDER")).toBe(true);
     expect(isOrderReason("DIRECT_SALE")).toBe(false);
     expect(reasonCodesFor("SUPPLIER_RETURN")).toContain("WRONG_ITEM");

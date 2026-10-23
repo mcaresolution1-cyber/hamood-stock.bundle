@@ -289,8 +289,9 @@ The table is `ROLE_ACTIONS` in `src/lib/permissions.ts` (decisions PA1–PA3 in 
 - **STAFF:** create `IN` / `OUT` / `TRANSFER` entries **only in their assigned warehouses**, and *request*
   corrections and damaged/lost there (approval rules decide), with two exceptions (docs/plans/v1.md):
   - a **transfer** needs only the *source* warehouse assigned; the destination may be any active warehouse;
-  - a **damaged customer return** (`CUSTOMER_RETURN` marked damaged) may go into any active `DAMAGED`
-    warehouse without assignment — this reason only.
+  - a **broken customer return** (`CUSTOMER_RETURN` marked broken) may go into any active `DAMAGED`
+    warehouse without assignment — this reason only. (Broken returns may also go into the user's own
+    sellable warehouses; resellable ones only there.)
   A customer return marked **trashed** goes into a `DAMAGED` warehouse the same way and is written off at
   once by a linked damaged/lost entry (`RETURNED_TRASHED`) without approval — it can't exceed what was sold,
   and voiding either entry voids both (docs/plans/channels-returns.md).
