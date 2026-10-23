@@ -3,7 +3,7 @@
  * only see valid choices; the entry service still enforces everything. Pure.
  */
 import type { EntryReason, WarehouseKind } from "@/generated/prisma/enums";
-import { conditionWarehouseKind, type ReturnCondition } from "./details";
+import type { ReturnCondition } from "./details";
 import { reasonAllowedForKind } from "./policy";
 
 export type WarehouseOption = { id: string; name: string; kind: WarehouseKind; writable: boolean };
@@ -14,10 +14,13 @@ export function sourceWarehouses<T extends WarehouseOption>(
   returnCondition: "" | ReturnCondition,
 ): T[] {
   if (reason === "CUSTOMER_RETURN") {
-    // Q2: broken / trashed returns may go into any DAMAGED warehouse; resellable ones into your sellable ones.
-    return conditionWarehouseKind(returnCondition) === "DAMAGED"
-      ? warehouses.filter((w) => w.kind === "DAMAGED")
-      : warehouses.filter((w) => w.writable && w.kind === "SELLABLE");
+    // Q2: any DAMAGED warehouse (no assignment needed) for broken / trashed; your sellable ones for resellable
+    // and broken (broken may go anywhere — damaged-stock warehouses are listed first).
+    const damaged = warehouses.filter((w) => w.kind === "DAMAGED");
+    const sellable = warehouses.filter((w) => w.writable && w.kind === "SELLABLE");
+    if (returnCondition === "TRASHED") return damaged;
+    if (returnCondition === "BROKEN") return [...damaged, ...sellable];
+    return sellable;
   }
   return warehouses.filter((w) => w.writable && (!reason || reasonAllowedForKind(reason, w.kind)));
 }

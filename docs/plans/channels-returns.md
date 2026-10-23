@@ -40,3 +40,8 @@ next to the condition).
   the "same number on two channels" ambiguity.
 - The order no. label follows the channel. Returns saved earlier get their channel from the sale they were
   linked to (one-time fill of the new column).
+
+## Follow-up (2026-10-23) — broken returns into any warehouse
+Owner: "the damaged stock can also be back into any warehouse" → a return marked **Broken** may go into any
+warehouse: a damaged-stock one (no assignment needed, as before) or one of the user's sellable ones. Trashed
+returns still go into a damaged-stock warehouse; resellable ones into a sellable one.

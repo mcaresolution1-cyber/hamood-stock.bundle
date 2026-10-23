@@ -11,15 +11,17 @@ export const SUPPLIER_RETURN_REASONS = ["DEFECTIVE", "WRONG_ITEM", "DAMAGED_IN_D
 export const RETURNED_TRASHED = "RETURNED_TRASHED";
 
 /**
- * Condition of a returned item (plan channels-returns): resellable → a sellable warehouse; broken → a
- * damaged-stock warehouse; trashed → a damaged-stock warehouse, then written off at once.
+ * Condition of a returned item (plan channels-returns): resellable → a sellable warehouse; broken → any
+ * warehouse (owner, 2026-10-23); trashed → a damaged-stock warehouse, then written off at once.
  */
 export const RETURN_CONDITIONS = ["RESELLABLE", "BROKEN", "TRASHED"] as const;
 export type ReturnCondition = (typeof RETURN_CONDITIONS)[number];
 
-/** The warehouse kind a returned item in this condition goes into. */
-export function conditionWarehouseKind(condition: ReturnCondition | "" | null | undefined): "SELLABLE" | "DAMAGED" {
-  return condition === "BROKEN" || condition === "TRASHED" ? "DAMAGED" : "SELLABLE";
+/** Whether a returned item in this condition may go into a warehouse of this kind. */
+export function conditionAllowsKind(condition: ReturnCondition | "" | null | undefined, kind: "SELLABLE" | "DAMAGED"): boolean {
+  if (condition === "BROKEN") return true;
+  if (condition === "TRASHED") return kind === "DAMAGED";
+  return kind === "SELLABLE";
 }
 
 /**

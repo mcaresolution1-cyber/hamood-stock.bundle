@@ -18,7 +18,7 @@ import { can } from "@/lib/permissions";
 import { checkReturnAgainstSale } from "./returns";
 import {
   RETURNED_TRASHED,
-  conditionWarehouseKind,
+  conditionAllowsKind,
   isOrderReason,
   normalizeOrder,
   normalizeReturnReference,
@@ -142,9 +142,9 @@ export async function createEntryInTx(
   const denied = entryPermissionError(actor, { direction: input.direction, reason: input.reason, warehouse });
   if (denied) throw new EntryRuleError(denied);
 
-  // Customer returns: resellable goods go to a SELLABLE warehouse, broken / trashed ones to a DAMAGED one (Q2).
+  // Customer returns: resellable goods go to a SELLABLE warehouse, broken ones anywhere, trashed ones to a DAMAGED one.
   const condition = input.reason === "CUSTOMER_RETURN" ? (input.returnCondition ?? "RESELLABLE") : null;
-  if (condition && warehouse.kind !== conditionWarehouseKind(condition)) throw new EntryRuleError("stock.errors.returnWarehouseKind");
+  if (condition && !conditionAllowsKind(condition, warehouse.kind)) throw new EntryRuleError("stock.errors.returnWarehouseKind");
 
   let destination: Awaited<ReturnType<typeof lockActiveWarehouse>> | null = null;
   if (type === "TRANSFER_OUT") {
