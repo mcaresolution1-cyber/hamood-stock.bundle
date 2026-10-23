@@ -1004,7 +1004,8 @@
       "category_update": "Category changed",
       "category_activate": "Category shown",
       "category_deactivate": "Category hidden",
-      "category_delete": "Category deleted"
+      "category_delete": "Category deleted",
+      "system_resetTestData": "Test data cleared"
     },
     "fields": {
       "modelCode": "Model code",
