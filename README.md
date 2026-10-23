@@ -146,8 +146,8 @@ To start over after testing, without a shell:
    Riyadh Main / Damaged Stock warehouses, and starts entry and SKU numbers from 1. The log shows
    `[startup] cleared the test data …`.
 4. It also creates one login per role, each with the temporary password, to be changed at first sign-in:
-   `test.admin@`, `test.manager@` (both warehouses), `test.staff@` (Riyadh Main), `test.technician@`,
-   `test.accountant@`, `test.viewer@` — all `…@hamoodtv.local`.
+   `admin@`, `manager@` (both warehouses), `staff@` (Riyadh Main), `technician@`, `accountant@`,
+   `viewer@` — all `…@hamoodtv.com`. An account that already has one of these emails is left as it is.
 5. Remove both variables again. (It runs only once per `RESET_TEST_DATA` value, so a value left behind
    won't clear anything on later restarts — but don't leave the password there.)
 

@@ -32,6 +32,10 @@ async function someTestData() {
 }
 
 describe("resetTestData", () => {
+  it("logins are <role>@hamoodtv.com", () => {
+    expect(TEST_LOGINS.map((l) => l.email)).toEqual(["admin", "manager", "staff", "technician", "accountant", "viewer"].map((r) => `${r}@hamoodtv.com`));
+  });
+
   it("does nothing unless asked with a long enough value and password", async () => {
     await someTestData();
     expect(await resetTestData(conn, testDb, {})).toBe("skipped");
@@ -101,11 +105,29 @@ describe("resetTestData", () => {
     expect(await testDb.stockEntry.count()).toBe(1);
     expect(await testDb.user.count({ where: { email: { in: TEST_LOGINS.map((l) => l.email) } } })).toBe(6);
 
-    // A new value clears again and resets the test logins (no duplicates)
+    // A new value clears again; logins that exist are left alone (password kept), no duplicates,
+    // and the manager / staff get the new warehouses again
     expect(await resetTestData(conn, testDb, { token: "clear-again-1", password: "Other-Pass-2" })).toBe("reset");
     expect(await testDb.stockEntry.count()).toBe(0);
-    const again = await testDb.user.findMany({ where: { email: { in: TEST_LOGINS.map((l) => l.email) } } });
+    const again = await testDb.user.findMany({
+      where: { email: { in: TEST_LOGINS.map((l) => l.email) } },
+      include: { warehouses: { select: { name: true } } },
+    });
     expect(again).toHaveLength(6);
-    expect(await bcrypt.compare("Other-Pass-2", again[0].passwordHash)).toBe(true);
+    for (const u of again) expect(await bcrypt.compare("Temp-Pass-1", u.passwordHash)).toBe(true);
+    expect(again.find((u) => u.role === "STAFF")?.warehouses.map((w) => w.name)).toEqual(["Riyadh Main"]);
+  });
+
+  it("never changes a real account that already uses one of the login emails", async () => {
+    await someTestData();
+    const real = await testDb.user.create({
+      data: { name: "Owner", email: "admin@hamoodtv.com", role: "ADMIN", passwordHash: await bcrypt.hash("Real-Pass-1", 4) },
+    });
+    expect(await resetTestData(conn, testDb, { token: "clear-2026-10-23", password: "Temp-Pass-1" })).toBe("reset");
+    const after = await testDb.user.findUniqueOrThrow({ where: { id: real.id } });
+    expect(after).toMatchObject({ name: "Owner", role: "ADMIN", mustChangePassword: false });
+    expect(await bcrypt.compare("Real-Pass-1", after.passwordHash)).toBe(true);
+    expect(await testDb.user.count({ where: { email: { in: TEST_LOGINS.map((l) => l.email) } } })).toBe(6);
+    expect(await testDb.auditLog.findFirst({ where: { action: "system.resetTestData" } })).toMatchObject({ actorId: real.id });
   });
 });

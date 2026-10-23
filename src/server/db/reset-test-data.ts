@@ -10,8 +10,9 @@
  *   1. deletes every stock entry, stock level, approval request, cost, photo, product, category, supplier and
  *      warehouse in ONE transaction, and sets the entry / SKU counters back to 0;
  *   2. recreates the default categories and warehouses;
- *   3. creates (or resets) one test login per role — test.<role>@hamoodtv.local — who must choose their own
- *      password at first sign-in.
+ *   3. creates one login per role — <role>@hamoodtv.com — who must choose their own password at first sign-in.
+ *      An account that already exists with one of these emails is never changed (its password stays); a
+ *      manager / staff one only gets the new warehouses assigned again.
  * Users, the audit log, sign-in history and settings are kept. This is the ONE place allowed to delete
  * ledger rows: it starts the ledger over (levels go with the entries, so it stays rebuildable).
  */
@@ -47,12 +48,12 @@ export const RESET_TABLES = [
 ] as const;
 
 export const TEST_LOGINS: { role: Role; name: string; email: string; warehouses: "none" | "main" | "all" }[] = [
-  { role: "ADMIN", name: "Test Admin", email: "test.admin@hamoodtv.local", warehouses: "none" },
-  { role: "MANAGER", name: "Test Manager", email: "test.manager@hamoodtv.local", warehouses: "all" },
-  { role: "STAFF", name: "Test Staff", email: "test.staff@hamoodtv.local", warehouses: "main" },
-  { role: "TECHNICIAN", name: "Test Technician", email: "test.technician@hamoodtv.local", warehouses: "none" },
-  { role: "ACCOUNTANT", name: "Test Accountant", email: "test.accountant@hamoodtv.local", warehouses: "none" },
-  { role: "VIEWER", name: "Test Viewer", email: "test.viewer@hamoodtv.local", warehouses: "none" },
+  { role: "ADMIN", name: "Admin", email: "admin@hamoodtv.com", warehouses: "none" },
+  { role: "MANAGER", name: "Manager", email: "manager@hamoodtv.com", warehouses: "all" },
+  { role: "STAFF", name: "Staff", email: "staff@hamoodtv.com", warehouses: "main" },
+  { role: "TECHNICIAN", name: "Technician", email: "technician@hamoodtv.com", warehouses: "none" },
+  { role: "ACCOUNTANT", name: "Accountant", email: "accountant@hamoodtv.com", warehouses: "none" },
+  { role: "VIEWER", name: "Viewer", email: "viewer@hamoodtv.com", warehouses: "none" },
 ];
 
 export type ResetRequest = { token?: string; password?: string };
@@ -120,31 +121,42 @@ export async function resetTestData(
     const main = warehouses.filter((w) => w.name === DEFAULT_WAREHOUSES[0].name);
     const hash = await bcrypt.hash(password, 12);
     let adminId: string | null = null;
+    const created: string[] = [];
+    const kept: string[] = [];
     for (const login of TEST_LOGINS) {
       const assigned = login.warehouses === "all" ? warehouses : login.warehouses === "main" ? main : [];
-      const data = {
-        name: login.name,
-        role: login.role,
-        active: true,
-        passwordHash: hash,
-        mustChangePassword: true,
-        passwordChangedAt: new Date(), // ends any session of an earlier test login with this email
-        warehouses: { set: assigned.map((w) => ({ id: w.id })) },
-      };
-      const user = await db.user.upsert({
-        where: { email: login.email },
-        create: { ...data, email: login.email, warehouses: { connect: assigned.map((w) => ({ id: w.id })) } },
-        update: data,
+      const existing = await db.user.findUnique({ where: { email: login.email }, select: { id: true, role: true } });
+      if (existing) {
+        // Never touch a real account's password; only give a manager / staff back their warehouses.
+        if (existing.role === login.role && assigned.length) {
+          await db.user.update({ where: { id: existing.id }, data: { warehouses: { set: assigned.map((w) => ({ id: w.id })) } } });
+        }
+        kept.push(login.email);
+        if (login.role === "ADMIN" && existing.role === "ADMIN") adminId = existing.id;
+        continue;
+      }
+      const user = await db.user.create({
+        data: {
+          name: login.name,
+          email: login.email,
+          role: login.role,
+          passwordHash: hash,
+          mustChangePassword: true,
+          warehouses: { connect: assigned.map((w) => ({ id: w.id })) },
+        },
         select: { id: true },
       });
+      created.push(login.email);
       if (login.role === "ADMIN") adminId = user.id;
     }
+    adminId ??= (await db.user.findFirst({ where: { role: "ADMIN", active: true }, select: { id: true } }))?.id ?? null;
     if (adminId) {
       await db.auditLog.create({
         data: { actorId: adminId, action: "system.resetTestData", subjectType: "system", subjectLabel: token.slice(0, 200) },
       });
     }
-    log(`test logins ready: ${TEST_LOGINS.map((l) => l.email).join(", ")} (temporary password = RESET_LOGIN_PASSWORD)`);
+    if (created.length) log(`logins created: ${created.join(", ")} (temporary password = RESET_LOGIN_PASSWORD)`);
+    if (kept.length) log(`logins already there, left as they are: ${kept.join(", ")}`);
     return "reset";
   } finally {
     await conn.query("SELECT RELEASE_LOCK('hamood_reset_test_data')");
