@@ -1004,7 +1004,8 @@
       "category_update": "تعديل فئة",
       "category_activate": "إظهار فئة",
       "category_deactivate": "إخفاء فئة",
-      "category_delete": "حذف فئة"
+      "category_delete": "حذف فئة",
+      "system_resetTestData": "مُسحت بيانات الاختبار"
     },
     "fields": {
       "modelCode": "رقم الموديل",

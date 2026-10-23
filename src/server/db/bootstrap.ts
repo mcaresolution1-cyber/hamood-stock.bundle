@@ -9,6 +9,7 @@ import { MIGRATIONS } from "@/generated/migrations";
 import { mariadbConfig, readCommittedSupported } from "@/lib/db-config";
 import { applyMigrations } from "./migrator";
 import { ensureBaseData, firstAdminFromEnv } from "./base-data";
+import { resetRequestFromEnv, resetTestData } from "./reset-test-data";
 
 const log = (m: string) => console.log(`[startup] ${m}`);
 
@@ -30,6 +31,9 @@ export async function bootstrap() {
     }
     const applied = await applyMigrations(conn, MIGRATIONS, log);
     if (!applied.length) log("database schema is up to date");
+    const { db } = await import("@/lib/db");
+    // Only when RESET_TEST_DATA is set, once per value (src/server/db/reset-test-data.ts)
+    await resetTestData(conn, db, resetRequestFromEnv(), log);
   } finally {
     await conn.end();
   }

@@ -134,6 +134,23 @@ All data, including delivery-note photos, is in the database. Hostinger's backup
 an extra copy, export the database from **Databases → phpMyAdmin → Export**, or use **Reports → Download
 Excel** for a readable snapshot.
 
+### Clearing test data before go-live
+
+To start over after testing, without a shell:
+
+1. Take a backup first (**Databases → phpMyAdmin → Export**). The clearing can't be undone.
+2. In the app's **Environment variables** add `RESET_TEST_DATA` = any word of 8+ characters (e.g.
+   `clear-2026-10-23`) and `RESET_LOGIN_PASSWORD` = a temporary password (8+ characters). Save and restart.
+3. At start-up the app deletes all entries, stock, approvals, costs, photos, products, categories, suppliers
+   and warehouses (users, settings and the audit log stay), recreates the default categories and the
+   Riyadh Main / Damaged Stock warehouses, and starts entry and SKU numbers from 1. The log shows
+   `[startup] cleared the test data …`.
+4. It also creates one login per role, each with the temporary password, to be changed at first sign-in:
+   `admin@`, `manager@` (both warehouses), `staff@` (Riyadh Main), `technician@`, `accountant@`,
+   `viewer@` — all `…@hamoodtv.com`. An account that already has one of these emails is left as it is.
+5. Remove both variables again. (It runs only once per `RESET_TEST_DATA` value, so a value left behind
+   won't clear anything on later restarts — but don't leave the password there.)
+
 ### Troubleshooting
 
 | Symptom | Fix |
